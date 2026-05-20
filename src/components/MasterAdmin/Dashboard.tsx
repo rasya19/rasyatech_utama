@@ -32,70 +32,44 @@ export default function Admin() {
   
   // Data States
   const [config, setConfig] = useState<any>({ whatsapp: '', address: '', openingHours: '', heroTitle: '', heroSubtitle: '' });
- const [savingPayments, setSavingPayments] = useState(false);
-const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [payments, setPayments] = useState<any>({
+    bankBcaProvider: 'BCA',
+    bankBca: '1234567890',
+    bankMandiriProvider: 'Mandiri',
+    bankMandiri: '0987654321',
+    eWallet: '081918226387',
+    bankBcaName: 'PT Rasyatech Digital',
+    bankMandiriName: 'PT Rasyatech Digital',
+    eWalletName: 'Admin Rasyatech'
+  });
+  const [services, setServices] = useState<any[]>([]);
+  const [laptops, setLaptops] = useState<any[]>([]);
+  const [ads, setAds] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [affiliates, setAffiliates] = useState<any[]>([]);
+  const [visitorCount, setVisitorCount] = useState<number>(0);
 
-// Data States
-const [config, setConfig] = useState<any>({ whatsapp: '', address: '', openingHours: '', heroTitle: '', heroSubtitle: '' });
-const [payments, setPayments] = useState<any>({
-  bankBcaProvider: 'BCA',
-  bankBca: '1234567890',
-  bankMandiriProvider: 'Mandiri',
-  bankMandiri: '0987654321',
-  eWallet: '081918226387',
-  bankBcaName: 'PT Rasyatech Digital',
-  bankMandiriName: 'PT Rasyatech Digital',
-  eWalletName: 'Admin Rasyatech'
-});
-const [services, setServices] = useState<any[]>([]);
-const [laptops, setLaptops] = useState<any[]>([]);
-const [ads, setAds] = useState<any[]>([]);
-const [products, setProducts] = useState<any[]>([]);
-const [registrations, setRegistrations] = useState<any[]>([]);
-const [affiliates, setAffiliates] = useState<any[]>([]);
-const [visitorCount, setVisitorCount] = useState<number>(0);
-
-// ========== TAMBAHKAN 2 BARIS INI ==========
-const [loadingRegistrations, setLoadingRegistrations] = useState(true);
-const [registrationsError, setRegistrationsError] = useState<string | null>(null);
-// ===========================================
-
-// Edit States
-const [editingService, setEditingService] = useState<any>(null);
-const [editingLaptop, setEditingLaptop] = useState<any>(null);
-const [editingProduct, setEditingProduct] = useState<any>(null);
-const [editingAffiliate, setEditingAffiliate] = useState<any>(null);
-const [editingRegistration, setEditingRegistration] = useState<any>(null);
-const [email, setEmail] = useState('');
-const [password, setPassword] = useState('');
-  
-  // ========== TAMBAHKAN 2 BARIS INI ==========
   const [loadingRegistrations, setLoadingRegistrations] = useState(true);
   const [registrationsError, setRegistrationsError] = useState<string | null>(null);
-  // ===========================================
-  
+
   // Edit States
   const [editingService, setEditingService] = useState<any>(null);
-  
-  // Edit States
-const [editingService, setEditingService] = useState<any>(null);
-const [editingLaptop, setEditingLaptop] = useState<any>(null);
-const [editingProduct, setEditingProduct] = useState<any>(null);
-const [editingAffiliate, setEditingAffiliate] = useState<any>(null);
-const [editingRegistration, setEditingRegistration] = useState<any>(null);
-const [email, setEmail] = useState('');
-const [password, setPassword] = useState('');
+  const [editingLaptop, setEditingLaptop] = useState<any>(null);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [editingAffiliate, setEditingAffiliate] = useState<any>(null);
+  const [editingRegistration, setEditingRegistration] = useState<any>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-useEffect(() => {
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-        setUser(session?.user ?? null);
-        setLoading(false);
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
-}, []);
-
-const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-    setUser(session?.user ?? null);
-});
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
     return () => subscription.unsubscribe();
   }, []);
 
@@ -271,27 +245,15 @@ const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess
     }
   };
 
- const handleDeleteRegistration = async (id: string) => {
-  if (!window.confirm("Yakin ingin menghapus permanen pendaftar ini?")) return;
-  
-  try {
-    const response = await fetch(`/api/delete-registration`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) throw new Error(data.error || 'Gagal hapus');
-    
-    setSaveStatus({ type: 'success', message: 'Berhasil dihapus!' });
-    await fetchRegistrations();
-    setTimeout(() => setSaveStatus(null), 3000);
-  } catch (err: any) {
-    setSaveStatus({ type: 'error', message: err.message });
-  }
-};
+  const handleDeleteService = async (id: string) => {
+    if (!confirm('Yakin ingin menghapus layanan ini?')) return;
+    try {
+      const { error } = await supabase.from('services').delete().eq('id', id);
+      if (error) throw error;
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleSaveService = async (e: FormEvent) => {
     e.preventDefault();
