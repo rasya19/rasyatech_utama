@@ -32,23 +32,50 @@ export default function Admin() {
   
   // Data States
   const [config, setConfig] = useState<any>({ whatsapp: '', address: '', openingHours: '', heroTitle: '', heroSubtitle: '' });
-  const [payments, setPayments] = useState<any>({
-    bankBcaProvider: 'BCA',
-    bankBca: '1234567890',
-    bankMandiriProvider: 'Mandiri',
-    bankMandiri: '0987654321',
-    eWallet: '081918226387',
-    bankBcaName: 'PT Rasyatech Digital',
-    bankMandiriName: 'PT Rasyatech Digital',
-    eWalletName: 'Admin Rasyatech'
-  });
-  const [services, setServices] = useState<any[]>([]);
-  const [laptops, setLaptops] = useState<any[]>([]);
-  const [ads, setAds] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [registrations, setRegistrations] = useState<any[]>([]);
-  const [affiliates, setAffiliates] = useState<any[]>([]);
-  const [visitorCount, setVisitorCount] = useState<number>(0);
+ const [savingPayments, setSavingPayments] = useState(false);
+const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
+// Data States
+const [config, setConfig] = useState<any>({ whatsapp: '', address: '', openingHours: '', heroTitle: '', heroSubtitle: '' });
+const [payments, setPayments] = useState<any>({
+  bankBcaProvider: 'BCA',
+  bankBca: '1234567890',
+  bankMandiriProvider: 'Mandiri',
+  bankMandiri: '0987654321',
+  eWallet: '081918226387',
+  bankBcaName: 'PT Rasyatech Digital',
+  bankMandiriName: 'PT Rasyatech Digital',
+  eWalletName: 'Admin Rasyatech'
+});
+const [services, setServices] = useState<any[]>([]);
+const [laptops, setLaptops] = useState<any[]>([]);
+const [ads, setAds] = useState<any[]>([]);
+const [products, setProducts] = useState<any[]>([]);
+const [registrations, setRegistrations] = useState<any[]>([]);
+const [affiliates, setAffiliates] = useState<any[]>([]);
+const [visitorCount, setVisitorCount] = useState<number>(0);
+
+// ========== TAMBAHKAN 2 BARIS INI ==========
+const [loadingRegistrations, setLoadingRegistrations] = useState(true);
+const [registrationsError, setRegistrationsError] = useState<string | null>(null);
+// ===========================================
+
+// Edit States
+const [editingService, setEditingService] = useState<any>(null);
+const [editingLaptop, setEditingLaptop] = useState<any>(null);
+const [editingProduct, setEditingProduct] = useState<any>(null);
+const [editingAffiliate, setEditingAffiliate] = useState<any>(null);
+const [editingRegistration, setEditingRegistration] = useState<any>(null);
+const [email, setEmail] = useState('');
+const [password, setPassword] = useState('');
+  
+  // ========== TAMBAHKAN 2 BARIS INI ==========
+  const [loadingRegistrations, setLoadingRegistrations] = useState(true);
+  const [registrationsError, setRegistrationsError] = useState<string | null>(null);
+  // ===========================================
+  
+  // Edit States
+  const [editingService, setEditingService] = useState<any>(null);
   
   // Edit States
   const [editingService, setEditingService] = useState<any>(null);
@@ -242,15 +269,27 @@ export default function Admin() {
     }
   };
 
-  const handleDeleteService = async (id: string) => {
-    if (!confirm('Yakin ingin menghapus layanan ini?')) return;
-    try {
-      const { error } = await supabase.from('services').delete().eq('id', id);
-      if (error) throw error;
-    } catch (err) {
-      console.error(err);
-    }
-  };
+ const handleDeleteRegistration = async (id: string) => {
+  if (!window.confirm("Yakin ingin menghapus permanen pendaftar ini?")) return;
+  
+  try {
+    const response = await fetch(`/api/delete-registration`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) throw new Error(data.error || 'Gagal hapus');
+    
+    setSaveStatus({ type: 'success', message: 'Berhasil dihapus!' });
+    await fetchRegistrations();
+    setTimeout(() => setSaveStatus(null), 3000);
+  } catch (err: any) {
+    setSaveStatus({ type: 'error', message: err.message });
+  }
+};
 
   const handleSaveService = async (e: FormEvent) => {
     e.preventDefault();
@@ -970,102 +1009,136 @@ export default function Admin() {
 
           {/* Registrations Section */}
           {activeTab === 'registrations' && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-              <div className="flex justify-between items-center bg-white p-8 rounded-[32px] border border-slate-100">
-                <div>
-                  <h2 className="text-3xl font-black">Manajemen Pendaftar</h2>
-                  <p className="text-slate-500 font-medium">Kelola pendaftaran sekolah baru dari landing page.</p>
+  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+    <div className="flex justify-between items-center bg-white p-8 rounded-[32px] border border-slate-100">
+      <div>
+        <h2 className="text-3xl font-black">Manajemen Pendaftar</h2>
+        <p className="text-slate-500 font-medium">Kelola pendaftaran sekolah baru dari landing page.</p>
+      </div>
+      <div className="flex gap-3">
+        {/* Tombol Refresh - TAMBAHAN BARU */}
+        <button 
+          onClick={fetchRegistrations}
+          className="px-6 py-3 bg-slate-600 text-white font-black rounded-2xl flex items-center gap-2 shadow-lg hover:bg-slate-700 transition-all"
+        >
+          <Loader2 className="w-5 h-5" /> Refresh
+        </button>
+        <button 
+          onClick={() => setEditingRegistration({ school_name: '', npsn: '', admin_name: '', admin_email: '', WA: '', status: 'pending', subdomain: '', is_approved: false })}
+          className="px-6 py-3 bg-indigo-600 text-white font-black rounded-2xl flex items-center gap-2 shadow-lg hover:bg-indigo-700 transition-all"
+        >
+          <Plus className="w-5 h-5" /> Tambah Pendaftar
+        </button>
+      </div>
+    </div>
+
+    {/* LOADING STATE - TAMBAHAN BARU */}
+    {loadingRegistrations && (
+      <div className="bg-white rounded-[40px] border border-slate-100 p-20 text-center">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-4" />
+        <p className="text-slate-500 font-medium">Memuat data pendaftar...</p>
+      </div>
+    )}
+
+    {/* ERROR STATE - TAMBAHAN BARU */}
+    {registrationsError && !loadingRegistrations && (
+      <div className="bg-red-50 border border-red-200 rounded-[32px] p-8 text-center">
+        <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
+        <p className="text-red-600 font-bold mb-2">Gagal memuat data</p>
+        <p className="text-red-500 text-sm mb-4">{registrationsError}</p>
+        <button 
+          onClick={fetchRegistrations}
+          className="px-6 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all"
+        >
+          Coba Lagi
+        </button>
+      </div>
+    )}
+
+    {/* DATA LIST - hanya tampil jika tidak loading dan tidak error */}
+    {!loadingRegistrations && !registrationsError && (
+      <div className="grid grid-cols-1 gap-6">
+        {registrations.map(reg => (
+          <div key={reg.id} className="bg-white rounded-[32px] border border-slate-100 p-8 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
+              <div>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <span className="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
+                     URL: {reg.subdomain || '-'}.rsch.my.id
+                  </span>
                 </div>
-                <button 
-                  onClick={() => setEditingRegistration({ school_name: '', npsn: '', admin_name: '', admin_email: '', WA: '', status: 'pending', subdomain: '', is_approved: false })}
-                  className="px-6 py-3 bg-indigo-600 text-white font-black rounded-2xl flex items-center gap-2 shadow-lg"
-                >
-                  <Plus className="w-5 h-5" /> Tambah Pendaftar
+                <p className="text-slate-500 font-medium">Admin: <span className="text-slate-900 font-bold">{reg.admin_name}</span> ({reg.admin_email})</p>
+                <p className="text-slate-400 text-xs font-bold mt-1">WA: {reg.WA || '-'}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {reg.status === 'verified' ? (
+                  <>
+                    <div className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl flex items-center gap-2 border border-emerald-100">
+                       <CheckCircle2 className="w-4 h-4" />
+                       <span className="text-xs font-black uppercase tracking-tight">TERVERIFIKASI</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        window.open(`https://${reg.subdomain}.rsch.my.id`, '_blank');
+                      }}
+                      className="px-4 py-2 bg-indigo-600 text-white shadow-lg shadow-indigo-100 rounded-xl text-xs font-black transition-all hover:bg-indigo-700"
+                    >
+                      Manage Access
+                    </button>
+                    <button 
+                      onClick={() => handleUnverifySchool(reg)}
+                      className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors group"
+                      title="Batalkan Verifikasi"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => handleVerifySchool(reg)}
+                    className="px-6 py-2.5 bg-indigo-600 text-white shadow-lg shadow-indigo-100 rounded-xl text-sm font-black transition-all hover:bg-indigo-700 flex items-center gap-2"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    Verify Now
+                  </button>
+                )}
+                <button onClick={() => handleDeleteRegistration(reg.id)} className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors ml-auto">
+                  <Trash2 className="w-5 h-5" />
                 </button>
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 gap-6">
-                {registrations.map(reg => (
-                  <div key={reg.id} className="bg-white rounded-[32px] border border-slate-100 p-8 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
-                      <div>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          <span className="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
-                             URL: {reg.subdomain || '-'}.rsch.my.id
-                          </span>
-                        </div>
-                        <p className="text-slate-500 font-medium">Admin: <span className="text-slate-900 font-bold">{reg.admin_name}</span> ({reg.admin_email})</p>
-                        <p className="text-slate-400 text-xs font-bold mt-1">WA: {reg.WA || '-'}</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        {reg.status === 'verified' ? (
-                          <>
-                            <div className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl flex items-center gap-2 border border-emerald-100">
-                               <CheckCircle2 className="w-4 h-4" />
-                               <span className="text-xs font-black uppercase tracking-tight">TERVERIFIKASI</span>
-                            </div>
-                            <button
-                              onClick={() => {
-                                window.open(`https://${reg.subdomain}.rsch.my.id`, '_blank');
-                              }}
-                              className="px-4 py-2 bg-indigo-600 text-white shadow-lg shadow-indigo-100 rounded-xl text-xs font-black transition-all hover:bg-indigo-700"
-                            >
-                              Manage Access
-                            </button>
-                            <button 
-                              onClick={() => handleUnverifySchool(reg)}
-                              className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors group"
-                              title="Batalkan Verifikasi"
-                            >
-                              <XCircle className="w-5 h-5" />
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => handleVerifySchool(reg)}
-                            className="px-6 py-2.5 bg-indigo-600 text-white shadow-lg shadow-indigo-100 rounded-xl text-sm font-black transition-all hover:bg-indigo-700 flex items-center gap-2"
-                          >
-                            <ShieldCheck className="w-4 h-4" />
-                            Verify Now
-                          </button>
-                        )}
-                        <button onClick={() => handleDeleteRegistration(reg.id)} className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors ml-auto">
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-6 border-t border-slate-50">
-                      <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Kontak Admin</label>
-                        <p className="font-bold text-slate-900">{reg.admin_name || '-'}</p>
-                        <p className="text-xs text-slate-500">{reg.admin_email}</p>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Sekolah / NPSN</label>
-                        <p className="font-bold text-slate-900">{reg.school_name}</p>
-                        <p className="text-xs text-slate-500">NPSN: {reg.npsn || '-'}</p>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Status</label>
-                        <p className="font-bold text-indigo-600 uppercase tracking-tighter">{reg.status}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex gap-2">
-                       <button onClick={() => setEditingRegistration(reg)} className="text-indigo-600 font-black text-xs px-4 py-2 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">Edit Data Pendaftar</button>
-                    </div>
-                  </div>
-                ))}
-                
-                {registrations.length === 0 && (
-                  <div className="py-20 text-center bg-white rounded-[40px] border-2 border-dashed border-slate-100">
-                    <p className="text-slate-400 font-bold">Belum ada pendaftaran baru.</p>
-                  </div>
-                )}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-6 border-t border-slate-50">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Kontak Admin</label>
+                <p className="font-bold text-slate-900">{reg.admin_name || '-'}</p>
+                <p className="text-xs text-slate-500">{reg.admin_email}</p>
               </div>
-            </motion.div>
-          )}
-
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Sekolah / NPSN</label>
+                <p className="font-bold text-slate-900">{reg.school_name}</p>
+                <p className="text-xs text-slate-500">NPSN: {reg.npsn || '-'}</p>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Status</label>
+                <p className="font-bold text-indigo-600 uppercase tracking-tighter">{reg.status}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+               <button onClick={() => setEditingRegistration(reg)} className="text-indigo-600 font-black text-xs px-4 py-2 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">Edit Data Pendaftar</button>
+            </div>
+          </div>
+        ))}
+        
+        {registrations.length === 0 && (
+          <div className="py-20 text-center bg-white rounded-[40px] border-2 border-dashed border-slate-100">
+            <p className="text-slate-400 font-bold">Belum ada pendaftaran baru.</p>
+          </div>
+        )}
+      </div>
+    )}
+  </motion.div>
+)}
           {/* Affiliates Section */}
           {activeTab === 'affiliates' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
