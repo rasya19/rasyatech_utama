@@ -4,7 +4,8 @@ import nodemailer from "nodemailer";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 1. SET HEADERS CORS (Surat Izin Browser)
-  res.setHeader('Access-Control-Allow-Origin', 'https://rasyatech.rsch.my.id');
+  const origin = req.headers.origin || 'https://rasyatech.rsch.my.id';
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');

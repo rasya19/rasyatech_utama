@@ -20,7 +20,7 @@ async function startServer() {
   ];
 
   const corsOptions = {
-    origin: '*',
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true

@@ -3,7 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS Headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'DELETE, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
