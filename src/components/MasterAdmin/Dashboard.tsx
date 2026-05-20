@@ -22,6 +22,21 @@ import {
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 
+const formatDate = (dateStr: string | null | undefined) => {
+  if (!dateStr || dateStr === '-' || dateStr === '') return '-';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  } catch (e) {
+    return '-';
+  }
+};
+
 export default function Admin() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -457,16 +472,18 @@ export default function Admin() {
   const handleSaveRegistration = async (e: FormEvent) => {
     e.preventDefault();
     
-    // STRICT PAYLOAD - only columns confirmed by user (10 total)
     const payload: any = {
       npsn: editingRegistration.npsn,
       school_name: editingRegistration.school_name,
       admin_name: editingRegistration.admin_name,
       admin_email: editingRegistration.admin_email,
-      whatsapp: editingRegistration.whatsapp,
-      status: editingRegistration.is_approved ? 'approved' : 'pending',
+      whatsapp: editingRegistration.whatsapp || editingRegistration.WA || '',
+      WA: editingRegistration.WA || '',
+      status: editingRegistration.status || (editingRegistration.is_approved ? 'verified' : 'pending'),
       subdomain: editingRegistration.subdomain || '',
-      is_approved: !!editingRegistration.is_approved
+      is_approved: !!editingRegistration.is_approved,
+      activated_at: editingRegistration.activated_at || null,
+      expired_at: editingRegistration.expired_at || null
     };
     
     try {
@@ -1050,6 +1067,15 @@ export default function Admin() {
                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Status</label>
                         <p className="font-bold text-indigo-600 uppercase tracking-tighter">{reg.status}</p>
                       </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Masa Aktif Sekolah</label>
+                        <p className="text-xs text-slate-900 font-bold">
+                          Aktif: <span className="text-emerald-600 font-black">{formatDate(reg.activated_at)}</span>
+                        </p>
+                        <p className="text-xs text-slate-900 font-bold mt-1">
+                          Expired: <span className="text-rose-600 font-black">{formatDate(reg.expired_at)}</span>
+                        </p>
+                      </div>
                     </div>
                     <div className="mt-4 flex gap-2">
                        <button onClick={() => setEditingRegistration(reg)} className="text-indigo-600 font-black text-xs px-4 py-2 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">Edit Data Pendaftar</button>
@@ -1281,6 +1307,27 @@ export default function Admin() {
                       className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
                     />
                     <label htmlFor="is_approved" className="text-xs font-black uppercase tracking-widest text-slate-600 cursor-pointer">Approved (is_approved)</label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2 border-b border-dashed border-slate-100">
+                  <div>
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">Tanggal Aktif Sekolah</label>
+                    <input 
+                      type="date" 
+                      value={editingRegistration.activated_at ? editingRegistration.activated_at.substring(0, 10) : ''} 
+                      onChange={e => setEditingRegistration({ ...editingRegistration, activated_at: e.target.value ? new Date(e.target.value).toISOString() : null })} 
+                      className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">Tanggal Expired Sekolah</label>
+                    <input 
+                      type="date" 
+                      value={editingRegistration.expired_at ? editingRegistration.expired_at.substring(0, 10) : ''} 
+                      onChange={e => setEditingRegistration({ ...editingRegistration, expired_at: e.target.value ? new Date(e.target.value).toISOString() : null })} 
+                      className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" 
+                    />
                   </div>
                 </div>
                 <div className="flex gap-4 pt-4">
