@@ -54,9 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('registrations')
       .update({ 
         status: 'pending',
-        auth_uid: null,
-        activated_at: null,
-        expired_at: null
+        auth_uid: null
       })
       .eq('id', registrationId);
 

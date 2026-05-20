@@ -43,9 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .from('registrations')
       .update({ 
         status: 'verified',
-        subdomain: subdomain, // Pastikan subdomain juga diupdate di tabel registrations
-        activated_at: activationDate.toISOString(),
-        expired_at: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
+        subdomain: subdomain // Pastikan subdomain juga diupdate di tabel registrations
       })
       .or(`id.eq.${registrationId},admin_email.eq.${email}`);
 

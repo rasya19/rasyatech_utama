@@ -78,8 +78,6 @@ async function startServer() {
           .update({ 
             status: 'verified',
             subdomain: subdomain,
-            activated_at: activationDate.toISOString(),
-            expired_at: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
             auth_uid: userData?.user?.id
           })
           .eq('id', registrationId);
