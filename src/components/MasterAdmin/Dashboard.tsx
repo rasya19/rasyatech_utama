@@ -78,22 +78,24 @@ const [password, setPassword] = useState('');
   const [editingService, setEditingService] = useState<any>(null);
   
   // Edit States
-  const [editingService, setEditingService] = useState<any>(null);
-  const [editingLaptop, setEditingLaptop] = useState<any>(null);
-  const [editingProduct, setEditingProduct] = useState<any>(null);
-  const [editingAffiliate, setEditingAffiliate] = useState<any>(null);
-  const [editingRegistration, setEditingRegistration] = useState<any>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const [editingService, setEditingService] = useState<any>(null);
+const [editingLaptop, setEditingLaptop] = useState<any>(null);
+const [editingProduct, setEditingProduct] = useState<any>(null);
+const [editingAffiliate, setEditingAffiliate] = useState<any>(null);
+const [editingRegistration, setEditingRegistration] = useState<any>(null);
+const [email, setEmail] = useState('');
+const [password, setPassword] = useState('');
 
-  useEffect(() => {
+useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+        setUser(session?.user ?? null);
+        setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
+}, []);
+
+const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user ?? null);
+});
     return () => subscription.unsubscribe();
   }, []);
 
