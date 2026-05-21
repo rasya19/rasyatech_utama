@@ -5,29 +5,27 @@ export default function MasterAdmin() {
   // ... state dan logic kamu yang lain
 // HAPUS INI SEMUA
 const [email, setEmail] = useState('')  // udah ada
-const [password, setPassword] = useState('') // udah ada
-
-...
-} from 'lucide-react'; // ini import, salah tempat
-import { Link } from 'react-router-dom'; // ini juga salah tempat
-
 const [resetLoading, setResetLoading] = useState(false);
 
-// TARO DI SINI
 const handleResetPassword = async () => {
-  ...
-}
-
-const handleSendMagicLink = async () => {
-  // ... ini yang udah ada  
+  if (!email) {
+    setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
+    return;
+  }
+  
+  setResetLoading(true);
+  setSaveStatus(null);
+  
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: 'https://rasyatech.rsch.my.id/reset-password',
   })
   
+  setResetLoading(false);
+  
   if (error) {
-    alert('Gagal kirim: ' + error.message)
+    setSaveStatus({ type: 'error', message: 'Gagal kirim: ' + error.message })
   } else {
-    alert('Link reset password udah dikirim ke email. Cek inbox/spam ya.')
+    setSaveStatus({ type: 'success', message: 'Link reset password udah dikirim ke email. Cek inbox/spam.' })
   }
 }
 
