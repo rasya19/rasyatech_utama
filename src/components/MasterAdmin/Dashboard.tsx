@@ -4,12 +4,12 @@ import { Link } from 'react-router-dom' // <-- kalau perlu, taro di sini
 import { Settings, Loader2, ArrowLeft, AlertCircle } from 'lucide-react'
 
 export default function MasterAdmin() {
-  const [email, setEmail] = useState('') // <-- state di sini
+  const [email, setEmail] = useState('') //
   const [password, setPassword] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
-  const handleResetPassword = async () =>
-  const handleSendMagicLink = async () =>
-  return ( ... ) // <-- JSX di sini
+  const handleResetPassword = async ()
+  const handleSendMagicLink = async ()
+  return ( ... )
 }
   setResetLoading(true);
   setSaveStatus(null);
