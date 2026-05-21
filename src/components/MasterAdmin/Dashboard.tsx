@@ -1,7 +1,62 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { supabase } from '../../lib/supabase';
-import { 
-  Save, 
+import { supabase } from '../../lib/supabase' // pastiin path ini bener
+
+export default function MasterAdmin() {
+  // ... state dan logic kamu yang lain
+  const [email, setEmail] = useState('') // pastiin ada state email
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      alert('Isi email dulu di kolom login')
+      return
+    }
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://rasyatech.rsch.my.id/reset-password', // ini kuncinya
+    })
+    
+    if (error) {
+      alert('Gagal kirim: ' + error.message)
+    } else {
+      alert('Link reset password udah dikirim ke email. Cek inbox/spam.')
+    }
+  }
+
+  // ... di bagian return JSX form login
+  return (
+    <div>
+      {/* ... form kamu yang udah ada */}
+      
+      <input 
+        type="email" 
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+      />
+      <input type="password" placeholder="Password" />
+      
+      <button className="Login">Login</button>
+      
+      {/* TAMBAHIN INI DI BAWAH TOMBOL LOGIN */}
+      <button 
+        type="button"
+        onClick={handleResetPassword}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#6366f1',
+          marginTop: '12px',
+          cursor: 'pointer',
+          fontSize: '14px'
+        }}
+      >
+        Lupa Password?
+      </button>
+
+      {/* ... Magic Link & Login with Google kamu */}
+    </div>
+  )
+}  Save, 
   Plus, 
   Trash2,
   Edit2, 
