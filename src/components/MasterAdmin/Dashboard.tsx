@@ -242,7 +242,30 @@ export default function Admin() {
       setSaveStatus({ type: 'error', message: 'Gagal login: ' + (error.message || 'Error tidak diketahui') });
     }
   };
+const handleResetPassword = async () => {
+  if (!email) {
+    setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
+    return;
+  }
+  
+  setResetLoading(true);
+  setSaveStatus(null);
+  
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://rasyatech.rsch.my.id/reset-password',
+  })
+  
+  setResetLoading(false);
+  
+  if (error) {
+    setSaveStatus({ type: 'error', message: 'Gagal kirim: ' + error.message })
+  } else {
+    setSaveStatus({ type: 'success', message: 'Link reset password udah dikirim ke email. Cek inbox/spam.' })
+  }
+}
 
+const handleSendMagicLink = async () => {
+  // ... code magic link kamu yang udah ada
   const [resetLoading, setResetLoading] = useState(false);
   const handleSendMagicLink = async () => {
     if (!email) {
@@ -610,41 +633,52 @@ export default function Admin() {
           Silakan login menggunakan akun Google Anda untuk mengelola konten website.
         </p>
         <form onSubmit={handleManualLogin} className="space-y-4 mb-8">
-          <div>
-            <input 
-              type="email" 
-              placeholder="Email" 
-              value={email} 
-              onChange={e => setEmail(e.target.value)}
-              required
-              className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold"
-            />
-          </div>
-          <div>
-            <input 
-              type="password" 
-              placeholder="Password" 
-              value={password} 
-              onChange={e => setPassword(e.target.value)}
-              required
-              className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold"
-            />
-          </div>
-          <button 
-            type="submit"
-            className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all mb-2"
-          >
-            Login
-          </button>
-          <button 
-            type="button"
-            onClick={handleSendMagicLink}
-            disabled={resetLoading}
-            className="w-full text-indigo-600 font-bold text-sm hover:underline disabled:opacity-50"
-          >
-            {resetLoading ? 'Mengirim...' : 'Gunakan Magic Link (Login tanpa password)'}
-          </button>
-        </form>
+  <div>
+    <input 
+      type="email" 
+      placeholder="Email" 
+      value={email} 
+      onChange={e => setEmail(e.target.value)}
+      required
+      className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold"
+    />
+  </div>
+  <div>
+    <input 
+      type="password" 
+      placeholder="Password" 
+      value={password} 
+      onChange={e => setPassword(e.target.value)}
+      required
+      className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold"
+    />
+  </div>
+  <button 
+    type="submit"
+    className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all mb-2"
+  >
+    Login
+  </button>
+
+  {/* TAMBAHIN INI DI SINI */}
+  <button 
+    type="button"
+    onClick={handleResetPassword}
+    disabled={resetLoading}
+    className="w-full text-indigo-600 font-bold text-sm hover:underline disabled:opacity-50"
+  >
+    Lupa Password?
+  </button>
+
+  <button 
+    type="button"
+    onClick={handleSendMagicLink}
+    disabled={resetLoading}
+    className="w-full text-indigo-600 font-bold text-sm hover:underline disabled:opacity-50"
+  >
+    {resetLoading ? 'Mengirim...' : 'Gunakan Magic Link (Login tanpa password)'}
+  </button>
+</form>
         <div className="text-center font-bold text-slate-400 mb-4">ATAU</div>
         <button 
           onClick={handleLogin}
