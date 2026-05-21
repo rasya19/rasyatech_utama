@@ -7,14 +7,10 @@ export default function MasterAdmin() {
   const [email, setEmail] = useState('') // <-- state di sini
   const [password, setPassword] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
-
   const handleResetPassword = async () => { ... } // <-- function di sini
-
   const handleSendMagicLink = async () => { ... }
-
   return ( ... ) // <-- JSX di sini
 }
-  
   setResetLoading(true);
   setSaveStatus(null);
   
