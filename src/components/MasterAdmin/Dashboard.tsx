@@ -83,7 +83,6 @@ const handleSendMagicLink = async () => {
   )
 }
    
-  // Data States
   const [config, setConfig] = useState<any>({ whatsapp: '', address: '', openingHours: '', heroTitle: '', heroSubtitle: '' });
   const [payments, setPayments] = useState<any>({
     bankBcaProvider: 'BCA',
