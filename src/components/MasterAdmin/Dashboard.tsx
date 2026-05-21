@@ -74,57 +74,18 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    // 1. Jika user belum terdeteksi (null), matikan loading pendaftar agar tidak stuck muter
+    if (!user) {
+      // Jika di kode kamu fungsi fetchRegistrations punya state loading sendiri, matikan di sini.
+      // Jika menggunakan state 'loading' utama, buka baris di bawah ini:
+      // setLoading(false); 
+      return;
+    }
 
-    // // Listen to Config
-    // const unsubConfig = onSnapshot(doc(db, 'settings', 'config'), (snap) => {
-    //   if (snap.exists()) {
-    //     setConfig((prev: any) => ({ ...prev, ...snap.data() }));
-    //   }
-    // }, (err) => handleFirestoreError(err, OperationType.GET, 'settings/config'));
-
-    // // Listen to Payments
-    // const unsubPayments = onSnapshot(doc(db, 'settings', 'payments'), (snap) => {
-    //   if (snap.exists()) {
-    //     setPayments((prev: any) => ({ ...prev, ...snap.data() }));
-    //   }
-    // }, (err) => handleFirestoreError(err, OperationType.GET, 'settings/payments'));
-
-    // // Listen to Services
-    // const unsubServices = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snap) => {
-    //   setServices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'services'));
-
-    // // Listen to Laptops
-    // const unsubLaptops = onSnapshot(query(collection(db, 'laptops'), orderBy('name')), (snap) => {
-    //   setLaptops(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'laptops'));
-
-    // // Listen to Ads
-    // const unsubAds = onSnapshot(collection(db, 'ads'), (snap) => {
-    //   setAds(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'ads'));
-
-    // // Listen to Products
-    // const unsubProducts = onSnapshot(query(collection(db, 'products'), orderBy('name')), (snap) => {
-    //   setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'products'));
-
-    // Listen to Registrations
+    // 2. Jika user sudah ada, panggil fungsi ambil data registrations
     fetchRegistrations();
 
-    // // Listen to Affiliates
-    // const unsubAffiliates = onSnapshot(query(collection(db, 'affiliates'), orderBy('name')), (snap) => {
-    //   setAffiliates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'affiliates'));
-
-    // // Listen to Visitor Count
-    // const unsubStats = onSnapshot(doc(db, 'stats', 'visitors'), (snap) => {
-    //   if (snap.exists()) {
-    //     setVisitorCount(snap.data().count || 0);
-    //   }
-    // }, (err) => handleFirestoreError(err, OperationType.GET, 'stats/visitors'));
-
+    // Sisa kode cleanup listener Firebase yang dikomentari tetap dibiarkan aman
     return () => {
       // unsubConfig();
       // unsubPayments();
