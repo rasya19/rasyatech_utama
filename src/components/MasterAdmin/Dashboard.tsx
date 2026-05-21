@@ -608,7 +608,9 @@ export default function Admin() {
             disabled={resetLoading}
             className="w-full text-indigo-600 font-bold text-sm hover:underline disabled:opacity-50"
           >
-            <button
+         {/* HAPUS TOMBOL LAMA, GANTI PAKE INI */}
+<div style={{ textAlign: 'center', marginTop: '16px' }}>   
+  <button
     type="button"
     onClick={handleResetPassword}
     style={{
@@ -639,9 +641,7 @@ export default function Admin() {
           onClick={handleLogin}
           className="w-full py-5 bg-white text-slate-600 font-black rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
         >
-         {/* HAPUS TOMBOL LAMA, GANTI PAKE INI */}
-<div style={{ textAlign: 'center', marginTop: '16px' }}>
-  
+           
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       {!isAuthorizedSuperAdmin && user && (
