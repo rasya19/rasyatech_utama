@@ -6,22 +6,20 @@ export default function ResetPassword() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true); // State baru untuk loading pengecekan sesi
+  const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Gunakan onAuthStateChange untuk memastikan token dari email sudah sepenuhnya diubah jadi sesi aktif oleh Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY' || session) {
         setError(null);
         setCheckingSession(false);
       } else {
-        // Beri toleransi waktu pengecekan fallback jika getSession lambat mendeteksi
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (!currentSession) {
-          setError("Sesi tidak ditemukan atau telah kedaluwarsa. Silakan masukkan email Anda kembali di halaman login untuk meminta tautan baru.");
+          setError("Sesi tidak ditemukan atau telah kedaluwarsa. Silakan minta tautan baru dari halaman login.");
         }
         setCheckingSession(false);
       }
@@ -48,7 +46,6 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
-      // Eksekusi pembaruan password user
       const { error: updateError } = await supabase.auth.updateUser({ 
         password: password 
       });
@@ -59,7 +56,6 @@ export default function ResetPassword() {
 
       setSuccess(true);
       
-      // Delay 3 detik agar user bisa melihat pesan sukses, lalu hapus sesi lama dan lempar ke login
       setTimeout(async () => {
         await supabase.auth.signOut();
         navigate('/master-admin', { replace: true });
@@ -71,12 +67,11 @@ export default function ResetPassword() {
     }
   };
 
-  // Tampilkan layar loading ramah selama Supabase memproses token email
   if (checkingSession) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center px-4">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500 anonymity-loading"></div>
-        <p className="text-slate-400 text-sm font-medium mt-4">Memvalidasi token pemulihan sandi...</p>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>
+        <p className="text-slate-400 text-sm font-medium mt-4">Memvalidasi token pemulihan...</p>
       </div>
     );
   }
@@ -94,16 +89,16 @@ export default function ResetPassword() {
             </svg>
           </div>
           <h2 className="text-3xl font-black text-white tracking-tight leading-none">Reset Password</h2>
-          <p className="text-slate-400 font-medium text-sm mt-3 leading-relaxed">Masukkan password baru untuk akun Super Admin/Master Admin Anda.</p>
+          <p className="text-slate-400 font-medium text-sm mt-3 leading-relaxed">Masukkan password baru untuk akun Master Admin Anda.</p>
         </div>
 
         {success ? (
-          <div className="relative p-6 bg-emerald-950/40 border border-emerald-500/30 rounded-3xl text-emerald-400 text-center text-sm font-semibold animate-fade-in shadow-lg">
+          <div className="relative p-6 bg-emerald-950/40 border border-emerald-500/30 rounded-3xl text-emerald-400 text-center text-sm font-semibold shadow-lg">
             <svg className="w-10 h-10 mx-auto text-emerald-400 mb-2 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Password berhasil diperbarui!
-            <p className="text-xs text-emerald-500/80 mt-1 font-normal">Mengalihkan Anda ke halaman login dalam beberapa detik...</p>
+            <p className="text-xs text-emerald-500/80 mt-1 font-normal">Mengalihkan Anda ke halaman login...</p>
           </div>
         ) : (
           <form onSubmit={handleReset} className="space-y-6 relative">
@@ -144,9 +139,13 @@ export default function ResetPassword() {
             <button 
               type="submit" 
               disabled={loading || !!error} 
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-2 hover:shadow-indigo-500/10 uppercase tracking-wider text-xs"
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-2 uppercase tracking-wider text-xs"
             >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor
+              {loading ? 'Menyimpan...' : 'Simpan Password Baru'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
