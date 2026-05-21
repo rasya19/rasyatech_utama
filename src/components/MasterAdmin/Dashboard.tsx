@@ -6,8 +6,17 @@ import { Settings, Loader2, ArrowLeft, AlertCircle } from 'lucide-react'
 export default function MasterAdmin() {
   const [email, setEmail] = useState('') //
   const [password, setPassword] = useState('')
-  const [resetLoading, setResetLoading] = useState(false)
-  const handleResetPassword = async () => {
+  handleResetPassword = async () => {
+Sampai ketemu kurung kurawal } penutup function itu
+Delete semua blok itu
+Yang harusnya kesisa:
+Di sekitar baris 9-30-an harusnya gini urutannya:
+
+TSX
+const [resetLoading, setResetLoading] = useState(false);
+
+// CUMA ADA 1 DI SINI
+const handleResetPassword = async () => {
   if (!email) {
     setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
     return;
@@ -27,6 +36,10 @@ export default function MasterAdmin() {
   } else {
     setSaveStatus({ type: 'success', message: 'Link reset password udah dikirim ke email. Cek inbox/spam.' })
   }
+}
+
+const handleSendMagicLink = async () => {
+  // ...
 }
 
 const handleSendMagicLink = async () => {
