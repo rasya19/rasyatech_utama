@@ -99,11 +99,18 @@ export default function Admin() {
   }, [user]);
 
   const fetchRegistrations = async () => {
-    const { data: regs, error } = await supabase.from('registrations').select('*');
-    if (error) {
+    try {
+      const { data: regs, error } = await supabase.from('registrations').select('*');
+      if (error) {
         console.error("Error fetching registrations:", error);
-    } else {
+      } else {
         setRegistrations(regs || []);
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
+    } finally {
+      // INI KUNCI UTAMANYA: Paksa matikan animasi muter-muter setelah proses selesai!
+      setLoading(false); 
     }
   };
 
