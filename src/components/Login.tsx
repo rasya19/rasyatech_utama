@@ -6,42 +6,28 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      alert('Login gagal: ' + error.message)
-    } else {
-      navigate('/master-admin')
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) alert('Login gagal: ' + error.message)
+    else navigate('/master-admin')
     setLoading(false)
   }
 
   const handleResetPassword = async () => {
     if (!email) {
-      alert('Isi email dulu bro')
+      alert('Isi email dulu')
       return
     }
-    
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://rasyatech.rsch.my.id/reset-password', // INI YANG BENERIN LINK
+      redirectTo: 'https://rasyatech.rsch.my.id/reset-password',
     })
-    
-    if (error) {
-      alert('Gagal kirim email: ' + error.message)
-    } else {
-      alert('Link reset password udah dikirim ke email. Cek inbox/spam.')
-    }
+    if (error) alert('Gagal: ' + error.message)
+    else alert('Link reset password udah dikirim ke email. Cek inbox/spam ya.')
   }
-
-  const navigate = useNavigate()
 
   return (
     <div style={{maxWidth: 400, margin: '100px auto', padding: 20}}>
