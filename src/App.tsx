@@ -1,13 +1,35 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import RasyatechLanding from './components/RasyatechLanding';
 import MasterAdmin from './components/MasterAdmin/Dashboard';
 import TenantDashboard from './components/TenantDashboard';
 import AffiliatePortal from './components/AffiliatePortal';
 import SchoolLogin from './components/SchoolLogin';
+import ResetPassword from './components/ResetPassword';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
+import { supabase } from './lib/supabase';
 
 function AppRoutes() {
   const subdomain = useSubdomain();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Capture recovery URL hash from Supabase and redirect to password reset route
+    if (window.location.hash && window.location.hash.includes('type=recovery')) {
+      navigate('/reset-password');
+    }
+
+    // Also handle PASSWORD_RECOVERY event triggers
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password');
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [navigate]);
 
   return (
     <Routes>
@@ -18,6 +40,12 @@ function AppRoutes() {
       <Route 
         path="/master-admin" 
         element={!subdomain ? <MasterAdmin /> : <Navigate to="/admin" />} 
+      />
+      
+      {/* Password Reset Page */}
+      <Route 
+        path="/reset-password" 
+        element={<ResetPassword />} 
       />
       
       {/* Tenant Admin only on subdomains */}
