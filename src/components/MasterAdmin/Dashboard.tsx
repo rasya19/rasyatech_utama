@@ -1,4 +1,6 @@
-import { useState, useEffect, FormEvent } from 'react';
+const [email, setEmail] = useState('')
+const [password, setPassword] = useState('')
+// ada lagi gak?import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import { 
   Save, 
