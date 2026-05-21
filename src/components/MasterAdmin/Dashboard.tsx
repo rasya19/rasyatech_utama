@@ -7,11 +7,32 @@ export default function MasterAdmin() {
   const [email, setEmail] = useState('') //
   const [password, setPassword] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
-  const handleResetPassword = async ()
-  const handleSendMagicLink = async ()
-  return ( ... )
-}
+  const handleResetPassword = async () => {
+  if (!email) {
+    setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
+    return;
+  }
+  
   setResetLoading(true);
+  setSaveStatus(null);
+  
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://rasyatech.rsch.my.id/reset-password',
+  })
+  
+  setResetLoading(false);
+  
+  if (error) {
+    setSaveStatus({ type: 'error', message: 'Gagal kirim: ' + error.message })
+  } else {
+    setSaveStatus({ type: 'success', message: 'Link reset password udah dikirim ke email. Cek inbox/spam.' })
+  }
+}
+
+const handleSendMagicLink = async () => {
+  // ISI FUNCTION MAGIC LINK KAMU YANG LAMA DI SINI
+  // JANGAN DIKOSONGIN, BALIKIN CODE LAMANYA
+}
   setSaveStatus(null);
   
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
