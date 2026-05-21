@@ -71,30 +71,7 @@ export default function Admin() {
       setUser(session?.user ?? null);
     });
     return () => subscription.unsubscribe();
-    }, []);
-
-  // >>> TEMPEL MULAI DARI SINI <<<
-  const handleResetPassword = async () => {
-    if (!email) {
-      alert('Isi email dulu di form login bro')
-      return
-    }
-
-    setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`
-    })
-    setLoading(false)
-
-    if (error) {
-      alert('Gagal kirim email: ' + error.message)
-    } else {
-      alert('Link reset udah dikirim ke ' + email + '. Cek inbox/spam ya.')
-    }
-  }
-  // >>> SAMPE SINI <<<
-
-  // function handleLogin atau return lo lanjut di bawah sini
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -600,56 +577,28 @@ export default function Admin() {
             type="submit"
             className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all mb-2"
           >
-                      Login
-        </button>
-
-        {/* >>> TEMPEL MULAI DARI SINI <<< */}
-        {/* TOMBOL LUPA PASSWORD */}
-        <div style={{ textAlign: 'center', marginTop: '16px' }}>   
-          <button
-            type="button"
-            onClick={handleResetPassword}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#4f46e5',
-              fontSize: '14px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              padding: '4px 8px'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-          >
-            Lupa Password?
+            Login
           </button>
-        </div>
-
-        {/* TOMBOL MAGIC LINK */}
+          <button 
+            type="button"
+            onClick={handleSendMagicLink}
+            disabled={resetLoading}
+            className="w-full text-indigo-600 font-bold text-sm hover:underline disabled:opacity-50"
+          >
+            {resetLoading ? 'Mengirim...' : 'Gunakan Magic Link (Login tanpa password)'}
+          </button>
+        </form>
+        <div className="text-center font-bold text-slate-400 mb-4">ATAU</div>
         <button 
-          type="button"
-          onClick={handleSendMagicLink}
-          disabled={resetLoading}
-          className="w-full text-indigo-600 font-bold text-sm hover:underline disabled:opacity-50 mt-4"
+          onClick={handleLogin}
+          className="w-full py-5 bg-white text-slate-600 font-black rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
         >
-          {resetLoading ? 'Mengirim...' : 'Gunakan Magic Link (Login tanpa password)'}
+          Login with Google
         </button>
-        {/* >>> SAMPE SINI <<< */}
-        
-      </form>
-      
-      <div className="text-center font-bold text-slate-400 mb-4">ATAU</div>
-      
-      <button 
-        onClick={handleLogin}
-        className="w-full py-5 bg-white text-slate-600 font-black rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
-      >
-        Login with Google
-      </button>
+      </div>
     </div>
   );
-}
-      
+
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       {!isAuthorizedSuperAdmin && user && (
