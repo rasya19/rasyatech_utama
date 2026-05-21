@@ -81,7 +81,8 @@ const handleSendMagicLink = async () => {
       {/* ... Magic Link & Login with Google kamu */}
     </div>
   )
-}  Save, 
+}
+  Save, 
   Plus, 
   Trash2,
   Edit2, 
