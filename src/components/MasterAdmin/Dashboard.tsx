@@ -616,26 +616,26 @@ export default function Admin() {
           onClick={handleLogin}
           className="w-full py-5 bg-white text-slate-600 font-black rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
         >
-         {/* TOMBOL LUPA PASSWORD - TEMPEL MULAI SINI */}
-<button
-  type="button"
-  onClick={handleResetPassword}
-  disabled={loading || !email}
-  style={{
-    background: 'none',
-    border: 'none',
-    color: '#6366f1',
-    marginTop: '12px',
-    cursor: loading || !email ? 'not-allowed' : 'pointer',
-    fontSize: '14px',
-    textDecoration: 'underline',
-    opacity: !email ? 0.5 : 1,
-    width: '100%'
-  }}
->
-  Lupa Password?
-</button>
-{/* SAMPE SINI */}
+         {/* HAPUS TOMBOL LAMA, GANTI PAKE INI */}
+<div style={{ textAlign: 'center', marginTop: '16px' }}>
+  <button
+    type="button"
+    onClick={handleResetPassword}
+    style={{
+      background: 'none',
+      border: 'none',
+      color: '#4f46e5', // warna ungu biar nyambung sama Login
+      fontSize: '14px',
+      fontWeight: '500',
+      cursor: 'pointer',
+      padding: '4px 8px'
+    }}
+    onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+    onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+  >
+    Lupa Password?
+  </button>
+</div>
           Login with Google
         </button>
       </div>
