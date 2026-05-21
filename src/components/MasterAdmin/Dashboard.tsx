@@ -7,12 +7,6 @@ export default function MasterAdmin() {
   const [email, setEmail] = useState('') //
   const [password, setPassword] = useState('')
   handleResetPassword = async () => {
-Sampai ketemu kurung kurawal } penutup function itu
-Delete semua blok itu
-Yang harusnya kesisa:
-Di sekitar baris 9-30-an harusnya gini urutannya:
-
-TSX
 const [resetLoading, setResetLoading] = useState(false);
 
 // CUMA ADA 1 DI SINI
