@@ -6,19 +6,30 @@ export default function ResetPassword() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true); // State baru untuk loading pengecekan sesi
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if we are authenticated for password reset
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError("Sesi tidak ditemukan atau kedaluwarsa. Silakan minta tautan reset password baru.");
+    // Gunakan onAuthStateChange untuk memastikan token dari email sudah sepenuhnya diubah jadi sesi aktif oleh Supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || session) {
+        setError(null);
+        setCheckingSession(false);
+      } else {
+        // Beri toleransi waktu pengecekan fallback jika getSession lambat mendeteksi
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (!currentSession) {
+          setError("Sesi tidak ditemukan atau telah kedaluwarsa. Silakan masukkan email Anda kembali di halaman login untuk meminta tautan baru.");
+        }
+        setCheckingSession(false);
       }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
     };
-    checkSession();
   }, []);
 
   const handleReset = async (e: FormEvent) => {
@@ -37,6 +48,7 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
+      // Eksekusi pembaruan password user
       const { error: updateError } = await supabase.auth.updateUser({ 
         password: password 
       });
@@ -46,10 +58,11 @@ export default function ResetPassword() {
       }
 
       setSuccess(true);
-      // Wait for 3 seconds, sign out, then redirect
+      
+      // Delay 3 detik agar user bisa melihat pesan sukses, lalu hapus sesi lama dan lempar ke login
       setTimeout(async () => {
         await supabase.auth.signOut();
-        navigate('/master-admin');
+        navigate('/master-admin', { replace: true });
       }, 3000);
     } catch (err: any) {
       setError(err.message || 'Gagal memperbarui password.');
@@ -57,6 +70,16 @@ export default function ResetPassword() {
       setLoading(false);
     }
   };
+
+  // Tampilkan layar loading ramah selama Supabase memproses token email
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center px-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500 anonymity-loading"></div>
+        <p className="text-slate-400 text-sm font-medium mt-4">Memvalidasi token pemulihan sandi...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center px-4 font-sans selection:bg-indigo-500 selection:text-white">
@@ -85,7 +108,7 @@ export default function ResetPassword() {
         ) : (
           <form onSubmit={handleReset} className="space-y-6 relative">
             {error && (
-              <div className="p-4 bg-rose-950/40 border border-rose-500/30 rounded-2xl text-rose-400 text-xs font-semibold">
+              <div className="p-4 bg-rose-950/40 border border-rose-500/30 rounded-2xl text-rose-400 text-xs font-semibold leading-relaxed">
                 {error}
               </div>
             )}
@@ -97,7 +120,7 @@ export default function ResetPassword() {
                 placeholder="Minimal 6 karakter"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
+                disabled={loading || !!error}
                 required
                 minLength={6}
                 className="w-full px-5 py-4 bg-slate-900 border border-slate-700 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-sm shadow-inner"
@@ -111,7 +134,7 @@ export default function ResetPassword() {
                 placeholder="Ulangi password baru"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={loading}
+                disabled={loading || !!error}
                 required
                 minLength={6}
                 className="w-full px-5 py-4 bg-slate-900 border border-slate-700 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-sm shadow-inner"
@@ -120,22 +143,10 @@ export default function ResetPassword() {
 
             <button 
               type="submit" 
-              disabled={loading} 
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2 hover:shadow-indigo-500/10 uppercase tracking-wider text-xs"
+              disabled={loading || !!error} 
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl transition-all shadow-lg active:scale-[0.98] disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center gap-2 hover:shadow-indigo-500/10 uppercase tracking-wider text-xs"
             >
               {loading ? (
                 <>
                   <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Menyimpan...
-                </>
-              ) : 'Simpan Password Baru'}
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor
