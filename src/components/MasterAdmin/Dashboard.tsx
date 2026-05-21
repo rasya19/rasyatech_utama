@@ -35,6 +35,15 @@ const handleSendMagicLink = async () => {
 }
   setSaveStatus(null);
   
+  const handleResetPassword = async () => {
+  if (!email) {
+    setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
+    return;
+  }
+  
+  setResetLoading(true);
+  setSaveStatus(null);
+  
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: 'https://rasyatech.rsch.my.id/reset-password',
   })
