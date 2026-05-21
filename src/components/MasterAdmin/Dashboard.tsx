@@ -295,9 +295,6 @@ const handleResetPassword = async () => {
 
 const handleSendMagicLink = async () => {
   // ... code magic link kamu yang udah ada
-const [resetLoading, setResetLoading] = useState(false);
-
-// CUMA 1 INI AJA
 const handleResetPassword = async () => {
   if (!email) {
     setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
