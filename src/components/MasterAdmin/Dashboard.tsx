@@ -295,31 +295,34 @@ const handleResetPassword = async () => {
 
 const handleSendMagicLink = async () => {
   // ... code magic link kamu yang udah ada
-  const [resetLoading, setResetLoading] = useState(false);
-  const handleSendMagicLink = async () => {
-    if (!email) {
-      setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda (ismanto095@gmail.com) terlebih dahulu di kotak input email.' });
-      return;
-    }
-    setResetLoading(true);
-    setSaveStatus(null);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: window.location.origin + '/admin',
-        },
-      });
-      if (error) throw error;
-      setSaveStatus({ type: 'success', message: 'Magic Link dikirim! Silakan cek email Anda (ismanto095@gmail.com).' });
-    } catch (error: any) {
-      console.error(error);
-      setSaveStatus({ type: 'error', message: 'Gagal mengirim link: ' + (error.message || 'Error tidak diketahui') });
-    } finally {
-      setResetLoading(false);
-    }
-  };
+const [resetLoading, setResetLoading] = useState(false);
 
+// CUMA 1 INI AJA
+const handleResetPassword = async () => {
+  if (!email) {
+    setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
+    return;
+  }
+  
+  setResetLoading(true);
+  setSaveStatus(null);
+  
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://rasyatech.rsch.my.id/reset-password',
+  })
+  
+  setResetLoading(false);
+  
+  if (error) {
+    setSaveStatus({ type: 'error', message: 'Gagal kirim: ' + error.message })
+  } else {
+    setSaveStatus({ type: 'success', message: 'Link reset password udah dikirim ke email. Cek inbox/spam.' })
+  }
+}
+
+const handleSendMagicLink = async () => {
+  // ...
+}
   const handleSaveConfig = async (e: FormEvent) => {
     e.preventDefault();
     setSavingConfig(true);
