@@ -100,6 +100,9 @@ export default function Admin() {
 
   const fetchRegistrations = async () => {
     try {
+      // Pastikan di awal fungsi, loading registrations kita aktifkan dulu
+      setLoadingRegistrations(true); 
+      
       const { data: regs, error } = await supabase.from('registrations').select('*');
       if (error) {
         console.error("Error fetching registrations:", error);
@@ -109,11 +112,11 @@ export default function Admin() {
     } catch (err) {
       console.error("Unexpected error:", err);
     } finally {
-      // INI KUNCI UTAMANYA: Paksa matikan animasi muter-muter setelah proses selesai!
-      setLoading(false); 
+      // INI DIA: Paksa matikan state loading registrations setelah selesai ambil data!
+      setLoadingRegistrations(false); 
+      setLoading(false); // Tetap matikan loading auth utama sebagai pengaman tambahan
     }
   };
-
   const fetchAffiliates = async () => {
     const { data: affs, error } = await supabase.from('affiliates').select('*').order('name', { ascending: true });
     if (error) {
@@ -998,11 +1001,18 @@ export default function Admin() {
       </div>
     </div>
 
-    {/* LOADING STATE - TAMBAHAN BARU */}
-    {loadingRegistrations && (
+   {/* LOADING STATE - TAMBAHAN BARU YANG SUDAH AMAN */}
+    {loadingRegistrations && registrations.length === 0 && (
       <div className="bg-white rounded-[40px] border border-slate-100 p-20 text-center">
         <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-4" />
         <p className="text-slate-500 font-medium">Memuat data pendaftar...</p>
+      </div>
+    )}
+
+    {/* KONDISI JIKA DATA SUDAH SELESAI DIMUAT TAPI KOSONG (0 DATA) */}
+    {!loadingRegistrations && registrations.length === 0 && (
+      <div className="bg-white rounded-[40px] border border-slate-100 p-20 text-center">
+        <p className="text-slate-400 font-medium">Belum ada data pendaftar baru dari landing page.</p>
       </div>
     )}
 
