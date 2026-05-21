@@ -265,11 +265,6 @@ export default function Admin() {
       setSaveStatus({ type: 'error', message: 'Gagal login: ' + (error.message || 'Error tidak diketahui') });
     }
   };
-const handleResetPassword = async () => {
-  if (!email) {
-    setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
-    return;
-  }
   
   setResetLoading(true);
   setSaveStatus(null);
@@ -289,12 +284,7 @@ const handleResetPassword = async () => {
 
 const handleSendMagicLink = async () => {
   // ... code magic link kamu yang udah ada
-const handleResetPassword = async () => {
-  if (!email) {
-    setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
-    return;
-  }
-  
+ 
   setResetLoading(true);
   setSaveStatus(null);
   
