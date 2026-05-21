@@ -1,6 +1,4 @@
-const [email, setEmail] = useState('')
-const [password, setPassword] = useState('')
-// ada lagi gak?import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import { 
   Save, 
@@ -73,7 +71,30 @@ export default function Admin() {
       setUser(session?.user ?? null);
     });
     return () => subscription.unsubscribe();
-  }, []);
+    }, []);
+
+  // >>> TEMPEL MULAI DARI SINI <<<
+  const handleResetPassword = async () => {
+    if (!email) {
+      alert('Isi email dulu di form login bro')
+      return
+    }
+
+    setLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`
+    })
+    setLoading(false)
+
+    if (error) {
+      alert('Gagal kirim email: ' + error.message)
+    } else {
+      alert('Link reset udah dikirim ke ' + email + '. Cek inbox/spam ya.')
+    }
+  }
+  // >>> SAMPE SINI <<<
+
+  // function handleLogin atau return lo lanjut di bawah sini
 
   useEffect(() => {
     if (!user) return;
