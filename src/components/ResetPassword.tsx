@@ -1,11 +1,20 @@
-import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase' // <-- PATH UDAH BENER
 import { useNavigate } from 'react-router-dom'
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [validSession, setValidSession] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setValidSession(true)
+      }
+    })
+  }, [])
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,9 +29,13 @@ export default function ResetPassword() {
     } else {
       alert('Password berhasil diubah! Silakan login ulang.')
       await supabase.auth.signOut()
-      navigate('/login')
+      navigate('/login') 
     }
     setLoading(false)
+  }
+
+  if (!validSession) {
+    return <div style={{padding: 20}}>Memvalidasi link reset password...</div>
   }
 
   return (
