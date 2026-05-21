@@ -77,8 +77,6 @@ const handleSendMagicLink = async () => {
       >
         Lupa Password?
       </button>
-
-      {/* ... Magic Link & Login with Google kamu */}
     )
 }
    
