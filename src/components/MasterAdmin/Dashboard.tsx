@@ -1,17 +1,19 @@
-import { useState, useEffect, FormEvent } from 'react';
-import { supabase } from '../../lib/supabase' // pastiin path ini bener
+import { useState, useEffect } from 'react' // <-- import di atas
+import { supabase } from '../../lib/supabase'
+import { Link } from 'react-router-dom' // <-- kalau perlu, taro di sini
+import { Settings, Loader2, ArrowLeft, AlertCircle } from 'lucide-react'
 
 export default function MasterAdmin() {
-  // ... state dan logic kamu yang lain
-// HAPUS INI SEMUA
-const [email, setEmail] = useState('')  // udah ada
-const [resetLoading, setResetLoading] = useState(false);
+  const [email, setEmail] = useState('') // <-- state di sini
+  const [password, setPassword] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
 
-const handleResetPassword = async () => {
-  if (!email) {
-    setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
-    return;
-  }
+  const handleResetPassword = async () => { ... } // <-- function di sini
+
+  const handleSendMagicLink = async () => { ... }
+
+  return ( ... ) // <-- JSX di sini
+}
   
   setResetLoading(true);
   setSaveStatus(null);
@@ -80,10 +82,6 @@ const handleResetPassword = async () => {
   ArrowLeft,
   Users,
   ShieldCheck
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
-
 export default function Admin() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
