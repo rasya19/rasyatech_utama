@@ -600,7 +600,7 @@ export default function Admin() {
             type="submit"
             className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all mb-2"
           >
-            Login
+                      Login
         </button>
 
         {/* >>> TEMPEL MULAI DARI SINI <<< */}
@@ -649,15 +649,7 @@ export default function Admin() {
     </div>
   );
 }
-            {resetLoading ? 'Mengirim...' : 'Gunakan Magic Link (Login tanpa password)'}
-          </button>
-        </form>
-        <div className="text-center font-bold text-slate-400 mb-4">ATAU</div>
-        <button 
-          onClick={handleLogin}
-          className="w-full py-5 bg-white text-slate-600 font-black rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
-        >
-           
+      
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       {!isAuthorizedSuperAdmin && user && (
