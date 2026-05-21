@@ -3,9 +3,13 @@ import { supabase } from '../../lib/supabase' // pastiin path ini bener
 
 export default function MasterAdmin() {
   // ... state dan logic kamu yang lain
-  const [email, setEmail] = useState('') // pastiin ada state email
-const [email, setEmail] = useState('')
-const [password, setPassword] = useState('')
+// HAPUS INI SEMUA
+const [email, setEmail] = useState('')  // udah ada
+const [password, setPassword] = useState('') // udah ada
+
+...
+} from 'lucide-react'; // ini import, salah tempat
+import { Link } from 'react-router-dom'; // ini juga salah tempat
 
 const handleResetPassword = async () => {
   if (!email) {
