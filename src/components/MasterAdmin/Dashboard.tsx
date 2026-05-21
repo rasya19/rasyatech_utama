@@ -1445,4 +1445,3 @@ const handleSendMagicLink = async () => {
       </AnimatePresence>
     </div>
   );
-}
