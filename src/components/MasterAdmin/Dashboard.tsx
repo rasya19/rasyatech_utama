@@ -4,23 +4,25 @@ import { supabase } from '../../lib/supabase' // pastiin path ini bener
 export default function MasterAdmin() {
   // ... state dan logic kamu yang lain
   const [email, setEmail] = useState('') // pastiin ada state email
+const [email, setEmail] = useState('')
+const [password, setPassword] = useState('')
 
-  const handleResetPassword = async () => {
-    if (!email) {
-      alert('Isi email dulu di kolom login')
-      return
-    }
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://rasyatech.rsch.my.id/reset-password', // ini kuncinya
-    })
-    
-    if (error) {
-      alert('Gagal kirim: ' + error.message)
-    } else {
-      alert('Link reset password udah dikirim ke email. Cek inbox/spam.')
-    }
+const handleResetPassword = async () => {
+  if (!email) {
+    alert('Isi email dulu di kolom login')
+    return
   }
+  
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://rasyatech.rsch.my.id/reset-password',
+  })
+  
+  if (error) {
+    alert('Gagal kirim: ' + error.message)
+  } else {
+    alert('Link reset password udah dikirim ke email. Cek inbox/spam ya.')
+  }
+}
 
   // ... di bagian return JSX form login
   return (
