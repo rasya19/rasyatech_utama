@@ -82,26 +82,7 @@ const handleSendMagicLink = async () => {
     </div>
   )
 }
-  Save, 
-Plus, 
-Trash2,
-Edit2, 
-LogOut, 
-Laptop as LaptopIcon, 
-Monitor, 
-Settings, 
-Package,
-Wrench,
-CheckCircle2,
-XCircle,
-AlertCircle,
-Loader2,
-ArrowLeft,
-Users,
-ShieldCheck
-  ArrowLeft,
-  Users,
-  ShieldCheck
+  
 export default function Admin() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
