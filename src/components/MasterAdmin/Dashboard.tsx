@@ -38,10 +38,6 @@ const handleSendMagicLink = async () => {
   setResetLoading(true);
   setSaveStatus(null);
   
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: 'https://rasyatech.rsch.my.id/reset-password',
-  })
-  
   setResetLoading(false);
   
   if (error) {
