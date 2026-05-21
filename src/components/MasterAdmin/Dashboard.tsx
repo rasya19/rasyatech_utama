@@ -11,12 +11,15 @@ const [password, setPassword] = useState('') // udah ada
 } from 'lucide-react'; // ini import, salah tempat
 import { Link } from 'react-router-dom'; // ini juga salah tempat
 
+const [resetLoading, setResetLoading] = useState(false);
+
+// TARO DI SINI
 const handleResetPassword = async () => {
-  if (!email) {
-    alert('Isi email dulu di kolom login')
-    return
-  }
-  
+  ...
+}
+
+const handleSendMagicLink = async () => {
+  // ... ini yang udah ada  
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: 'https://rasyatech.rsch.my.id/reset-password',
   })
