@@ -6,11 +6,10 @@ import { Settings, Loader2, ArrowLeft, AlertCircle } from 'lucide-react'
 export default function MasterAdmin() {
   const [email, setEmail] = useState('') //
   const [password, setPassword] = useState('')
-  handleResetPassword = async () => {
-const [resetLoading, setResetLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
-// CUMA ADA 1 DI SINI
-const handleResetPassword = async () => {
+
+  const handleResetPassword = async () => {
   if (!email) {
     setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
     return;
