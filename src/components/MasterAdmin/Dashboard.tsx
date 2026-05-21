@@ -82,14 +82,7 @@ const handleSendMagicLink = async () => {
     </div>
   )
 }
-  
-  const [user, setUser] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'config' | 'services' | 'laptops' | 'payments' | 'products' | 'registrations' | 'affiliates'>('config');
-  const [savingConfig, setSavingConfig] = useState(false);
-  const [savingPayments, setSavingPayments] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-  
+   
   // Data States
   const [config, setConfig] = useState<any>({ whatsapp: '', address: '', openingHours: '', heroTitle: '', heroSubtitle: '' });
   const [payments, setPayments] = useState<any>({
