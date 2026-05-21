@@ -186,6 +186,27 @@ export default function Admin() {
     }
   };
 
+  // --- TEMPEL KODE BARU INI DI SINI ---
+  const handleForgotPassword = async () => {
+    setSaveStatus(null);
+    if (!email) {
+      setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom input di atas!' });
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/master-admin`,
+      });
+
+      if (error) throw error;
+      setSaveStatus({ type: 'success', message: 'Link reset password telah dikirim ke email Anda. Silakan cek inbox/spam!' });
+    } catch (error: any) {
+      console.error(error);
+      setSaveStatus({ type: 'error', message: 'Gagal mengirim email reset: ' + (error.message || 'Error tidak diketahui') });
+    }
+  };
+  // ------------------------------------
   const [resetLoading, setResetLoading] = useState(false);
   const handleSendMagicLink = async () => {
     if (!email) {
@@ -565,18 +586,31 @@ export default function Admin() {
           </div>
           <div>
             <input 
-              type="password" 
-              placeholder="Password" 
-              value={password} 
-              onChange={e => setPassword(e.target.value)}
-              required
-              className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold"
-            />
-          </div>
-          <button 
-            type="submit"
-            className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all mb-2"
+            type="password" 
+            placeholder="Password" 
+            value={password} 
+            onChange={e => setPassword(e.target.value)}
+            required
+            className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold"
+          />
+        </div>
+
+        {/* --- TEMPEL TOMBOL BARU INI DI SINI --- */}
+        <div className="flex justify-end px-1 -mt-1 mb-4">
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
           >
+            Lupa Password?
+          </button>
+        </div>
+        {/* ------------------------------------- */}
+
+        <button 
+          type="submit"
+          className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all mb-2"
+        >
             Login
           </button>
           <button 
