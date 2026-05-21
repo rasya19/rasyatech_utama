@@ -36,18 +36,6 @@ const handleSendMagicLink = async () => {
   // ...
 }
 
-const handleSendMagicLink = async () => {
-  // ISI FUNCTION MAGIC LINK KAMU YANG LAMA DI SINI
-  // JANGAN DIKOSONGIN, BALIKIN CODE LAMANYA
-}
-  setSaveStatus(null);
-  
-  const handleResetPassword = async () => {
-  if (!email) {
-    setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom atas' })
-    return;
-  }
-  
   setResetLoading(true);
   setSaveStatus(null);
   
