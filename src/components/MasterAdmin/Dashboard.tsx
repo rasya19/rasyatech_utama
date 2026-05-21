@@ -436,16 +436,81 @@ export default function Admin() {
 
   const handleUpdateRegStatus = async (id: string, status: string) => {
     try {
-      console.log(`Updating ${id} to ${status}...`);
-      const { error } = await supabase.from('registrations').update({ status }).eq('id', id);
-      if (error) throw error;
-      console.log("Update successful");
-      setSaveStatus({ type: 'success', message: 'Status berhasil diperbarui!' });
-      setTimeout(() => setSaveStatus(null), 3000);
-      fetchRegistrations();
-    } catch (err: any) {
-      console.error("Error updating status:", err);
-      setSaveStatus({ type: 'error', message: 'Gagal update status: ' + (err.message || 'Error tidak diketahui') });
+      // 1. Ambil data pendaftar terlebih dahulu untuk mendapatkan email, password, dll.
+      const { data: pendaftar, error: fetchError } = await supabase
+        .from('registrations')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !pendaftar) {
+        alert('Gagal mengambil data pendaftar dari database.');
+        return;
+      }
+
+      let generatedAuthUid = pendaftar.auth_uid;
+
+      // 2. Jika status diubah ke VERIFIED/ACTIVE dan akun Auth belum ada, buat otomatis
+      const targetStatus = status.toUpperCase();
+      if ((targetStatus === 'VERIFIED' || targetStatus === 'ACTIVE') && !generatedAuthUid) {
+        console.log('Mendaftarkan akun ke Supabase Auth untuk:', pendaftar.email);
+        
+        // Membuat user baru di Supabase Auth secara instant & otomatis terkonfirmasi
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: pendaftar.email,
+          password: pendaftar.password || 'Anlebakwangi19%', // Ambil password pendaftar atau default
+          email_confirm: true // Langsung aktif tanpa perlu klik link konfirmasi email
+        });
+
+        if (authError) {
+          alert(`Gagal membuat akun login otomatis: ${authError.message}`);
+          return;
+        }
+
+        // Simpan UUID hasil generate dari Supabase Auth
+        generatedAuthUid = authData.user.id;
+
+        // 3. Otomatis buat data di tabel 'schools' supaya portal web LMS langsung siap diakses
+        const { error: schoolError } = await supabase
+          .from('schools')
+          .insert([
+            {
+              id: pendaftar.subdomain,
+              slug: pendaftar.subdomain,
+              name: pendaftar.school_name,
+              status: 'ACTIVE'
+            }
+          ]);
+
+        if (schoolError) {
+          console.error("Gagal menyalin data ke tabel schools:", schoolError.message);
+        }
+      }
+
+      // 4. Update tabel registrations (Ubah status, persetujuan, dan masukkan auth_uid)
+      const { error: updateError } = await supabase
+        .from('registrations')
+        .update({ 
+          status: status, // Menjaga string status asli sesuai bawaan aplikasi kamu
+          is_approved: targetStatus === 'VERIFIED' || targetStatus === 'ACTIVE',
+          auth_uid: generatedAuthUid // Kolom yang tadinya NULL otomatis terisi di sini
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      alert(`Status pendaftar berhasil diperbarui menjadi ${status}`);
+      
+      // Memanggil fungsi refresh data bawaan dari kode dashboard kamu
+      if (typeof fetchRegistrations === 'function') {
+        fetchRegistrations();
+      } else if (typeof fetchData === 'function') {
+        fetchData();
+      }
+
+    } catch (error: any) {
+      console.error(error);
+      alert(`Terjadi kesalahan: ${error.message || 'Gagal memproses perubahan status'}`);
     }
   };
 
