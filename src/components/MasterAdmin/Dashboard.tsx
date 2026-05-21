@@ -77,6 +77,7 @@ const handleSendMagicLink = async () => {
       >
         Lupa Password?
       </button>
-    )
+</div>
+  )
 }
    
