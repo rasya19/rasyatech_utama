@@ -5,6 +5,7 @@ import TenantDashboard from './components/TenantDashboard';
 import AffiliatePortal from './components/AffiliatePortal';
 import SchoolLogin from './components/SchoolLogin';
 import ResetPassword from './components/ResetPassword';
+import Login from './components/Login'; // <-- IMPORT BARU
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 
 function AppRoutes() {
@@ -12,22 +13,24 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Landing Page only on main domain */}
       <Route path="/" element={!subdomain ? <RasyatechLanding /> : <Navigate to="/admin" />} />
       
-      {/* Reset Password - hanya di main domain */}
+      {/* Login Super Admin - main domain */}
+      <Route 
+        path="/login" 
+        element={!subdomain ? <Login /> : <Navigate to="/" />} 
+      />
+      
       <Route 
         path="/reset-password" 
         element={!subdomain ? <ResetPassword /> : <Navigate to="/" />} 
       />
       
-      {/* SuperAdmin/MasterAdmin only on main domain */}
       <Route 
         path="/master-admin" 
         element={!subdomain ? <MasterAdmin /> : <Navigate to="/admin" />} 
       />
       
-      {/* Tenant Admin only on subdomains */}
       <Route 
         path="/admin" 
         element={subdomain ? <TenantDashboard /> : <Navigate to="/master-admin" />} 
@@ -42,7 +45,6 @@ function AppRoutes() {
         element={subdomain ? <SchoolLogin /> : <Navigate to="/" />} 
       />
       
-      {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
