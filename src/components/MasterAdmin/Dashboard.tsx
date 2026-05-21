@@ -601,38 +601,54 @@ export default function Admin() {
             className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all mb-2"
           >
             Login
-          </button>
-          <button 
-            type="button"
-            onClick={handleSendMagicLink}
-            disabled={resetLoading}
-            className="w-full text-indigo-600 font-bold text-sm hover:underline disabled:opacity-50"
-          >
-         {/* HAPUS TOMBOL LAMA, GANTI PAKE INI */}
-<div style={{ textAlign: 'center', marginTop: '16px' }}>   
-  <button
-    type="button"
-    onClick={handleResetPassword}
-    style={{
-      background: 'none',
-      border: 'none',
-      color: '#4f46e5', // warna ungu biar nyambung sama Login
-      fontSize: '14px',
-      fontWeight: '500',
-      cursor: 'pointer',
-      padding: '4px 8px'
-    }}
-    onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-    onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-  >
-    Lupa Password?
-  </button>
-</div>
-          Login with Google
         </button>
-      </div>
+
+        {/* >>> TEMPEL MULAI DARI SINI <<< */}
+        {/* TOMBOL LUPA PASSWORD */}
+        <div style={{ textAlign: 'center', marginTop: '16px' }}>   
+          <button
+            type="button"
+            onClick={handleResetPassword}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#4f46e5',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              padding: '4px 8px'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+          >
+            Lupa Password?
+          </button>
+        </div>
+
+        {/* TOMBOL MAGIC LINK */}
+        <button 
+          type="button"
+          onClick={handleSendMagicLink}
+          disabled={resetLoading}
+          className="w-full text-indigo-600 font-bold text-sm hover:underline disabled:opacity-50 mt-4"
+        >
+          {resetLoading ? 'Mengirim...' : 'Gunakan Magic Link (Login tanpa password)'}
+        </button>
+        {/* >>> SAMPE SINI <<< */}
+        
+      </form>
+      
+      <div className="text-center font-bold text-slate-400 mb-4">ATAU</div>
+      
+      <button 
+        onClick={handleLogin}
+        className="w-full py-5 bg-white text-slate-600 font-black rounded-2xl border-2 border-slate-200 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
+      >
+        Login with Google
+      </button>
     </div>
   );
+}
             {resetLoading ? 'Mengirim...' : 'Gunakan Magic Link (Login tanpa password)'}
           </button>
         </form>
