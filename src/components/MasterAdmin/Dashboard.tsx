@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react' // <-- import di atas
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Link } from 'react-router-dom' // <-- kalau perlu, taro di sini
+import { Link } from 'react-router-dom'
 import { Settings, Loader2, ArrowLeft, AlertCircle } from 'lucide-react'
 
 export default function MasterAdmin() {
