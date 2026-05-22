@@ -222,76 +222,28 @@ export default function RasyatechLanding() {
   // 1. Buat pembaca data form HTML yang aktif
   const currentForm = e.currentTarget as HTMLFormElement;
 
-  // 2. Susun data pendaftaran dengan mengambil langsung dari name HTML
-  const npsnValue = (currentForm.elements.namedItem('npsn') as HTMLInputElement)?.value || '-';
-  const subdomainValue = (currentForm.elements.namedItem('subdomain') as HTMLInputElement)?.value || '';
-  const passwordValue = (currentForm.elements.namedItem('password') as HTMLInputElement)?.value || '';
-
-  const registrationData: any = {
-    school_name: school,
-    admin_email: email,
-    admin_name: school,
-    whatsapp: waNumber,
-    npsn: npsnValue,
-    subdomain: subdomainValue,
-    password: passwordValue,
-    status: 'verified', // Set verified agar tidak kena blokir 403 di LMS
-    is_approved: true   // Set true agar otomatis langsung aktif
-  };
-
-  console.log("Attempting registration with data:", registrationData);
-
-  // Prepare WhatsApp message
-  let promoText = "";
-  if (pkg.includes("Annual Promo")) {
-      promoText = `Saya tertarik dengan Promo Tahunan Paket ${pkg.split(' ')[0]}.%0A`;
-  } else if (pkg.includes("Monthly")) {
-      promoText = `Saya tertarik dengan Paket Bulanan ${pkg.split(' ')[0]}.%0A`;
-  }
-
   // =========================================================================
-  // PROSES OTOMATISASI BARU: DAFTAR AUTH + MEMACU TRIGGER DATABASE SUPABASE
-  // =========================================================================
-  try {
-    // A. Daftarkan Akun ke Supabase Auth & kirim metadata untuk ditangkap trigger SQL
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: email,
-      password: passwordValue,
-      options: {
-        data: {
-          school_name: school,
-          npsn: npsnValue,
-        }
-      }
-    });
+    // DATA PERSIAPAN (DIAMBIL DARI FORM SEBELUM DIKIRIM)
+    // =========================================================================
+    const npsnValue = (currentForm.elements.namedItem('npsn') as HTMLInputElement)?.value || '-';
+    const subdomainValue = (currentForm.elements.namedItem('subdomain') as HTMLInputElement)?.value || '';
+    const passwordValue = (currentForm.elements.namedItem('password') as HTMLInputElement)?.value || '';
 
-    if (authError) throw authError;
+    const registrationData: any = {
+        school_name: school,
+        admin_email: email,
+        admin_name: school,
+        whatsapp: waNumber,
+        npsn: npsnValue,
+        subdomain: subdomainValue,
+        password: passwordValue,
+        status: 'verified',
+        is_approved: true
+    };
 
-    // B. Simpan history pendaftaran ke tabel registrations (Opsional untuk log arsip)
-    if (authData?.user) {
-      const { error: regError } = await supabase
-        .from('registrations')
-        .insert([{
-          ...registrationData,
-          school_id: authData.user.id // Ikat dengan ID user auth yang baru jadi
-        }]);
-
-      if (regError) console.error("Gagal mencatat log registrasi:", regError.message);
-    }
-
-    alert('Pendaftaran Berhasil! Mengalihkan ke WhatsApp...');
-
-    // C. Redirect ke WhatsApp otomatis bawaan sistem landing page-mu
-    const waUrl = `https://api.whatsapp.com/send?phone=${waNumber}&text=${promoText}`;
-    window.open(waUrl, '_blank');
-
-  } catch (error: any) {
-    console.error("Proses registrasi bermasalah:", error.message);
-    alert("Gagal mendaftar: " + error.message);
-  }
     console.log("Attempting registration with data:", registrationData);
 
-   // Prepare WhatsApp message
+    // Prepare WhatsApp message
     let promoText = "";
     if (pkg.includes("Annual Promo")) {
         promoText = `Saya tertarik dengan Promo Tahunan Paket ${pkg.split(' ')[0]}.%0A`;
@@ -307,7 +259,7 @@ export default function RasyatechLanding() {
                     `Password Request: ${pass}%0A%0AMohon diproses untuk pembuatan akun admin sekolah kami. Terima kasih.`;
 
     // =========================================================================
-    // PROSES EKSEKUSI OTOMATISASI KE SUPABASE (PENGGANTI KODE LAMA YANG DOBEL)
+    // PROSES EKSEKUSI OTOMATISASI KE SUPABASE
     // =========================================================================
     try {
         // A. Jalankan pendaftaran akun utama ke Supabase Auth
@@ -344,7 +296,7 @@ export default function RasyatechLanding() {
         console.error("Proses pendaftaran gagal:", error.message);
         alert("Gagal melakukan pendaftaran: " + error.message);
     }
-} // <--- Pastikan kurung kurawal penutup fungsi onSubmit / handleRegister kamu aman di sini
+}; // <--- INI ADALAH PENUTUP FUNGSI KAMU YANG PAS
 
     setShowPayment(true);
     target.reset();
