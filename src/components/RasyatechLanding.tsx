@@ -295,8 +295,7 @@ export default function RasyatechLanding() {
     } catch (error: any) {
         console.error("Proses pendaftaran gagal:", error.message);
         alert("Gagal melakukan pendaftaran: " + error.message);
-    }
-}; // <--- INI ADALAH PENUTUP FUNGSI KAMU YANG PAS
+};
 
     setShowPayment(true);
     target.reset();
