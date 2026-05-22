@@ -291,7 +291,7 @@ export default function RasyatechLanding() {
   }
     console.log("Attempting registration with data:", registrationData);
 
-    // Prepare WhatsApp message
+   // Prepare WhatsApp message
     let promoText = "";
     if (pkg.includes("Annual Promo")) {
         promoText = `Saya tertarik dengan Promo Tahunan Paket ${pkg.split(' ')[0]}.%0A`;
@@ -304,20 +304,47 @@ export default function RasyatechLanding() {
                     `Nama Sekolah: ${school}%0A` +
                     `Alamat: ${addr}%0A` +
                     `Email Admin: ${email}%0A` +
-                    `Password Request: ${pass}%0A%0A` +
-                    `Mohon diproses untuk pembuatan akun admin sekolah kami. Terima kasih.`;
-    
-    // Redirect to WhatsApp immediately for better UX
-    window.open(`https://wa.me/${config.whatsapp || '6281918226387'}?text=${message}`, '_blank');
-    
-    // Perform database insertion in the background
-    supabase.from('registrations').insert([registrationData]).then(({ data, error }) => {
-      if (error) {
-        console.error("Supabase insertion failed in background:", error);
-      } else {
-        console.log("Supabase insertion successful:", data);
-      }
-    });
+                    `Password Request: ${pass}%0A%0AMohon diproses untuk pembuatan akun admin sekolah kami. Terima kasih.`;
+
+    // =========================================================================
+    // PROSES EKSEKUSI OTOMATISASI KE SUPABASE (PENGGANTI KODE LAMA YANG DOBEL)
+    // =========================================================================
+    try {
+        // A. Jalankan pendaftaran akun utama ke Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: email,
+            password: passwordValue,
+            options: {
+                data: {
+                    school_name: school,
+                    npsn: npsnValue,
+                }
+            }
+        });
+
+        if (authError) throw authError;
+
+        // B. Simpan history log ke tabel registrations
+        if (authData?.user) {
+            await supabase
+                .from('registrations')
+                .insert([{
+                    ...registrationData,
+                    school_id: authData.user.id
+                }]);
+        }
+
+        alert('Pendaftaran Berhasil! Mengalihkan ke WhatsApp...');
+
+        // C. Alihkan langsung ke WhatsApp menggunakan pesan tunggal yang rapi
+        const waUrl = `https://api.whatsapp.com/send?phone=${waNumber}&text=${message}`;
+        window.open(waUrl, '_blank');
+
+    } catch (error: any) {
+        console.error("Proses pendaftaran gagal:", error.message);
+        alert("Gagal melakukan pendaftaran: " + error.message);
+    }
+} // <--- Pastikan kurung kurawal penutup fungsi onSubmit / handleRegister kamu aman di sini
 
     setShowPayment(true);
     target.reset();
