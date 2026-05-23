@@ -74,18 +74,57 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
-    // 1. Jika user belum terdeteksi (null), matikan loading pendaftar agar tidak stuck muter
-    if (!user) {
-      // Jika di kode kamu fungsi fetchRegistrations punya state loading sendiri, matikan di sini.
-      // Jika menggunakan state 'loading' utama, buka baris di bawah ini:
-      // setLoading(false); 
-      return;
-    }
+    if (!user) return;
 
-    // 2. Jika user sudah ada, panggil fungsi ambil data registrations
+    // // Listen to Config
+    // const unsubConfig = onSnapshot(doc(db, 'settings', 'config'), (snap) => {
+    //   if (snap.exists()) {
+    //     setConfig((prev: any) => ({ ...prev, ...snap.data() }));
+    //   }
+    // }, (err) => handleFirestoreError(err, OperationType.GET, 'settings/config'));
+
+    // // Listen to Payments
+    // const unsubPayments = onSnapshot(doc(db, 'settings', 'payments'), (snap) => {
+    //   if (snap.exists()) {
+    //     setPayments((prev: any) => ({ ...prev, ...snap.data() }));
+    //   }
+    // }, (err) => handleFirestoreError(err, OperationType.GET, 'settings/payments'));
+
+    // // Listen to Services
+    // const unsubServices = onSnapshot(query(collection(db, 'services'), orderBy('title')), (snap) => {
+    //   setServices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'services'));
+
+    // // Listen to Laptops
+    // const unsubLaptops = onSnapshot(query(collection(db, 'laptops'), orderBy('name')), (snap) => {
+    //   setLaptops(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'laptops'));
+
+    // // Listen to Ads
+    // const unsubAds = onSnapshot(collection(db, 'ads'), (snap) => {
+    //   setAds(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'ads'));
+
+    // // Listen to Products
+    // const unsubProducts = onSnapshot(query(collection(db, 'products'), orderBy('name')), (snap) => {
+    //   setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'products'));
+
+    // Listen to Registrations
     fetchRegistrations();
 
-    // Sisa kode cleanup listener Firebase yang dikomentari tetap dibiarkan aman
+    // // Listen to Affiliates
+    // const unsubAffiliates = onSnapshot(query(collection(db, 'affiliates'), orderBy('name')), (snap) => {
+    //   setAffiliates(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    // }, (err) => handleFirestoreError(err, OperationType.LIST, 'affiliates'));
+
+    // // Listen to Visitor Count
+    // const unsubStats = onSnapshot(doc(db, 'stats', 'visitors'), (snap) => {
+    //   if (snap.exists()) {
+    //     setVisitorCount(snap.data().count || 0);
+    //   }
+    // }, (err) => handleFirestoreError(err, OperationType.GET, 'stats/visitors'));
+
     return () => {
       // unsubConfig();
       // unsubPayments();
@@ -99,24 +138,14 @@ export default function Admin() {
   }, [user]);
 
   const fetchRegistrations = async () => {
-    try {
-      // Pastikan di awal fungsi, loading registrations kita aktifkan dulu
-      setLoadingRegistrations(true); 
-      
-      const { data: regs, error } = await supabase.from('registrations').select('*');
-      if (error) {
+    const { data: regs, error } = await supabase.from('registrations').select('*');
+    if (error) {
         console.error("Error fetching registrations:", error);
-      } else {
+    } else {
         setRegistrations(regs || []);
-      }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-    } finally {
-      // INI DIA: Paksa matikan state loading registrations setelah selesai ambil data!
-      setLoadingRegistrations(false); 
-      setLoading(false); // Tetap matikan loading auth utama sebagai pengaman tambahan
     }
   };
+
   const fetchAffiliates = async () => {
     const { data: affs, error } = await supabase.from('affiliates').select('*').order('name', { ascending: true });
     if (error) {
@@ -157,27 +186,6 @@ export default function Admin() {
     }
   };
 
-  // --- TEMPEL KODE BARU INI DI SINI ---
-  const handleForgotPassword = async () => {
-    setSaveStatus(null);
-    if (!email) {
-      setSaveStatus({ type: 'error', message: 'Silakan masukkan email Anda terlebih dahulu di kolom input di atas!' });
-      return;
-    }
-
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/master-admin`,
-      });
-
-      if (error) throw error;
-      setSaveStatus({ type: 'success', message: 'Link reset password telah dikirim ke email Anda. Silakan cek inbox/spam!' });
-    } catch (error: any) {
-      console.error(error);
-      setSaveStatus({ type: 'error', message: 'Gagal mengirim email reset: ' + (error.message || 'Error tidak diketahui') });
-    }
-  };
-  // ------------------------------------
   const [resetLoading, setResetLoading] = useState(false);
   const handleSendMagicLink = async () => {
     if (!email) {
@@ -436,81 +444,16 @@ export default function Admin() {
 
   const handleUpdateRegStatus = async (id: string, status: string) => {
     try {
-      // 1. Ambil data pendaftar terlebih dahulu untuk mendapatkan email, password, dll.
-      const { data: pendaftar, error: fetchError } = await supabase
-        .from('registrations')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (fetchError || !pendaftar) {
-        alert('Gagal mengambil data pendaftar dari database.');
-        return;
-      }
-
-      let generatedAuthUid = pendaftar.auth_uid;
-
-      // 2. Jika status diubah ke VERIFIED/ACTIVE dan akun Auth belum ada, buat otomatis
-      const targetStatus = status.toUpperCase();
-      if ((targetStatus === 'VERIFIED' || targetStatus === 'ACTIVE') && !generatedAuthUid) {
-        console.log('Mendaftarkan akun ke Supabase Auth untuk:', pendaftar.email);
-        
-        // Membuat user baru di Supabase Auth secara instant & otomatis terkonfirmasi
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-          email: pendaftar.email,
-          password: pendaftar.password || 'Anlebakwangi19%', // Ambil password pendaftar atau default
-          email_confirm: true // Langsung aktif tanpa perlu klik link konfirmasi email
-        });
-
-        if (authError) {
-          alert(`Gagal membuat akun login otomatis: ${authError.message}`);
-          return;
-        }
-
-        // Simpan UUID hasil generate dari Supabase Auth
-        generatedAuthUid = authData.user.id;
-
-        // 3. Otomatis buat data di tabel 'schools' supaya portal web LMS langsung siap diakses
-        const { error: schoolError } = await supabase
-          .from('schools')
-          .insert([
-            {
-              id: pendaftar.subdomain,
-              slug: pendaftar.subdomain,
-              name: pendaftar.school_name,
-              status: 'ACTIVE'
-            }
-          ]);
-
-        if (schoolError) {
-          console.error("Gagal menyalin data ke tabel schools:", schoolError.message);
-        }
-      }
-
-      // 4. Update tabel registrations (Ubah status, persetujuan, dan masukkan auth_uid)
-      const { error: updateError } = await supabase
-        .from('registrations')
-        .update({ 
-          status: status, // Menjaga string status asli sesuai bawaan aplikasi kamu
-          is_approved: targetStatus === 'VERIFIED' || targetStatus === 'ACTIVE',
-          auth_uid: generatedAuthUid // Kolom yang tadinya NULL otomatis terisi di sini
-        })
-        .eq('id', id);
-
-      if (updateError) throw updateError;
-
-      alert(`Status pendaftar berhasil diperbarui menjadi ${status}`);
-      
-      // Memanggil fungsi refresh data bawaan dari kode dashboard kamu
-      if (typeof fetchRegistrations === 'function') {
-        fetchRegistrations();
-      } else if (typeof fetchData === 'function') {
-        fetchData();
-      }
-
-    } catch (error: any) {
-      console.error(error);
-      alert(`Terjadi kesalahan: ${error.message || 'Gagal memproses perubahan status'}`);
+      console.log(`Updating ${id} to ${status}...`);
+      const { error } = await supabase.from('registrations').update({ status }).eq('id', id);
+      if (error) throw error;
+      console.log("Update successful");
+      setSaveStatus({ type: 'success', message: 'Status berhasil diperbarui!' });
+      setTimeout(() => setSaveStatus(null), 3000);
+      fetchRegistrations();
+    } catch (err: any) {
+      console.error("Error updating status:", err);
+      setSaveStatus({ type: 'error', message: 'Gagal update status: ' + (err.message || 'Error tidak diketahui') });
     }
   };
 
@@ -622,31 +565,18 @@ export default function Admin() {
           </div>
           <div>
             <input 
-            type="password" 
-            placeholder="Password" 
-            value={password} 
-            onChange={e => setPassword(e.target.value)}
-            required
-            className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold"
-          />
-        </div>
-
-        {/* --- TEMPEL TOMBOL BARU INI DI SINI --- */}
-        <div className="flex justify-end px-1 -mt-1 mb-4">
-          <button
-            type="button"
-            onClick={handleForgotPassword}
-            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+              type="password" 
+              placeholder="Password" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)}
+              required
+              className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold"
+            />
+          </div>
+          <button 
+            type="submit"
+            className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all mb-2"
           >
-            Lupa Password?
-          </button>
-        </div>
-        {/* ------------------------------------- */}
-
-        <button 
-          type="submit"
-          className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all mb-2"
-        >
             Login
           </button>
           <button 
@@ -1066,18 +996,11 @@ export default function Admin() {
       </div>
     </div>
 
-   {/* LOADING STATE - TAMBAHAN BARU YANG SUDAH AMAN */}
-    {loadingRegistrations && registrations.length === 0 && (
+    {/* LOADING STATE - TAMBAHAN BARU */}
+    {loadingRegistrations && (
       <div className="bg-white rounded-[40px] border border-slate-100 p-20 text-center">
         <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-4" />
         <p className="text-slate-500 font-medium">Memuat data pendaftar...</p>
-      </div>
-    )}
-
-    {/* KONDISI JIKA DATA SUDAH SELESAI DIMUAT TAPI KOSONG (0 DATA) */}
-    {!loadingRegistrations && registrations.length === 0 && (
-      <div className="bg-white rounded-[40px] border border-slate-100 p-20 text-center">
-        <p className="text-slate-400 font-medium">Belum ada data pendaftar baru dari landing page.</p>
       </div>
     )}
 

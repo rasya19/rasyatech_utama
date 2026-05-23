@@ -222,21 +222,18 @@ export default function RasyatechLanding() {
   // 1. Buat pembaca data form HTML yang aktif
   const currentForm = e.currentTarget as HTMLFormElement;
 
-    const npsnValue = (currentForm.elements.namedItem('npsn') as HTMLInputElement)?.value || '-';
-    const subdomainValue = (currentForm.elements.namedItem('subdomain') as HTMLInputElement)?.value || '';
-    const passwordValue = (currentForm.elements.namedItem('password') as HTMLInputElement)?.value || '';
-
-    const registrationData: any = {
-        school_name: school,
-        admin_email: email,
-        admin_name: school,
-        whatsapp: waNumber,
-        npsn: npsnValue,
-        subdomain: subdomainValue,
-        password: passwordValue,
-        status: 'verified',
-        is_approved: true
-    };
+  // 2. Susun data pendaftaran dengan mengambil langsung dari name HTML
+  const registrationData: any = {
+    school_name: school,
+    admin_email: email,
+    admin_name: school,
+    whatsapp: waNumber,
+    npsn: (currentForm.elements.namedItem('npsn') as HTMLInputElement)?.value || '-',
+    subdomain: (currentForm.elements.namedItem('subdomain') as HTMLInputElement)?.value || '',
+    password: (currentForm.elements.namedItem('password') as HTMLInputElement)?.value || '',
+    status: 'pending',
+    is_approved: false
+  };
 
     console.log("Attempting registration with data:", registrationData);
 
@@ -253,66 +250,20 @@ export default function RasyatechLanding() {
                     `Nama Sekolah: ${school}%0A` +
                     `Alamat: ${addr}%0A` +
                     `Email Admin: ${email}%0A` +
-                    `Password Request: ${pass}%0A%0AMohon diproses untuk pembuatan akun admin sekolah kami. Terima kasih.`;
-
-    // =========================================================================
-    // 2. PROSES EKSEKUSI BERURUTAN (MANUAL INSERT TANPA TRIGGER)
-    // =========================================================================
-    try {
-        // A. Daftarkan Akun Login ke Supabase Auth
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: email,
-            password: passwordValue
-        });
-
-        if (authError) throw new Error("Gagal membuat akun login: " + authError.message);
-        if (!authData?.user) throw new Error("Gagal mendapatkan data user ID.");
-
-        const userUUID = authData.user.id;
-        const generatedSlug = school.toLowerCase().replace(/[^a-zA-Z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        
-        // B. Masukkan data ke tabel schools secara langsung
-        const { data: schoolData, error: schoolError } = await supabase
-            .from('schools')
-            .insert([{
-                school_name: school,
-                slug: generatedSlug,
-                npsn: npsnValue,
-                status: 'active'
-            }])
-            .select()
-            .single();
-
-        if (schoolError) throw new Error("Gagal membuat data sekolah: " + schoolError.message);
-
-        // C. Hubungkan Akun User dan Sekolah ke tabel profiles
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .insert([{
-                id: userUUID,
-                school_id: schoolData.id,
-                role: 'admin_sekolah'
-            }]);
-
-        if (profileError) throw new Error("Gagal membuat profil admin: " + profileError.message);
-
-        // D. Catat history-nya ke tabel registrations dengan ID sekolah yang valid
-        await supabase
-            .from('registrations')
-            .insert([{
-                ...registrationData,
-                school_id: schoolData.id
-            }]);
-
-        alert('Pendaftaran Berhasil! Mengalihkan ke WhatsApp untuk konfirmasi...');
-        
-        const waUrl = `https://api.whatsapp.com/send?phone=${waNumber}&text=${message}`;
-        window.open(waUrl, '_blank');
-
-    } catch (error: any) {
-        console.error("DEBUG REGISTER ERROR:", error.message);
-        alert("Proses Gagal: " + error.message);
-    }
+                    `Password Request: ${pass}%0A%0A` +
+                    `Mohon diproses untuk pembuatan akun admin sekolah kami. Terima kasih.`;
+    
+    // Redirect to WhatsApp immediately for better UX
+    window.open(`https://wa.me/${config.whatsapp || '6281918226387'}?text=${message}`, '_blank');
+    
+    // Perform database insertion in the background
+    supabase.from('registrations').insert([registrationData]).then(({ data, error }) => {
+      if (error) {
+        console.error("Supabase insertion failed in background:", error);
+      } else {
+        console.log("Supabase insertion successful:", data);
+      }
+    });
 
     setShowPayment(true);
     target.reset();

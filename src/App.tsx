@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import RasyatechLanding from './components/RasyatechLanding';
 import MasterAdmin from './components/MasterAdmin/Dashboard';
 import TenantDashboard from './components/TenantDashboard';
@@ -12,23 +12,17 @@ import { supabase } from './lib/supabase';
 function AppRoutes() {
   const subdomain = useSubdomain();
   const navigate = useNavigate();
-  const [isRecovering, setIsRecovering] = useState(false);
 
   useEffect(() => {
-    // 1. Cek langsung dari URL Hash sebelum dihapus Supabase
-    const hasRecoveryHash = window.location.hash && window.location.hash.includes('type=recovery');
-    
-    if (hasRecoveryHash) {
-      setIsRecovering(true);
-      navigate('/reset-password', { replace: true });
-      return;
+    // Capture recovery URL hash from Supabase and redirect to password reset route
+    if (window.location.hash && window.location.hash.includes('type=recovery')) {
+      navigate('/reset-password');
     }
 
-    // 2. Handle lewat Event Listener Supabase (paling akurat)
+    // Also handle PASSWORD_RECOVERY event triggers
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
-        setIsRecovering(true);
-        navigate('/reset-password', { replace: true });
+        navigate('/reset-password');
       }
     });
 
@@ -37,24 +31,8 @@ function AppRoutes() {
     };
   }, [navigate]);
 
-  // Jika sedang mendeteksi recovery, tahan render komponen lain agar tidak ter-lempar oleh Route "*"
-  if (isRecovering && window.location.pathname !== '/reset-password') {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-slate-900 text-white">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500"></div>
-        <span className="ml-3 font-medium">Menyiapkan pemulihan akun...</span>
-      </div>
-    );
-  }
-
   return (
     <Routes>
-      {/* Password Reset Page (Ditaruh paling atas agar prioritas) */}
-      <Route 
-        path="/reset-password" 
-        element={<ResetPassword />} 
-      />
-
       {/* Landing Page only on main domain */}
       <Route path="/" element={!subdomain ? <RasyatechLanding /> : <Navigate to="/admin" />} />
       
@@ -62,6 +40,12 @@ function AppRoutes() {
       <Route 
         path="/master-admin" 
         element={!subdomain ? <MasterAdmin /> : <Navigate to="/admin" />} 
+      />
+      
+      {/* Password Reset Page */}
+      <Route 
+        path="/reset-password" 
+        element={<ResetPassword />} 
       />
       
       {/* Tenant Admin only on subdomains */}
@@ -74,7 +58,6 @@ function AppRoutes() {
         path="/affiliate/portal" 
         element={!subdomain ? <AffiliatePortal /> : <Navigate to="/admin" />} 
       />
-      
       <Route 
         path="/login-sekolah" 
         element={subdomain ? <SchoolLogin /> : <Navigate to="/" />} 
