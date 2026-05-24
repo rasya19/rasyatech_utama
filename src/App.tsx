@@ -1,11 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import RasyatechLanding from './components/RasyatechLanding';
 import MasterAdmin from './components/MasterAdmin/Dashboard';
 import TenantDashboard from './components/TenantDashboard';
 import AffiliatePortal from './components/AffiliatePortal';
 import SchoolLogin from './components/SchoolLogin';
 import ResetPassword from './components/ResetPassword';
+import SplashScreen from './components/SplashScreen';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { supabase } from './lib/supabase';
 
@@ -70,11 +71,24 @@ function AppRoutes() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+  const [appMounted, setAppMounted] = useState(false);
+
   return (
     <SubdomainProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
+      {showSplash && (
+        <SplashScreen 
+          onComplete={() => {
+            setShowSplash(false);
+            setAppMounted(true);
+          }} 
+        />
+      )}
+      {(appMounted || !showSplash) && (
+        <Router>
+          <AppRoutes />
+        </Router>
+      )}
     </SubdomainProvider>
   );
 }

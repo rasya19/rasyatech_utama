@@ -600,93 +600,128 @@ export default function Admin() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-[#f1f5f9] flex">
       {!isAuthorizedSuperAdmin && user && (
-        <div className="bg-red-500 text-white px-10 py-3 text-center text-sm font-black uppercase tracking-widest sticky top-0 z-[100] shadow-xl">
+        <div className="bg-red-500 text-white px-10 py-3 text-center text-sm font-black uppercase tracking-widest fixed top-0 left-0 right-0 z-[100] shadow-xl">
           ⚠️ Akun ini ({user.email}) tidak memiliki akses simpan. Hubungi Developer.
         </div>
       )}
-      <nav className="bg-white border-b border-slate-100 py-6 px-10 flex justify-between items-center sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-black text-xl">RC</span>
+
+      {/* Premium Sidebar with Midnight Blue `#0B2447` */}
+      <aside className="w-72 flex-shrink-0 bg-[#0B2447] flex flex-col shadow-2xl z-20">
+        
+        {/* Sidebar Header with Brushed Metal and Silver Steel texture */}
+        <div className="brushed-metal p-6 flex flex-col items-center justify-center border-b border-white/10 relative">
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="w-11 h-11 bg-[#0b2447] rounded-xl flex items-center justify-center text-[#00BEC4] shadow-md border border-white/20">
+              <span className="text-white font-black text-xl">RC</span>
+            </div>
+            <div>
+              <h2 className="text-lg font-black tracking-tight text-[#0B2447] leading-none flex items-center gap-1">
+                Rasya<span className="text-[#00BEC4]">Tech</span>
+              </h2>
+              <span className="text-[9px] uppercase font-bold tracking-widest text-[#475569] block mt-1">Master Portal</span>
+            </div>
           </div>
-          <span className="text-xl font-bold tracking-tight">Admin Dashboard</span>
-        </div>
-        <div className="flex items-center gap-6">
-          <div className="hidden md:block text-right">
-            <div className="text-sm font-bold text-slate-900">{user.displayName}</div>
-            <div className="text-[10px] uppercase font-black tracking-widest text-slate-400">{user.email}</div>
-          </div>
-          <button 
-            onClick={() => supabase.auth.signOut()}
-            className="p-3 bg-slate-50 text-slate-500 rounded-xl hover:text-red-500 transition-colors border border-slate-100"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
-        </div>
-      </nav>
-
-      <div className="max-w-7xl mx-auto px-10 pt-12">
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-           <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
-             <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-2">Total Pengunjung</div>
-             <div className="text-4xl font-black text-indigo-600 font-mono tracking-tighter">{visitorCount.toLocaleString()}</div>
-           </div>
-           <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
-             <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-2">Total Pendaftar</div>
-             <div className="text-4xl font-black text-slate-900 font-mono tracking-tighter">{registrations.length}</div>
-           </div>
-           <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
-             <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-2">Mitra Affiliasi</div>
-             <div className="text-4xl font-black text-slate-900 font-mono tracking-tighter">{affiliates.length}</div>
-           </div>
-           <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
-             <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-2">Inventory Unit</div>
-             <div className="text-4xl font-black text-slate-900 font-mono tracking-tighter">{laptops.length + products.length}</div>
-           </div>
         </div>
 
-        {/* Tabs */}
-        <AnimatePresence>
-          {saveStatus && (
-            <motion.div 
-              initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              className={`fixed top-24 left-1/2 -translate-x-1/2 z-50 px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold ${
-                saveStatus.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
-              }`}
-            >
-              {saveStatus.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-              {saveStatus.message}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Navigation Section */}
+        <div className="flex-1 p-6 flex flex-col justify-between">
+          <nav className="flex flex-col gap-2">
+            {[
+              { id: 'config', label: 'Konfigurasi', icon: <Settings className="w-5 h-5" /> },
+              { id: 'payments', label: 'Pembayaran', icon: <CheckCircle2 className="w-5 h-5" /> },
+              { id: 'services', label: 'Layanan', icon: <Monitor className="w-5 h-5" /> },
+              { id: 'laptops', label: 'Inventory Laptop', icon: <Package className="w-5 h-5" /> },
+              { id: 'products', label: 'Katalog Barang', icon: <Package className="w-5 h-5" /> },
+              { id: 'registrations', label: 'Pendaftar', icon: <Users className="w-5 h-5" /> },
+              { id: 'affiliates', label: 'Affiliasi', icon: <Users className="w-5 h-5" /> }
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold transition-all duration-200 text-left ${
+                    isActive 
+                      ? 'bg-[#00BEC4] text-[#0B2447] shadow-lg shadow-[#00BEC4]/20 translate-x-1' 
+                      : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span className={isActive ? 'text-[#0B2447]' : 'text-[#00BEC4]'}>{tab.icon}</span>
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
 
-        <div className="flex flex-wrap gap-4 mb-12">
-          {[
-            { id: 'config', label: 'Konfigurasi', icon: <Settings className="w-5 h-5" /> },
-            { id: 'payments', label: 'Pembayaran', icon: <CheckCircle2 className="w-5 h-5" /> },
-            { id: 'services', label: 'Layanan', icon: <Monitor className="w-5 h-5" /> },
-            { id: 'laptops', label: 'Inventory Laptop', icon: <Package className="w-5 h-5" /> },
-            { id: 'products', label: 'Katalog Barang', icon: <Package className="w-5 h-5" /> },
-            { id: 'registrations', label: 'Pendaftar', icon: <Users className="w-5 h-5" /> },
-            { id: 'affiliates', label: 'Affiliasi', icon: <Users className="w-5 h-5" /> }
-          ].map((tab) => (
+          {/* Sidebar Footer Account Action */}
+          <div className="pt-6 border-t border-white/5 space-y-4">
+            <div className="px-3">
+              <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Logged in as</p>
+              <p className="text-xs font-bold text-white truncate mt-0.5">{user.email}</p>
+            </div>
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-black transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+              onClick={() => supabase.auth.signOut()}
+              className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all duration-200"
             >
-              {tab.icon}
-              {tab.label}
+              <LogOut className="w-5 h-5 text-rose-400" />
+              Sign Out
             </button>
-          ))}
+          </div>
         </div>
+      </aside>
 
-        <div className="grid grid-cols-1 gap-12">
+      {/* Main Workspace Frame */}
+      <main className="flex-1 min-w-0 flex flex-col">
+        {/* Workspace Top Header */}
+        <header className="bg-white border-b border-slate-200/80 py-6 px-10 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+          <h1 className="text-2xl font-black text-[#0B2447] tracking-tight">Master Admin Panel</h1>
+          <div className="bg-[#f8fafc] px-6 py-3 rounded-2xl border border-slate-100 shadow-sm font-bold text-[#0B2447] flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#14B8A6] animate-pulse"></span>
+            Super Admin
+          </div>
+        </header>
+
+        {/* Content Body Container */}
+        <div className="flex-1 p-10 overflow-y-auto">
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+             <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl transition-all duration-300">
+               <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-2">Total Pengunjung</div>
+               <div className="text-4xl font-black text-[#0B2447] font-mono tracking-tighter">{visitorCount.toLocaleString()}</div>
+             </div>
+             <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl transition-all duration-300">
+               <div className="text-[10px] uppercase font-black tracking-widest text-[#00BEC4] mb-2">Total Pendaftar</div>
+               <div className="text-4xl font-black text-[#0B2447] font-mono tracking-tighter">{registrations.length}</div>
+             </div>
+             <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl transition-all duration-300">
+               <div className="text-[10px] uppercase font-black tracking-widest text-[#14B8A6] mb-2">Mitra Affiliasi</div>
+               <div className="text-4xl font-black text-[#0B2447] font-mono tracking-tighter">{affiliates.length}</div>
+             </div>
+             <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl transition-all duration-300">
+               <div className="text-[10px] uppercase font-black tracking-widest text-amber-500 mb-2">Inventory Unit</div>
+               <div className="text-4xl font-black text-[#0B2447] font-mono tracking-tighter">{laptops.length + products.length}</div>
+             </div>
+          </div>
+
+          <AnimatePresence>
+            {saveStatus && (
+              <motion.div 
+                initial={{ opacity: 0, y: -50 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -50 }}
+                className={`fixed top-24 left-1/2 -translate-x-1/2 z-50 px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold ${
+                  saveStatus.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+                }`}
+              >
+                {saveStatus.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                {saveStatus.message}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="grid grid-cols-1 gap-12">
           {/* Config Section */}
           {activeTab === 'config' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-12 rounded-[40px] shadow-sm border border-slate-100">
@@ -1329,6 +1364,7 @@ export default function Admin() {
           </div>
         )}
       </AnimatePresence>
+      </main>
     </div>
   );
 }
