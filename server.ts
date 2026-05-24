@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -46,7 +49,7 @@ async function startServer() {
     console.log("Received POST to /api/register-school. Body:", req.body);
     const { school_name, admin_email, admin_name, whatsapp, WA, npsn, subdomain, password, status, is_approved } = req.body;
 
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseServiceKey) {
@@ -70,6 +73,13 @@ async function startServer() {
         is_approved: is_approved === undefined ? false : is_approved,
         created_at: new Date().toISOString()
       };
+
+      if (req.body.package) {
+        payload.package = req.body.package;
+      }
+      if (req.body.address) {
+        payload.address = req.body.address;
+      }
 
       console.log("Inserting registration with payload:", payload);
 
@@ -95,7 +105,7 @@ async function startServer() {
     console.log("Received POST to /api/verify-school. Body:", req.body);
     const { email, school_name, subdomain, registrationId } = req.body;
     
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseServiceKey) {
@@ -263,7 +273,7 @@ async function startServer() {
     if (!id) return res.status(400).json({ error: "ID is required" });
     console.log(`Processing DELETE for registration ID: ${id}`);
     
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseServiceKey) {

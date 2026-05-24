@@ -219,18 +219,18 @@ export default function RasyatechLanding() {
     }
    const contractEndDate = contractEnd.toISOString().split('T')[0];
 
-  // 1. Buat pembaca data form HTML yang aktif
-  const currentForm = e.currentTarget as HTMLFormElement;
-
-  // 2. Susun data pendaftaran dengan mengambil langsung dari name HTML
+  // 1. Susun data pendaftaran dengan mengambil langsung dari FormData
   const registrationData: any = {
     school_name: school,
     admin_email: email,
     admin_name: school,
     whatsapp: waNumber,
-    npsn: (currentForm.elements.namedItem('npsn') as HTMLInputElement)?.value || '-',
-    subdomain: (currentForm.elements.namedItem('subdomain') as HTMLInputElement)?.value || '',
-    password: (currentForm.elements.namedItem('password') as HTMLInputElement)?.value || '',
+    WA: waNumber,
+    npsn: (formData.get('npsn') as string) || '-',
+    subdomain: (formData.get('subdomain') as string) || '',
+    password: pass || '',
+    package: pkg || '',
+    address: addr || '',
     status: 'pending',
     is_approved: false
   };
