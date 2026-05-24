@@ -17,7 +17,9 @@ import {
   Loader2,
   ArrowLeft,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  Menu,
+  X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,6 +28,7 @@ export default function Admin() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'config' | 'services' | 'laptops' | 'payments' | 'products' | 'registrations' | 'affiliates'>('config');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [savingPayments, setSavingPayments] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -71,6 +74,16 @@ export default function Admin() {
       setUser(session?.user ?? null);
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsMobileSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
@@ -617,11 +630,30 @@ export default function Admin() {
         </div>
       )}
 
+      {/* Mobile Sidebar Overlay Backdrop */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-[#0B2447]/60 backdrop-blur-xs z-30 md:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* Premium Sidebar with Midnight Blue `#0B2447` */}
-      <aside className="w-72 flex-shrink-0 bg-[#0B2447] flex flex-col shadow-2xl z-20">
+      <aside className={`fixed inset-y-0 left-0 w-72 bg-[#0B2447] flex flex-col shadow-2xl z-40 transform ${
+        isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:flex flex-shrink-0`}>
         
         {/* Sidebar Header with Brushed Metal and Silver Steel texture */}
         <div className="brushed-metal p-6 flex flex-col items-center justify-center border-b border-white/10 relative">
+          {/* Close button inside sidebar on mobile */}
+          <button
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white md:hidden hover:bg-white/10 rounded-lg transition-colors"
+            aria-label="Tutup menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          
           <div className="flex items-center gap-3 relative z-10">
             <div className="w-11 h-11 bg-[#0b2447] rounded-xl flex items-center justify-center text-[#00BEC4] shadow-md border border-white/20">
               <span className="text-white font-black text-xl">RC</span>
@@ -636,7 +668,7 @@ export default function Admin() {
         </div>
 
         {/* Navigation Section */}
-        <div className="flex-1 p-6 flex flex-col justify-between">
+        <div className="flex-1 p-6 flex flex-col justify-between overflow-y-auto">
           <nav className="flex flex-col gap-2">
             {[
               { id: 'config', label: 'Konfigurasi', icon: <Settings className="w-5 h-5" /> },
@@ -651,7 +683,10 @@ export default function Admin() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    setIsMobileSidebarOpen(false);
+                  }}
                   className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold transition-all duration-200 text-left ${
                     isActive 
                       ? 'bg-[#00BEC4] text-[#0B2447] shadow-lg shadow-[#00BEC4]/20 translate-x-1' 
@@ -672,7 +707,10 @@ export default function Admin() {
               <p className="text-xs font-bold text-white truncate mt-0.5">{user.email}</p>
             </div>
             <button
-              onClick={() => supabase.auth.signOut()}
+              onClick={() => {
+                supabase.auth.signOut();
+                setIsMobileSidebarOpen(false);
+              }}
               className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all duration-200"
             >
               <LogOut className="w-5 h-5 text-rose-400" />
@@ -685,16 +723,25 @@ export default function Admin() {
       {/* Main Workspace Frame */}
       <main className="flex-1 min-w-0 flex flex-col">
         {/* Workspace Top Header */}
-        <header className="bg-white border-b border-slate-200/80 py-6 px-10 flex justify-between items-center sticky top-0 z-10 shadow-sm">
-          <h1 className="text-2xl font-black text-[#0B2447] tracking-tight">Master Admin Panel</h1>
-          <div className="bg-[#f8fafc] px-6 py-3 rounded-2xl border border-slate-100 shadow-sm font-bold text-[#0B2447] flex items-center gap-2">
+        <header className="bg-white border-b border-slate-200/80 py-5 px-6 md:px-10 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-xl md:hidden transition-colors"
+              aria-label="Buka menu navigasi"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="text-xl md:text-2xl font-black text-[#0B2447] tracking-tight">Master Admin Panel</h1>
+          </div>
+          <div className="bg-[#f8fafc] px-4 md:px-6 py-2 md:py-3 rounded-2xl border border-slate-100 shadow-sm font-bold text-[#0B2447] flex items-center gap-2 text-xs md:text-sm">
             <span className="w-2.5 h-2.5 rounded-full bg-[#14B8A6] animate-pulse"></span>
             Super Admin
           </div>
         </header>
 
         {/* Content Body Container */}
-        <div className="flex-1 p-10 overflow-y-auto">
+        <div className="flex-1 p-4 md:p-10 overflow-y-auto">
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
              <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl transition-all duration-300">
