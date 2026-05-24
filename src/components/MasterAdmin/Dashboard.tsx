@@ -138,11 +138,21 @@ export default function Admin() {
   }, [user]);
 
   const fetchRegistrations = async () => {
-    const { data: regs, error } = await supabase.from('registrations').select('*');
-    if (error) {
+    setLoadingRegistrations(true);
+    setRegistrationsError(null);
+    try {
+      const { data: regs, error } = await supabase.from('registrations').select('*');
+      if (error) {
         console.error("Error fetching registrations:", error);
-    } else {
+        setRegistrationsError(error.message);
+      } else {
         setRegistrations(regs || []);
+      }
+    } catch (err: any) {
+      console.error("Crash fetching registrations:", err);
+      setRegistrationsError(err.message || 'Error tidak diketahui');
+    } finally {
+      setLoadingRegistrations(false);
     }
   };
 
