@@ -37,7 +37,13 @@ export default function SplashScreen({ onComplete }: { onComplete: () => void })
               <div className="absolute inset-0 rounded-full bg-white/5 animate-pulse duration-2000" />
               <div className="absolute -inset-2 rounded-full bg-indigo-500/10 blur-xl animate-pulse" />
               
-              /><img
+              <img
+                id="splash-logo"
+                src="/pwa-512x512.png"
+                alt="RasyaTech Logo"
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-contain relative z-10"
+              />
             </motion.div>
 
             {/* Main title */}
