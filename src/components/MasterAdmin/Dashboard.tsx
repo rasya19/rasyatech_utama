@@ -23,6 +23,18 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Legend
+} from 'recharts';
 
 export default function Admin() {
   const [user, setUser] = useState<any | null>(null);
@@ -52,6 +64,7 @@ export default function Admin() {
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [affiliates, setAffiliates] = useState<any[]>([]);
   const [visitorCount, setVisitorCount] = useState<number>(0);
+  const [chartView, setChartView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
 
   const [loadingRegistrations, setLoadingRegistrations] = useState(true);
   const [registrationsError, setRegistrationsError] = useState<string | null>(null);
@@ -622,6 +635,96 @@ export default function Admin() {
     </div>
   );
 
+  const getTrendingData = () => {
+    const rawRegs = registrations || [];
+    
+    if (chartView === 'daily') {
+      // Create date slots for last 15 days
+      const counts: { [key: string]: number } = {};
+      rawRegs.forEach((reg: any) => {
+        const rawDate = reg.created_at || reg.date;
+        if (rawDate) {
+          try {
+            const dateStr = new Date(rawDate).toISOString().split('T')[0];
+            counts[dateStr] = (counts[dateStr] || 0) + 1;
+          } catch (_) {}
+        }
+      });
+      
+      const list = [];
+      for (let i = 14; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const label = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        list.push({
+          label,
+          'Pendaftar': counts[dateStr] || 0
+        });
+      }
+      return list;
+    } else if (chartView === 'weekly') {
+      // Group last 8 weeks
+      const counts: { [key: string]: number } = {};
+      rawRegs.forEach((reg: any) => {
+        const rawDate = reg.created_at || reg.date;
+        if (rawDate) {
+          try {
+            const d = new Date(rawDate);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            const startOfWeek = new Date(d.setDate(diff));
+            const weekKey = startOfWeek.toISOString().split('T')[0];
+            counts[weekKey] = (counts[weekKey] || 0) + 1;
+          } catch (_) {}
+        }
+      });
+
+      const list = [];
+      for (let i = 7; i >= 0; i--) {
+        const d = new Date();
+        const firstDay = d.getDate() - d.getDay() + 1 - (i * 7);
+        const startOfWeek = new Date(d.getFullYear(), d.getMonth(), firstDay);
+        const weekKey = startOfWeek.toISOString().split('T')[0];
+        
+        const label = `Mg-${8 - i} (${startOfWeek.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })})`;
+        list.push({
+          label,
+          'Pendaftar': counts[weekKey] || 0
+        });
+      }
+      return list;
+    } else {
+      // Monthly: last 6 months
+      const counts: { [key: string]: number } = {};
+      rawRegs.forEach((reg: any) => {
+        const rawDate = reg.created_at || reg.date;
+        if (rawDate) {
+          try {
+            const d = new Date(rawDate);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            counts[key] = (counts[key] || 0) + 1;
+          } catch (_) {}
+        }
+      });
+
+      const list = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const label = d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+        list.push({
+          label,
+          'Pendaftar': counts[key] || 0
+        });
+      }
+      return list;
+    }
+  };
+
+  const trendData = getTrendingData();
+
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex">
       {!isAuthorizedSuperAdmin && user && (
@@ -760,6 +863,99 @@ export default function Admin() {
                <div className="text-[10px] uppercase font-black tracking-widest text-amber-500 mb-2">Inventory Unit</div>
                <div className="text-4xl font-black text-[#0B2447] font-mono tracking-tighter">{laptops.length + products.length}</div>
              </div>
+          </div>
+
+          {/* Trend Chart Card using Recharts */}
+          <div className="bg-white p-6 md:p-8 rounded-[32px] border border-slate-100 shadow-md hover:shadow-lg transition-all duration-300 mb-12">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+              <div>
+                <h3 className="text-xl font-black text-[#0B2447]">Tren Pendaftaran Sekolah Baru</h3>
+                <p className="text-slate-500 text-sm font-medium">Statistik registrasi sekolah PKBM & LKP berdasarkan periode waktu.</p>
+              </div>
+              
+              <div className="flex bg-slate-100 p-1.5 rounded-xl gap-1 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setChartView('daily')}
+                  className={`px-4 py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                    chartView === 'daily' 
+                      ? 'bg-white text-[#0B2447] shadow-sm' 
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Harian
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartView('weekly')}
+                  className={`px-4 py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                    chartView === 'weekly' 
+                      ? 'bg-white text-[#0B2447] shadow-sm' 
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Mingguan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartView('monthly')}
+                  className={`px-4 py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                    chartView === 'monthly' 
+                      ? 'bg-white text-[#0B2447] shadow-sm' 
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Bulanan
+                </button>
+              </div>
+            </div>
+
+            <div className="h-80 w-full font-sans">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={trendData}
+                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="colorPendaftar" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#00BEC4" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#00BEC4" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="label" 
+                    tickLine={false} 
+                    axisLine={false}
+                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }}
+                  />
+                  <YAxis 
+                    tickLine={false} 
+                    axisLine={false}
+                    tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }}
+                  />
+                  <Tooltip
+                    contentStyle={{ 
+                      backgroundColor: '#0B2447', 
+                      borderRadius: '16px', 
+                      border: 'none',
+                      color: '#fff',
+                      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+                    }}
+                    labelStyle={{ color: '#94a3b8', fontWeight: 800, marginBottom: '4px' }}
+                    itemStyle={{ color: '#00BEC4', fontWeight: 800 }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="Pendaftar" 
+                    stroke="#00BEC4" 
+                    strokeWidth={3}
+                    fillOpacity={1} 
+                    fill="url(#colorPendaftar)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           <AnimatePresence>
