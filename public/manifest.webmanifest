@@ -3,6 +3,7 @@
   "short_name": "RasyaTech",
   "description": "Innovating the Future of Learning",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0B2447",
   "theme_color": "#FFFFFF",
