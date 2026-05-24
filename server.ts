@@ -41,6 +41,55 @@ async function startServer() {
     }
   });
 
+  // API route for school registration (bypasses direct client RLS by using service role key)
+  app.post("/api/register-school", async (req, res) => {
+    console.log("Received POST to /api/register-school. Body:", req.body);
+    const { school_name, admin_email, admin_name, whatsapp, WA, npsn, subdomain, password, status, is_approved } = req.body;
+
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseServiceKey) {
+      console.error("SUPABASE_SERVICE_ROLE_KEY is missing from environment");
+      return res.status(500).json({ error: "Server configuration missing: Service Role Key" });
+    }
+
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    try {
+      const payload: any = {
+        school_name,
+        admin_email,
+        admin_name: admin_name || school_name,
+        whatsapp: whatsapp || WA || '',
+        WA: WA || whatsapp || '',
+        npsn: npsn || '-',
+        subdomain: subdomain || '',
+        password: password || '',
+        status: status || 'pending',
+        is_approved: is_approved === undefined ? false : is_approved,
+        created_at: new Date().toISOString()
+      };
+
+      console.log("Inserting registration with payload:", payload);
+
+      const { data, error } = await adminSupabase
+        .from('registrations')
+        .insert([payload])
+        .select();
+
+      if (error) {
+        console.error("Registration insertion error:", error.message);
+        return res.status(400).json({ error: error.message });
+      }
+
+      res.json({ success: true, message: "Pendaftaran berhasil disimpan ke database (registrations)!", data });
+    } catch (error: any) {
+      console.error("Registration endpoint caught error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // API route for school verification
   app.post("/api/verify-school", async (req, res) => {
     console.log("Received POST to /api/verify-school. Body:", req.body);
@@ -59,11 +108,41 @@ async function startServer() {
     try {
         const activationDate = new Date();
 
-        // 1. Create Supabase Auth User
+        // Fetch registration info to retrieve password and any other registered values
+        let password = 'AktivasiSekolah123!'; // Fallback password
+        let regData: any = null;
+
+        if (registrationId) {
+          const { data, error: fetchError } = await adminSupabase
+            .from('registrations')
+            .select('*')
+            .eq('id', registrationId)
+            .single();
+          
+          if (!fetchError && data) {
+            regData = data;
+            if (data.password) {
+              password = data.password;
+            }
+          } else {
+            console.warn("Could not fetch registration details for ID:", registrationId, fetchError?.message);
+          }
+        }
+
+        const targetEmail = email || regData?.admin_email;
+        const targetSchoolName = school_name || regData?.school_name || 'Sekolah Baru';
+        const targetSubdomain = subdomain || regData?.subdomain;
+
+        if (!targetEmail) {
+          return res.status(400).json({ error: "Email is required for verification" });
+        }
+
+        // 1. Create Supabase Auth User with Password
         const { data: userData, error: userError } = await adminSupabase.auth.admin.createUser({
-          email,
+          email: targetEmail,
+          password: password,
           email_confirm: true,
-          user_metadata: { school_name, subdomain }
+          user_metadata: { school_name: targetSchoolName, subdomain: targetSubdomain }
         });
 
         // Jika user sudah ada (422), kita lanjut saja
@@ -72,13 +151,15 @@ async function startServer() {
             return res.status(400).json({ error: userError.message });
         }
 
+        const authUid = userData?.user?.id;
+
         // 2. Update status di tabel registrations
         const { error: regError } = await adminSupabase
           .from('registrations')
           .update({ 
             status: 'verified',
-            subdomain: subdomain,
-            auth_uid: userData?.user?.id
+            subdomain: targetSubdomain,
+            auth_uid: authUid || null
           })
           .eq('id', registrationId);
 
@@ -88,31 +169,80 @@ async function startServer() {
         }
 
         // 3. Insert/Upsert ke tabel schools
-        const { error: schoolError } = await adminSupabase
-          .from('schools') 
-          .upsert([{
-            id: subdomain,
-            nama_sekolah: school_name || 'Sekolah Baru', 
-            registration_id: registrationId, // Menambahkan ID pendaftaran sebagai referensi
-            created_at: activationDate.toISOString()
-          }], { onConflict: 'id' });
+        if (targetSubdomain) {
+          const { error: schoolError } = await adminSupabase
+            .from('schools') 
+            .upsert([{
+              id: targetSubdomain,
+              nama_sekolah: targetSchoolName, 
+              registration_id: registrationId, // Menambahkan ID pendaftaran sebagai referensi
+              created_at: activationDate.toISOString()
+            }], { onConflict: 'id' });
 
-        if (schoolError) {
-          console.error("School upsert error:", schoolError.message);
-          throw schoolError;
+          if (schoolError) {
+            console.error("School upsert error:", schoolError.message);
+            throw schoolError;
+          }
         }
 
-        // 4. Send welcome email
+        // 4. Safe Insert/Upsert ke tabel profiles
+        if (authUid) {
+          try {
+            const { error: profileError } = await adminSupabase
+              .from('profiles')
+              .upsert([{
+                id: authUid,
+                email: targetEmail,
+                role: 'school_admin',
+                school_id: targetSubdomain || '',
+                name: targetSchoolName,
+                created_at: activationDate.toISOString(),
+                updated_at: activationDate.toISOString()
+              }], { onConflict: 'id' });
+
+            if (profileError) {
+              console.warn("Profiles table upsert warned (continuing...):", profileError.message);
+            } else {
+              console.log("Profiles successfully updated for user:", authUid);
+            }
+          } catch (profileCatchError: any) {
+            console.warn("Profiles table upsert caught error (continuing...):", profileCatchError.message);
+          }
+
+          // 5. Safe Insert/Upsert ke tabel users
+          try {
+            const { error: usersError } = await adminSupabase
+              .from('users')
+              .upsert([{
+                id: authUid,
+                email: targetEmail,
+                name: targetSchoolName,
+                plan: regData?.package || 'silver',
+                school_id: targetSubdomain || '',
+                created_at: activationDate.toISOString()
+              }], { onConflict: 'id' });
+
+            if (usersError) {
+               console.warn("Users table upsert warned (continuing...):", usersError.message);
+            } else {
+              console.log("Users table successfully updated for user:", authUid);
+            }
+          } catch (usersCatchError: any) {
+             console.warn("Users table upsert caught error (continuing...):", usersCatchError.message);
+          }
+        }
+
+        // 6. Send welcome email
         try {
-            console.log(`Attempting to send email to ${email}...`);
+            console.log(`Attempting to send email to ${targetEmail}...`);
             const domainUtama = "rsch.my.id";
-            const urlSekolah = `https://${subdomain}.${domainUtama}`;
+            const urlSekolah = `https://${targetSubdomain}.${domainUtama}`;
             
             const info = await transporter.sendMail({
                 from: '"Rasyacomp Support" <ismanto095@gmail.com>',
-                to: email,
-                subject: `Selamat! Website Sekolah ${school_name} Telah Aktif`,
-                text: `Halo Admin ${school_name},\n\nPendaftaran Anda di Rasyatech telah diverifikasi. Sekarang Anda sudah memiliki website resmi sendiri. Berikut adalah detail akses Anda:\n\nURL Website: ${urlSekolah}\n\nEmail Login: ${email}\n\nSilakan klik URL di atas untuk mulai mengelola profil sekolah Anda. Terima kasih telah mempercayakan layanan digital Anda kepada Rasyatech.\n\nSalam,\nRasyacomp Support`
+                to: targetEmail,
+                subject: `Selamat! Website Sekolah ${targetSchoolName} Telah Aktif`,
+                text: `Halo Admin ${targetSchoolName},\n\nPendaftaran Anda di Rasyatech telah diverifikasi. Sekarang Anda sudah memiliki website resmi sendiri. Berikut adalah detail akses Anda:\n\nURL Website: ${urlSekolah}\n\nEmail Login: ${targetEmail}\n\nSilakan klik URL di atas untuk mulai mengelola profil sekolah Anda. Terima kasih telah mempercayakan layanan digital Anda kepada Rasyatech.\n\nSalam,\nRasyacomp Support`
             });
             console.log("Email sent successfully:", info.messageId);
         } catch (emailError: any) {

@@ -256,13 +256,33 @@ export default function RasyatechLanding() {
     // Redirect to WhatsApp immediately for better UX
     window.open(`https://wa.me/${config.whatsapp || '6281918226387'}?text=${message}`, '_blank');
     
-    // Perform database insertion in the background
-    supabase.from('registrations').insert([registrationData]).then(({ data, error }) => {
-      if (error) {
-        console.error("Supabase insertion failed in background:", error);
-      } else {
-        console.log("Supabase insertion successful:", data);
+    // Perform database insertion in the background via secure server-side proxy
+    fetch('/api/register-school', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(registrationData)
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Registration API response was not OK');
       }
+      return response.json();
+    })
+    .then(payload => {
+      console.log("Supabase registration successful via backend:", payload);
+    })
+    .catch(err => {
+      console.warn("Backend registration failed, attempting fallback client insert:", err);
+      // Fallback direct insert if server API fails
+      supabase.from('registrations').insert([registrationData]).then(({ data, error }) => {
+        if (error) {
+          console.error("Direct fallback insert also failed:", error);
+        } else {
+          console.log("Direct fallback insert succeeded:", data);
+        }
+      });
     });
 
     setShowPayment(true);
