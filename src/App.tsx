@@ -72,23 +72,19 @@ function AppRoutes() {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
-  const [appMounted, setAppMounted] = useState(false);
 
   return (
     <SubdomainProvider>
-      {showSplash && (
-        <SplashScreen 
-          onComplete={() => {
-            setShowSplash(false);
-            setAppMounted(true);
-          }} 
-        />
-      )}
-      {(appMounted || !showSplash) && (
-        <Router>
-          <AppRoutes />
-        </Router>
-      )}
+      <Router>
+        {showSplash && (
+          <SplashScreen 
+            onComplete={() => {
+              setShowSplash(false);
+            }} 
+          />
+        )}
+        <AppRoutes />
+      </Router>
     </SubdomainProvider>
   );
 }
