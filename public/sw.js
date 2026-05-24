@@ -4,7 +4,7 @@ const RUNTIME_CACHE = 'rasyatech-runtime-v2';
 const ASSETS_TO_PRECACHE = [
   '/',
   '/index.html',
-  '/manifest.webmanifest',
+  '/manifest.json',
   '/pwa-192x192.png',
   '/pwa-512x512.png'
 ];
