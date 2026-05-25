@@ -65,7 +65,6 @@ async function startServer() {
         admin_email,
         admin_name: admin_name || school_name,
         whatsapp: whatsapp || WA || '',
-        WA: WA || whatsapp || '',
         npsn: npsn || '-',
         subdomain: subdomain || '',
         password: password || '',
@@ -73,13 +72,6 @@ async function startServer() {
         is_approved: is_approved === undefined ? false : is_approved,
         created_at: new Date().toISOString()
       };
-
-      if (req.body.package) {
-        payload.package = req.body.package;
-      }
-      if (req.body.address) {
-        payload.address = req.body.address;
-      }
 
       console.log("Inserting registration with payload:", payload);
 
@@ -89,7 +81,7 @@ async function startServer() {
         .select();
 
       if (error) {
-        console.error("Registration insertion error:", error.message);
+        console.error("Supabase Database Insertion Error during registration:", error.message, error);
         return res.status(400).json({ error: error.message });
       }
 

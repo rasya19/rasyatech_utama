@@ -493,6 +493,65 @@ export default function Admin() {
     }
   };
 
+  const handleUpdateSchoolPackage = async (subdomain: string, newPackage: string) => {
+    try {
+      if (!subdomain) {
+        setSaveStatus({ type: 'error', message: 'Subdomain tidak ditemukan!' });
+        return;
+      }
+      
+      console.log(`Updating 'paket_langganan' to ${newPackage} for school subdomain '${subdomain}'...`);
+      
+      // Update local state immediately for a highly responsive UI
+      setRegistrations(prev => prev.map(r => {
+        if (r.subdomain === subdomain) {
+          return { ...r, paket_langganan: newPackage };
+        }
+        return r;
+      }));
+
+      // 1. Update the 'paket_langganan' column of 'schools' table
+      const { error: schoolError } = await supabase
+        .from('schools')
+        .update({ paket_langganan: newPackage })
+        .eq('subdomain', subdomain); // In our database, this matches either slug or subdomain
+
+      if (schoolError) {
+        console.error("Gagal update paket_langganan di tabel schools:", schoolError.message, schoolError);
+        // Fallback update schema by checking ID or other fields if needed
+        const { error: schoolErrorById } = await supabase
+          .from('schools')
+          .update({ paket_langganan: newPackage })
+          .eq('id', subdomain);
+        
+        if (schoolErrorById) {
+          console.error("Gagal update paket_langganan di tabel schools berdasarkan ID:", schoolErrorById.message, schoolErrorById);
+        }
+      } else {
+        console.log("Update paket_langganan on schools table succeeded.");
+      }
+
+      // 2. Also update registrations table just in case they added the column there
+      const { error: regError } = await supabase
+        .from('registrations')
+        .update({ paket_langganan: newPackage })
+        .eq('subdomain', subdomain);
+
+      if (regError) {
+        console.error("Gagal update paket_langganan di tabel registrations:", regError.message, regError);
+      } else {
+        console.log("Update paket_langganan on registrations table succeeded.");
+      }
+
+      setSaveStatus({ type: 'success', message: `Paket langganan diperbarui ke ${newPackage.toUpperCase()}!` });
+      setTimeout(() => setSaveStatus(null), 3000);
+      fetchRegistrations();
+    } catch (err: any) {
+      console.error("Error updating subscription package:", err);
+      setSaveStatus({ type: 'error', message: 'Gagal memperbarui paket: ' + (err.message || 'Error tidak diketahui') });
+    }
+  };
+
   const handleSaveRegistration = async (e: FormEvent) => {
     e.preventDefault();
     
@@ -1328,6 +1387,26 @@ export default function Admin() {
                     <div className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl flex items-center gap-2 border border-emerald-100">
                        <CheckCircle2 className="w-4 h-4" />
                        <span className="text-xs font-black uppercase tracking-tight">TERVERIFIKASI</span>
+                    </div>
+
+                    {/* Styled subscription package dropdown */}
+                    <div className="flex items-center">
+                      <select
+                        id={`pkg-select-${reg.id}`}
+                        value={(reg.paket_langganan || 'silver').toLowerCase()}
+                        onChange={(e) => handleUpdateSchoolPackage(reg.subdomain, e.target.value)}
+                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase border outline-none cursor-pointer duration-300 transition-all ${
+                          (reg.paket_langganan || 'silver').toLowerCase() === 'gold'
+                            ? 'bg-amber-100/70 text-amber-800 border-amber-200 hover:bg-amber-100 focus:ring-2 focus:ring-amber-300'
+                            : (reg.paket_langganan || 'silver').toLowerCase() === 'platinum'
+                            ? 'bg-cyan-100/70 text-cyan-800 border-cyan-200 hover:bg-cyan-100 focus:ring-2 focus:ring-cyan-300'
+                            : 'bg-slate-100/70 text-slate-800 border-slate-200 hover:bg-slate-200 focus:ring-2 focus:ring-slate-300'
+                        }`}
+                      >
+                        <option value="silver" className="bg-white text-slate-800 font-bold">SILVER</option>
+                        <option value="gold" className="bg-white text-amber-800 font-bold">GOLD</option>
+                        <option value="platinum" className="bg-white text-cyan-800 font-bold">PLATINUM</option>
+                      </select>
                     </div>
                     <button
                       onClick={() => {

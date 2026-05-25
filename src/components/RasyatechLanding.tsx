@@ -219,23 +219,20 @@ export default function RasyatechLanding() {
     }
    const contractEndDate = contractEnd.toISOString().split('T')[0];
 
-  // 1. Susun data pendaftaran dengan mengambil langsung dari FormData
+  // 1. Susun data pendaftaran dengan mengambil langsung dari FormData (Hanya kolom-kolom yang valid di tabel Supabase)
   const registrationData: any = {
     school_name: school,
     admin_email: email,
     admin_name: school,
     whatsapp: waNumber,
-    WA: waNumber,
     npsn: (formData.get('npsn') as string) || '-',
     subdomain: (formData.get('subdomain') as string) || '',
     password: pass || '',
-    package: pkg || '',
-    address: addr || '',
     status: 'pending',
     is_approved: false
   };
 
-    console.log("Attempting registration with data:", registrationData);
+    console.log("Attempting registration with database-valid payload:", registrationData);
 
     // Prepare WhatsApp message
     let promoText = "";
@@ -274,11 +271,11 @@ export default function RasyatechLanding() {
       console.log("Supabase registration successful via backend:", payload);
     })
     .catch(err => {
-      console.warn("Backend registration failed, attempting fallback client insert:", err);
+      console.error("Backend registration failed with error, attempting fallback client insert:", err);
       // Fallback direct insert if server API fails
       supabase.from('registrations').insert([registrationData]).then(({ data, error }) => {
         if (error) {
-          console.error("Direct fallback insert also failed:", error);
+          console.error("Direct fallback insert also failed with database error:", error.message, error);
         } else {
           console.log("Direct fallback insert succeeded:", data);
         }
