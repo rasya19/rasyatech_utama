@@ -19,7 +19,9 @@ import {
   Users,
   ShieldCheck,
   Menu,
-  X
+  X,
+  Search,
+  Download
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -62,6 +64,8 @@ export default function Admin() {
   const [ads, setAds] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
+  const [searchRegQuery, setSearchRegQuery] = useState('');
+  const [filterRegPackage, setFilterRegPackage] = useState('all');
   const [affiliates, setAffiliates] = useState<any[]>([]);
   const [visitorCount, setVisitorCount] = useState<number>(0);
   const [chartView, setChartView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
@@ -552,6 +556,53 @@ export default function Admin() {
     }
   };
 
+  const handleExportToCSV = () => {
+    if (registrations.length === 0) {
+      setSaveStatus({ type: 'error', message: 'Tidak ada data pendaftar untuk diekspor.' });
+      setTimeout(() => setSaveStatus(null), 3000);
+      return;
+    }
+
+    const headers = [
+      "ID", 
+      "Nama Sekolah", 
+      "NPSN", 
+      "Subdomain/Slug", 
+      "Nama Admin", 
+      "Email Admin", 
+      "WhatsApp", 
+      "Status", 
+      "Paket Langganan", 
+      "Tanggal Pendaftaran"
+    ];
+
+    const rows = registrations.map(reg => [
+      reg.id || '',
+      (reg.school_name || '').replace(/"/g, '""'),
+      reg.npsn || '-',
+      reg.subdomain || '',
+      (reg.admin_name || '').replace(/"/g, '""'),
+      reg.admin_email || '',
+      reg.WA || reg.whatsapp || '-',
+      reg.status || 'pending',
+      reg.paket_langganan || 'silver',
+      reg.created_at || ''
+    ]);
+
+    const csvString = [headers.join(","), ...rows.map(row => row.map(val => `"${val}"`).join(","))].join("\r\n");
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `data_pendaftar_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setSaveStatus({ type: 'success', message: 'Sukses mengekspor data pendaftar ke file CSV!' });
+    setTimeout(() => setSaveStatus(null), 3500);
+  };
+
   const handleSaveRegistration = async (e: FormEvent) => {
     e.preventDefault();
     
@@ -783,6 +834,19 @@ export default function Admin() {
   };
 
   const trendData = getTrendingData();
+
+  const filteredRegistrations = registrations.filter(reg => {
+    const matchesSearch = !searchRegQuery.trim() || 
+      (reg.school_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
+      (reg.admin_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
+      (reg.subdomain || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
+      (reg.npsn || '').toLowerCase().includes(searchRegQuery.toLowerCase());
+    
+    const matchesPackage = filterRegPackage === 'all' || 
+      (reg.paket_langganan || 'silver').toLowerCase() === filterRegPackage.toLowerCase();
+    
+    return matchesSearch && matchesPackage;
+  });
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex">
@@ -1368,8 +1432,53 @@ export default function Admin() {
 
     {/* DATA LIST - hanya tampil jika tidak loading dan tidak error */}
     {!loadingRegistrations && !registrationsError && (
-      <div className="grid grid-cols-1 gap-6">
-        {registrations.map(reg => (
+      <div className="space-y-6">
+        {/* SEARCH, FILTER & EXPORT BAR */}
+        <div className="bg-white p-6 rounded-[28px] border border-slate-100 flex flex-wrap gap-4 justify-between items-center">
+          <div className="flex flex-wrap gap-4 items-center flex-1 min-w-[300px]">
+            {/* Search Box */}
+            <div className="relative flex-1 min-w-[240px]">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                <Search className="w-5 h-5" />
+              </span>
+              <input 
+                type="text" 
+                placeholder="Cari pendaftar berdasarkan nama sekolah, admin, subdomain, NPSN..." 
+                value={searchRegQuery}
+                onChange={(e) => setSearchRegQuery(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 focus:bg-white outline-none transition-all text-sm"
+              />
+            </div>
+
+            {/* Package Filter */}
+            <div className="relative">
+              <select
+                value={filterRegPackage}
+                onChange={(e) => setFilterRegPackage(e.target.value)}
+                className="pl-5 pr-10 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 cursor-pointer appearance-none text-sm"
+              >
+                <option value="all">Semua Paket</option>
+                <option value="silver">Paket Silver</option>
+                <option value="gold">Paket Gold</option>
+                <option value="platinum">Paket Platinum</option>
+              </select>
+              <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
+                ▼
+              </div>
+            </div>
+          </div>
+
+          {/* Elegant Export to CSV Button */}
+          <button
+            onClick={handleExportToCSV}
+            className="px-6 py-3 bg-emerald-50 text-emerald-700 border border-emerald-100 font-black rounded-2xl flex items-center gap-2 shadow-sm hover:bg-emerald-105 hover:bg-emerald-100 hover:text-emerald-800 transition-all text-sm duration-300"
+          >
+            <Download className="w-5 h-5" /> Export to CSV
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
+          {filteredRegistrations.map(reg => (
           <div key={reg.id} className="bg-white rounded-[32px] border border-slate-100 p-8 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
               <div>
@@ -1461,11 +1570,16 @@ export default function Admin() {
           </div>
         ))}
         
-        {registrations.length === 0 && (
-          <div className="py-20 text-center bg-white rounded-[40px] border-2 border-dashed border-slate-100">
-            <p className="text-slate-400 font-bold">Belum ada pendaftaran baru.</p>
+        {filteredRegistrations.length === 0 && (
+          <div className="py-20 text-center bg-white rounded-[40px] border-2 border-dashed border-slate-100 col-span-full">
+            <p className="text-slate-400 font-bold">
+              {registrations.length === 0 
+                ? "Belum ada pendaftaran baru." 
+                : "Tidak ada data pendaftar yang cocok dengan kriteria pencarian atau filter Anda."}
+            </p>
           </div>
         )}
+        </div>
       </div>
     )}
   </motion.div>
