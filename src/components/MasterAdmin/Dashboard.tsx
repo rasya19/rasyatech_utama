@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
+import MonitoringDashboard from './MonitoringDashboard';
 import { 
   Save, 
   Plus, 
@@ -21,7 +22,8 @@ import {
   Menu,
   X,
   Search,
-  Download
+  Download,
+  Activity
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -41,7 +43,7 @@ import {
 export default function Admin() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'config' | 'services' | 'laptops' | 'payments' | 'products' | 'registrations' | 'affiliates'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'services' | 'laptops' | 'payments' | 'products' | 'registrations' | 'affiliates' | 'monitoring'>('config');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [savingPayments, setSavingPayments] = useState(false);
@@ -903,7 +905,8 @@ export default function Admin() {
               { id: 'laptops', label: 'Inventory Laptop', icon: <Package className="w-5 h-5" /> },
               { id: 'products', label: 'Katalog Barang', icon: <Package className="w-5 h-5" /> },
               { id: 'registrations', label: 'Pendaftar', icon: <Users className="w-5 h-5" /> },
-              { id: 'affiliates', label: 'Affiliasi', icon: <Users className="w-5 h-5" /> }
+              { id: 'affiliates', label: 'Affiliasi', icon: <Users className="w-5 h-5" /> },
+              { id: 'monitoring', label: 'Monitoring Keluhan', icon: <Activity className="w-5 h-5" /> }
             ].map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -1098,6 +1101,13 @@ export default function Admin() {
           </AnimatePresence>
 
           <div className="grid grid-cols-1 gap-12">
+          {/* Centralized Complaint Monitoring Section */}
+          {activeTab === 'monitoring' && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+              <MonitoringDashboard />
+            </motion.div>
+          )}
+
           {/* Config Section */}
           {activeTab === 'config' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-12 rounded-[40px] shadow-sm border border-slate-100">

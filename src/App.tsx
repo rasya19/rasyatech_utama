@@ -7,6 +7,7 @@ import AffiliatePortal from './components/AffiliatePortal';
 import SchoolLogin from './components/SchoolLogin';
 import ResetPassword from './components/ResetPassword';
 import SplashScreen from './components/SplashScreen';
+import MonitoringDashboard from './components/MasterAdmin/MonitoringDashboard';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { supabase } from './lib/supabase';
 
@@ -63,6 +64,10 @@ function AppRoutes() {
         path="/login-sekolah" 
         element={subdomain ? <SchoolLogin /> : <Navigate to="/" />} 
       />
+      
+      {/* Centralized Complaint Monitoring Portfolios for Dinas Pendidikan and Internal Command */}
+      <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
+      <Route path="/admin/kanban" element={<MonitoringDashboard />} />
       
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" />} />
