@@ -8,6 +8,7 @@ import SchoolLogin from './components/SchoolLogin';
 import ResetPassword from './components/ResetPassword';
 import SplashScreen from './components/SplashScreen';
 import MonitoringDashboard from './components/MasterAdmin/MonitoringDashboard';
+import FormPendaftaranSaaS from './components/FormPendaftaranSaaS';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { supabase } from './lib/supabase';
 
@@ -68,6 +69,9 @@ function AppRoutes() {
       {/* Centralized Complaint Monitoring Portfolios for Dinas Pendidikan and Internal Command */}
       <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
       <Route path="/admin/kanban" element={<MonitoringDashboard />} />
+      
+      {/* Global SaaS Registration Form */}
+      <Route path="/daftar" element={<FormPendaftaranSaaS />} />
       
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" />} />

@@ -1,6 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import MonitoringDashboard from './MonitoringDashboard';
+import ManajemenPendaftarSaaS from './ManajemenPendaftarSaaS';
 import { 
   Save, 
   Plus, 
@@ -43,7 +44,7 @@ import {
 export default function Admin() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'config' | 'services' | 'laptops' | 'payments' | 'products' | 'registrations' | 'affiliates' | 'monitoring'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'services' | 'laptops' | 'payments' | 'products' | 'registrations' | 'saas_registrations' | 'affiliates' | 'monitoring'>('config');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [savingPayments, setSavingPayments] = useState(false);
@@ -905,6 +906,7 @@ export default function Admin() {
               { id: 'laptops', label: 'Inventory Laptop', icon: <Package className="w-5 h-5" /> },
               { id: 'products', label: 'Katalog Barang', icon: <Package className="w-5 h-5" /> },
               { id: 'registrations', label: 'Pendaftar', icon: <Users className="w-5 h-5" /> },
+              { id: 'saas_registrations', label: 'Pendaftar SaaS', icon: <Package className="w-5 h-5" /> },
               { id: 'affiliates', label: 'Affiliasi', icon: <Users className="w-5 h-5" /> },
               { id: 'monitoring', label: 'Monitoring Keluhan', icon: <Activity className="w-5 h-5" /> }
             ].map((tab) => {
@@ -1105,6 +1107,13 @@ export default function Admin() {
           {activeTab === 'monitoring' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <MonitoringDashboard />
+            </motion.div>
+          )}
+
+          {/* SaaS Registration Management */}
+          {activeTab === 'saas_registrations' && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+              <ManajemenPendaftarSaaS />
             </motion.div>
           )}
 
