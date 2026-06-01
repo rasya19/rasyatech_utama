@@ -21,7 +21,7 @@ import {
 // Define Interface for Ticket Complaint
 interface ComplaintTicket {
   id: string;
-  source: 'SIPUT' | 'LMS_ARMILLA';
+  source: 'SIPUT' | 'LMS_ARMILLA' | 'SCANBITE';
   school_name: string;
   subdistrict: string; // Kecamatan
   description: string;
@@ -31,7 +31,7 @@ interface ComplaintTicket {
   priority?: 'low' | 'medium' | 'high';
 }
 
-// Initial High-Fidelity Regional Demo Data to mimic real synced databases for SIPUT & Rasya LMS
+// Initial High-Fidelity Regional Demo Data to mimic real synced databases for SIPUT, Rasya LMS & Scanbite
 const INITIAL_TICKETS: ComplaintTicket[] = [
   {
     id: 'TKT-001',
@@ -98,6 +98,28 @@ const INITIAL_TICKETS: ComplaintTicket[] = [
     created_at: '2026-05-23T11:10:00Z',
     reporter_name: 'Ismanto (Admin)',
     priority: 'high'
+  },
+  {
+    id: 'TKT-007',
+    source: 'SCANBITE',
+    school_name: 'SDN Cilincing 03',
+    subdistrict: 'Cilincing',
+    description: 'Fitur pemindaian gizi makanan (Scanbite) mengalami crash setelah pembaruan modul kamera Android, tombol scan hang.',
+    status: 'draft',
+    created_at: '2026-05-28T04:10:00Z',
+    reporter_name: 'Hermina Pratiwi',
+    priority: 'high'
+  },
+  {
+    id: 'TKT-008',
+    source: 'SCANBITE',
+    school_name: 'SMPN Koja 02',
+    subdistrict: 'Koja',
+    description: 'Analisis kecukupan nutrisi harian siswa tidak merespon saat offline, mohon optimasi sinkronisasi database bahan makanan.',
+    status: 'review',
+    created_at: '2026-05-27T15:20:00Z',
+    reporter_name: 'Ismanto (Nutrisi)',
+    priority: 'medium'
   }
 ];
 
@@ -120,13 +142,20 @@ export default function MonitoringDashboard() {
   // Modals / Print views / New Ticket Forms
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newTicket, setNewTicket] = useState({
-    source: 'SIPUT' as const,
+  const [newTicket, setNewTicket] = useState<{
+    source: 'SIPUT' | 'LMS_ARMILLA' | 'SCANBITE';
+    school_name: string;
+    subdistrict: string;
+    description: string;
+    reporter_name: string;
+    priority: 'low' | 'medium' | 'high';
+  }>({
+    source: 'SIPUT',
     school_name: '',
     subdistrict: 'Cilincing',
     description: '',
     reporter_name: '',
-    priority: 'medium' as const
+    priority: 'medium'
   });
 
   // Load from LocalStorage or initialize with high-fidelity realistic data
@@ -229,15 +258,20 @@ export default function MonitoringDashboard() {
   const countReview = tickets.filter(t => t.status === 'review').length;
   const countSolved = tickets.filter(t => t.status === 'solved').length;
 
-  const getSourceBadgeColor = (source: 'SIPUT' | 'LMS_ARMILLA') => {
+  const getSourceBadgeColor = (source: 'SIPUT' | 'LMS_ARMILLA' | 'SCANBITE') => {
     if (source === 'SIPUT') {
       return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
     }
-    return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+    if (source === 'LMS_ARMILLA') {
+      return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+    }
+    return 'bg-purple-500/10 text-purple-400 border border-purple-500/20';
   };
 
-  const getSourceLabel = (source: 'SIPUT' | 'LMS_ARMILLA') => {
-    return source === 'SIPUT' ? 'SIPUT 📱' : 'LMS Armilla 💻';
+  const getSourceLabel = (source: 'SIPUT' | 'LMS_ARMILLA' | 'SCANBITE') => {
+    if (source === 'SIPUT') return 'SIPUT 📱';
+    if (source === 'LMS_ARMILLA') return 'LMS Armilla 💻';
+    return 'Scanbite 🔍';
   };
 
   const getPriorityBadge = (p?: 'low' | 'medium' | 'high') => {
@@ -283,7 +317,7 @@ export default function MonitoringDashboard() {
         <div className="text-center mb-8">
           <h2 className="text-xl font-bold uppercase underline">LAPORAN MONITORING KELUHAN TEKNOLOGI PENDIDIKAN REGIONAL</h2>
           <p className="text-sm font-sans mt-1">
-            Status Operasional Penanganan Tiket Gangguan Sistem SIPUT & Rasya LMS PKBM
+            Status Operasional Penanganan Tiket Gangguan Sistem SIPUT, Rasya LMS PKBM & Scanbite Gizi
           </p>
           <div className="flex justify-center gap-6 mt-4 font-sans text-xs">
             <span>Kecamatan: <strong>{filterSubdistrict === 'all' ? 'SEMUA WILAYAH' : `KEC. ${filterSubdistrict.toUpperCase()}`}</strong></span>
@@ -323,7 +357,7 @@ export default function MonitoringDashboard() {
                   <td className="border-r border-black p-3 font-semibold">{t.school_name}</td>
                   <td className="border-r border-black p-3">{t.subdistrict}</td>
                   <td className="border-r border-black p-3">
-                    {t.source === 'SIPUT' ? 'SIPUT (Adm Penduduk)' : 'Rasya LMS PKBM'}
+                    {t.source === 'SIPUT' ? 'SIPUT (Adm Penduduk)' : t.source === 'LMS_ARMILLA' ? 'Rasya LMS PKBM' : 'Scanbite Gizi Mandiri'}
                   </td>
                   <td className="border-r border-black p-3 italic leading-snug">"{t.description}"</td>
                   <td className="border-r border-black p-3 text-center uppercase font-bold">
@@ -426,7 +460,7 @@ export default function MonitoringDashboard() {
                 Monitoring Keluhan Terpusat <span className="text-rose-500 font-serif text-sm italic font-normal">(Rasyatech Portofolio Dinas)</span>
               </h1>
               <p className="text-slate-400 text-sm mt-1 max-w-2xl font-medium">
-                Pusat kendali operasional lintas platform. Singkronisasi data pengaduan sekolah SIPUT (Sistem Informasi Penduduk Terpadu) & Rasya LMS PKBM Armilla Nusa secara real-time.
+                Pusat kendali operasional lintas platform. Singkronisasi data pengaduan sekolah SIPUT (Sistem Informasi Penduduk Terpadu), Rasya LMS PKBM Armilla Nusa, dan Scanbite Gizi secara real-time.
               </p>
             </div>
           </div>
@@ -533,6 +567,7 @@ export default function MonitoringDashboard() {
               <option value="all" className="bg-[#111827] text-slate-300">Semua Program</option>
               <option value="SIPUT" className="bg-[#111827] text-slate-200">SIPUT (Penduduk)</option>
               <option value="LMS_ARMILLA" className="bg-[#111827] text-slate-200">Rasya LMS</option>
+              <option value="SCANBITE" className="bg-[#111827] text-slate-200">Scanbite</option>
             </select>
           </div>
         </div>
@@ -800,13 +835,13 @@ export default function MonitoringDashboard() {
               {/* Product Source */}
               <div>
                 <label className="block text-slate-400 text-xs font-black uppercase tracking-wider mb-2">Asal Aplikasi / Layanan</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setNewTicket(prev => ({ ...prev, source: 'SIPUT' }))}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider border transition-all ${
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider border transition-all truncate px-1 text-center ${
                       newTicket.source === 'SIPUT' 
-                        ? 'bg-[#00BEC4]/10 border-[#00BEC4] text-white shadow-md' 
+                        ? 'bg-[#00BEC4]/10 border-[#00BEC4] text-white shadow-md font-bold' 
                         : 'bg-[#182235] border-slate-800 text-slate-400 hover:bg-[#182235]/65'
                     }`}
                   >
@@ -815,13 +850,24 @@ export default function MonitoringDashboard() {
                   <button
                     type="button"
                     onClick={() => setNewTicket(prev => ({ ...prev, source: 'LMS_ARMILLA' }))}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider border transition-all ${
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider border transition-all truncate px-1 text-center ${
                       newTicket.source === 'LMS_ARMILLA' 
-                        ? 'bg-emerald-500/10 border-emerald-500 text-white shadow-md' 
+                        ? 'bg-emerald-500/10 border-emerald-500 text-white shadow-md font-bold' 
                         : 'bg-[#182235] border-slate-800 text-slate-400 hover:bg-[#182235]/65'
                     }`}
                   >
                     LMS Armilla 💻
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewTicket(prev => ({ ...prev, source: 'SCANBITE' }))}
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider border transition-all truncate px-1 text-center ${
+                      newTicket.source === 'SCANBITE' 
+                        ? 'bg-purple-500/10 border-purple-500 text-white shadow-md font-bold' 
+                        : 'bg-[#182235] border-slate-800 text-slate-400 hover:bg-[#182235]/65'
+                    }`}
+                  >
+                    Scanbite 🔍
                   </button>
                 </div>
               </div>
