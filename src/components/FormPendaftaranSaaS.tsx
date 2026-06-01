@@ -38,14 +38,23 @@ export default function FormPendaftaranSaaS() {
     email: '',
     whatsapp: '',
     business_name: '',
+    product_type: currentProduct,
+    package: '',
     // Dynamic fields
     tables_count: '',
     outlet_count: '',
     npsn: ''
   });
 
-  const getProductLabel = () => {
-    switch (currentProduct) {
+  // Keep business_name synchronized if it's LMS/SIPUT
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, product_type: currentProduct }));
+  }, [currentProduct]);
+
+  const isCulinary = ['scanbite', 'restoran_asli', 'instafood'].includes(formData.product_type);
+
+  const getProductLabel = (type: string = formData.product_type) => {
+    switch (type) {
       case 'scanbite': return 'ScanBite (Gizi & Nutrisi)';
       case 'lms': return 'Rasya LMS PKBM';
       case 'siput': return 'SIPUT (Sistem Informasi Penduduk)';
@@ -55,8 +64,8 @@ export default function FormPendaftaranSaaS() {
     }
   };
 
-  const getProductDescription = () => {
-    switch (currentProduct) {
+  const getProductDescription = (type: string = formData.product_type) => {
+    switch (type) {
       case 'scanbite': return 'Solusi pemindaian gizi makanan cerdas untuk institusi pendidikan dan kesehatan.';
       case 'lms': return 'Learning Management System terpadu untuk PKBM, LKP, dan Satuan Pendidikan Non-Formal.';
       case 'siput': return 'Digitalisasi administrasi kependudukan dan layanan publik tingkat desa/kelurahan.';
@@ -74,11 +83,11 @@ export default function FormPendaftaranSaaS() {
     try {
       // Package meta_data based on product
       const meta_data: Record<string, string> = {};
-      if (currentProduct === 'scanbite' || currentProduct === 'restoran_asli') {
+      if (formData.product_type === 'scanbite' || formData.product_type === 'restoran_asli') {
         meta_data.tables_count = formData.tables_count;
-      } else if (currentProduct === 'instafood') {
+      } else if (formData.product_type === 'instafood') {
         meta_data.outlet_count = formData.outlet_count;
-      } else if (currentProduct === 'lms' || currentProduct === 'siput') {
+      } else if (formData.product_type === 'lms' || formData.product_type === 'siput') {
         meta_data.npsn = formData.npsn;
       }
 
@@ -89,8 +98,10 @@ export default function FormPendaftaranSaaS() {
           email: formData.email,
           whatsapp: formData.whatsapp,
           business_name: formData.business_name,
-          product_type: currentProduct,
-          meta_data: meta_data
+          product_type: formData.product_type,
+          package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
+          meta_data: meta_data,
+          status: 'pending'
         }]);
 
       if (submitError) throw submitError;
@@ -156,9 +167,10 @@ export default function FormPendaftaranSaaS() {
           
           <div className="p-8 bg-[#151C30]/50 border border-slate-800 rounded-[32px] backdrop-blur-xl">
             <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-              {currentProduct === 'lms' && <School className="w-5 h-5 text-blue-400" />}
-              {currentProduct === 'scanbite' && <LayoutGrid className="w-5 h-5 text-emerald-400" />}
-              {currentProduct === 'instafood' && <Store className="w-5 h-5 text-orange-400" />}
+              {formData.product_type === 'lms' && <School className="w-5 h-5 text-blue-400" />}
+              {formData.product_type === 'scanbite' && <LayoutGrid className="w-5 h-5 text-emerald-400" />}
+              {formData.product_type === 'instafood' && <Store className="w-5 h-5 text-orange-400" />}
+              {formData.product_type === 'siput' && <Database className="w-5 h-5 text-emerald-500" />}
               {getProductLabel()}
             </h3>
             <p className="text-slate-400 italic">
@@ -195,11 +207,31 @@ export default function FormPendaftaranSaaS() {
         >
           {/* Form Header */}
           <div className="mb-10 text-center lg:text-left">
-            <h2 className="text-2xl font-bold text-white mb-2">Form Pendaftaran</h2>
+            <h2 className="text-2xl font-bold text-white mb-2">Form Pendaftaran Layanan</h2>
             <p className="text-slate-500">Lengkapi data Anda untuk memproses aktivasi sistem.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Product Selection Dropdown */}
+            <div className="space-y-2">
+              <label className="block text-xs font-black text-blue-400 uppercase tracking-widest px-1">Pilih Produk Ekosistem</label>
+              <div className="relative">
+                <LayoutGrid className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500/50" />
+                <select 
+                  required
+                  value={formData.product_type}
+                  onChange={(e) => setFormData({...formData, product_type: e.target.value as any, package: ''})}
+                  className="w-full bg-[#0A0F1E] border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all appearance-none"
+                >
+                  <option value="lms">Rasya LMS (Sekolah / PKBM)</option>
+                  <option value="scanbite">ScanBite (Gizi & Nutrisi Kuliner)</option>
+                  <option value="restoran_asli">Restoran Asli (POS & Kasir)</option>
+                  <option value="instafood">Instafood (E-Menu & Delivery)</option>
+                  <option value="siput">SIPUT (Sistem Informasi Penduduk)</option>
+                </select>
+              </div>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
               {/* Full Name */}
               <div className="space-y-2">
@@ -254,7 +286,7 @@ export default function FormPendaftaranSaaS() {
               {/* Business Name */}
               <div className="space-y-2">
                 <label className="block text-xs font-black text-slate-500 uppercase tracking-widest px-1">
-                  {currentProduct === 'lms' || currentProduct === 'siput' ? 'Nama Sekolah / Instansi' : 'Nama Bisnis / Restoran'}
+                  {formData.product_type === 'lms' || formData.product_type === 'siput' ? 'Nama Sekolah / Instansi' : 'Nama Bisnis / Restoran'}
                 </label>
                 <div className="relative">
                   <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-600" />
@@ -263,16 +295,44 @@ export default function FormPendaftaranSaaS() {
                     type="text"
                     value={formData.business_name}
                     onChange={(e) => setFormData({...formData, business_name: e.target.value})}
-                    placeholder={currentProduct === 'lms' || currentProduct === 'siput' ? 'PKBM Melati' : 'RM Padang Asli'}
+                    placeholder={formData.product_type === 'lms' || formData.product_type === 'siput' ? 'PKBM Melati' : 'RM Padang Asli'}
                     className="w-full bg-[#0A0F1E] border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all"
                   />
                 </div>
               </div>
             </div>
 
+            {/* Dynamic Package Section (Culinary only) */}
+            <AnimatePresence mode="wait">
+              {isCulinary && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-2"
+                >
+                  <label className="block text-xs font-black text-emerald-400 uppercase tracking-widest px-1">Pilihan Paket Bisnis</label>
+                  <div className="relative">
+                    <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500/50" />
+                    <select 
+                      required
+                      value={formData.package}
+                      onChange={(e) => setFormData({...formData, package: e.target.value})}
+                      className="w-full bg-[#0A0F1E] border border-emerald-500/20 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-emerald-500/50 transition-all appearance-none"
+                    >
+                      <option value="">-- Pilih Paket Bisnis --</option>
+                      <option value="silver">Silver (Basic Tools)</option>
+                      <option value="gold">Gold (Advanced Reporting)</option>
+                      <option value="platinum">Platinum (Enterprise / Multi-Outlet)</option>
+                    </select>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Dynamic Fields Section */}
             <AnimatePresence mode="wait">
-              {(currentProduct === 'scanbite' || currentProduct === 'restoran_asli') && (
+              {(formData.product_type === 'scanbite' || formData.product_type === 'restoran_asli') && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -294,7 +354,7 @@ export default function FormPendaftaranSaaS() {
                 </motion.div>
               )}
 
-              {currentProduct === 'instafood' && (
+              {formData.product_type === 'instafood' && (
                 <motion.div 
                    initial={{ opacity: 0, height: 0 }}
                    animate={{ opacity: 1, height: 'auto' }}
@@ -316,7 +376,7 @@ export default function FormPendaftaranSaaS() {
                 </motion.div>
               )}
 
-              {(currentProduct === 'lms' || currentProduct === 'siput') && (
+              {(formData.product_type === 'lms' || formData.product_type === 'siput') && (
                 <motion.div 
                    initial={{ opacity: 0, height: 0 }}
                    animate={{ opacity: 1, height: 'auto' }}

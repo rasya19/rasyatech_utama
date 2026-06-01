@@ -403,6 +403,15 @@ export default function RasyatechLanding() {
                 >
                   🚀 Daftar Paket LMS
                 </a>
+                <Link 
+                  to="/daftar"
+                  onClick={() => setShowDaftarDropdown(false)}
+                  style={{ display: 'block', padding: '12px 15px', color: 'var(--navy)', textDecoration: 'none', fontWeight: 700, borderRadius: '8px', marginBottom: '5px' }}
+                  onMouseOver={(e) => (e.currentTarget.style.background = '#f8f9fa')}
+                  onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  🌐 Daftar Layanan SaaS
+                </Link>
                 <a 
                   href={`https://wa.me/${config.whatsapp || '6281918226387'}?text=Halo%20Rasyatech,%20saya%20ingin%20mendaftar%20sebagai%20Mitra%20Affiliasi.`}
                   target="_blank"

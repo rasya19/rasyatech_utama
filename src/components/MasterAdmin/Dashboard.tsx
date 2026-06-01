@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import MonitoringDashboard from './MonitoringDashboard';
 import ManajemenPendaftarSaaS from './ManajemenPendaftarSaaS';
+import UnifiedRegistrationManager from './UnifiedRegistrationManager';
 import { 
   Save, 
   Plus, 
@@ -44,7 +45,7 @@ import {
 export default function Admin() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'config' | 'services' | 'laptops' | 'payments' | 'products' | 'registrations' | 'saas_registrations' | 'affiliates' | 'monitoring'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'services' | 'laptops' | 'payments' | 'products' | 'registrations_unified' | 'monitoring'>('config');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [savingPayments, setSavingPayments] = useState(false);
@@ -905,9 +906,7 @@ export default function Admin() {
               { id: 'services', label: 'Layanan', icon: <Monitor className="w-5 h-5" /> },
               { id: 'laptops', label: 'Inventory Laptop', icon: <Package className="w-5 h-5" /> },
               { id: 'products', label: 'Katalog Barang', icon: <Package className="w-5 h-5" /> },
-              { id: 'registrations', label: 'Pendaftar', icon: <Users className="w-5 h-5" /> },
-              { id: 'saas_registrations', label: 'Pendaftar SaaS', icon: <Package className="w-5 h-5" /> },
-              { id: 'affiliates', label: 'Affiliasi', icon: <Users className="w-5 h-5" /> },
+              { id: 'registrations_unified', label: 'Manajemen Pendaftar & Mitra', icon: <Users className="w-5 h-5" /> },
               { id: 'monitoring', label: 'Monitoring Keluhan', icon: <Activity className="w-5 h-5" /> }
             ].map((tab) => {
               const isActive = activeTab === tab.id;
@@ -1110,10 +1109,10 @@ export default function Admin() {
             </motion.div>
           )}
 
-          {/* SaaS Registration Management */}
-          {activeTab === 'saas_registrations' && (
+          {/* Unified Registration Management */}
+          {activeTab === 'registrations_unified' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <ManajemenPendaftarSaaS />
+              <UnifiedRegistrationManager />
             </motion.div>
           )}
 
@@ -1400,244 +1399,6 @@ export default function Admin() {
               </div>
             </motion.div>
           )}
-
-          {/* Registrations Section */}
-          {activeTab === 'registrations' && (
-  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-    <div className="flex justify-between items-center bg-white p-8 rounded-[32px] border border-slate-100">
-      <div>
-        <h2 className="text-3xl font-black">Manajemen Pendaftar</h2>
-        <p className="text-slate-500 font-medium">Kelola pendaftaran sekolah baru dari landing page.</p>
-      </div>
-      <div className="flex gap-3">
-        {/* Tombol Refresh - TAMBAHAN BARU */}
-        <button 
-          onClick={fetchRegistrations}
-          className="px-6 py-3 bg-slate-600 text-white font-black rounded-2xl flex items-center gap-2 shadow-lg hover:bg-slate-700 transition-all"
-        >
-          <Loader2 className="w-5 h-5" /> Refresh
-        </button>
-        <button 
-          onClick={() => setEditingRegistration({ school_name: '', npsn: '', admin_name: '', admin_email: '', WA: '', status: 'pending', subdomain: '', is_approved: false })}
-          className="px-6 py-3 bg-indigo-600 text-white font-black rounded-2xl flex items-center gap-2 shadow-lg hover:bg-indigo-700 transition-all"
-        >
-          <Plus className="w-5 h-5" /> Tambah Pendaftar
-        </button>
-      </div>
-    </div>
-
-    {/* LOADING STATE - TAMBAHAN BARU */}
-    {loadingRegistrations && (
-      <div className="bg-white rounded-[40px] border border-slate-100 p-20 text-center">
-        <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-4" />
-        <p className="text-slate-500 font-medium">Memuat data pendaftar...</p>
-      </div>
-    )}
-
-    {/* ERROR STATE - TAMBAHAN BARU */}
-    {registrationsError && !loadingRegistrations && (
-      <div className="bg-red-50 border border-red-200 rounded-[32px] p-8 text-center">
-        <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
-        <p className="text-red-600 font-bold mb-2">Gagal memuat data</p>
-        <p className="text-red-500 text-sm mb-4">{registrationsError}</p>
-        <button 
-          onClick={fetchRegistrations}
-          className="px-6 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all"
-        >
-          Coba Lagi
-        </button>
-      </div>
-    )}
-
-    {/* DATA LIST - hanya tampil jika tidak loading dan tidak error */}
-    {!loadingRegistrations && !registrationsError && (
-      <div className="space-y-6">
-        {/* SEARCH, FILTER & EXPORT BAR */}
-        <div className="bg-white p-6 rounded-[28px] border border-slate-100 flex flex-wrap gap-4 justify-between items-center">
-          <div className="flex flex-wrap gap-4 items-center flex-1 min-w-[300px]">
-            {/* Search Box */}
-            <div className="relative flex-1 min-w-[240px]">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                <Search className="w-5 h-5" />
-              </span>
-              <input 
-                type="text" 
-                placeholder="Cari pendaftar berdasarkan nama sekolah, admin, subdomain, NPSN..." 
-                value={searchRegQuery}
-                onChange={(e) => setSearchRegQuery(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 focus:bg-white outline-none transition-all text-sm"
-              />
-            </div>
-
-            {/* Package Filter */}
-            <div className="relative">
-              <select
-                value={filterRegPackage}
-                onChange={(e) => setFilterRegPackage(e.target.value)}
-                className="pl-5 pr-10 py-3 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600 cursor-pointer appearance-none text-sm"
-              >
-                <option value="all">Semua Paket</option>
-                <option value="silver">Paket Silver</option>
-                <option value="gold">Paket Gold</option>
-                <option value="platinum">Paket Platinum</option>
-              </select>
-              <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
-                ▼
-              </div>
-            </div>
-          </div>
-
-          {/* Elegant Export to CSV Button */}
-          <button
-            onClick={handleExportToCSV}
-            className="px-6 py-3 bg-emerald-50 text-emerald-700 border border-emerald-100 font-black rounded-2xl flex items-center gap-2 shadow-sm hover:bg-emerald-105 hover:bg-emerald-100 hover:text-emerald-800 transition-all text-sm duration-300"
-          >
-            <Download className="w-5 h-5" /> Export to CSV
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6">
-          {filteredRegistrations.map(reg => (
-          <div key={reg.id} className="bg-white rounded-[32px] border border-slate-100 p-8 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
-              <div>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  <span className="px-3 py-1 bg-slate-100 rounded-lg text-xs font-bold text-slate-600">
-                     URL: {reg.subdomain || '-'}.rsch.my.id
-                  </span>
-                </div>
-                <p className="text-slate-500 font-medium">Admin: <span className="text-slate-900 font-bold">{reg.admin_name}</span> ({reg.admin_email})</p>
-                <p className="text-slate-400 text-xs font-bold mt-1">WA: {reg.WA || '-'}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                {reg.status === 'verified' ? (
-                  <>
-                    <div className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl flex items-center gap-2 border border-emerald-100">
-                       <CheckCircle2 className="w-4 h-4" />
-                       <span className="text-xs font-black uppercase tracking-tight">TERVERIFIKASI</span>
-                    </div>
-
-                    {/* Styled subscription package dropdown */}
-                    <div className="flex items-center">
-                      <select
-                        id={`pkg-select-${reg.id}`}
-                        value={(reg.paket_langganan || 'silver').toLowerCase()}
-                        onChange={(e) => handleUpdateSchoolPackage(reg.subdomain, e.target.value)}
-                        className={`px-3 py-2 rounded-xl text-xs font-black uppercase border outline-none cursor-pointer duration-300 transition-all ${
-                          (reg.paket_langganan || 'silver').toLowerCase() === 'gold'
-                            ? 'bg-amber-100/70 text-amber-800 border-amber-200 hover:bg-amber-100 focus:ring-2 focus:ring-amber-300'
-                            : (reg.paket_langganan || 'silver').toLowerCase() === 'platinum'
-                            ? 'bg-cyan-100/70 text-cyan-800 border-cyan-200 hover:bg-cyan-100 focus:ring-2 focus:ring-cyan-300'
-                            : 'bg-slate-100/70 text-slate-800 border-slate-200 hover:bg-slate-200 focus:ring-2 focus:ring-slate-300'
-                        }`}
-                      >
-                        <option value="silver" className="bg-white text-slate-800 font-bold">SILVER</option>
-                        <option value="gold" className="bg-white text-amber-800 font-bold">GOLD</option>
-                        <option value="platinum" className="bg-white text-cyan-800 font-bold">PLATINUM</option>
-                      </select>
-                    </div>
-                    <button
-                      onClick={() => {
-                        window.open(`https://${reg.subdomain}.rsch.my.id`, '_blank');
-                      }}
-                      className="px-4 py-2 bg-indigo-600 text-white shadow-lg shadow-indigo-100 rounded-xl text-xs font-black transition-all hover:bg-indigo-700"
-                    >
-                      Manage Access
-                    </button>
-                    <button 
-                      onClick={() => handleUnverifySchool(reg)}
-                      className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors group"
-                      title="Batalkan Verifikasi"
-                    >
-                      <XCircle className="w-5 h-5" />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => handleVerifySchool(reg)}
-                    className="px-6 py-2.5 bg-indigo-600 text-white shadow-lg shadow-indigo-100 rounded-xl text-sm font-black transition-all hover:bg-indigo-700 flex items-center gap-2"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    Verify Now
-                  </button>
-                )}
-                <button onClick={() => handleDeleteRegistration(reg.id)} className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors ml-auto">
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-6 border-t border-slate-50">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Kontak Admin</label>
-                <p className="font-bold text-slate-900">{reg.admin_name || '-'}</p>
-                <p className="text-xs text-slate-500">{reg.admin_email}</p>
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Sekolah / NPSN</label>
-                <p className="font-bold text-slate-900">{reg.school_name}</p>
-                <p className="text-xs text-slate-500">NPSN: {reg.npsn || '-'}</p>
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Status</label>
-                <p className="font-bold text-indigo-600 uppercase tracking-tighter">{reg.status}</p>
-              </div>
-            </div>
-            <div className="mt-4 flex gap-2">
-               <button onClick={() => setEditingRegistration(reg)} className="text-indigo-600 font-black text-xs px-4 py-2 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">Edit Data Pendaftar</button>
-            </div>
-          </div>
-        ))}
-        
-        {filteredRegistrations.length === 0 && (
-          <div className="py-20 text-center bg-white rounded-[40px] border-2 border-dashed border-slate-100 col-span-full">
-            <p className="text-slate-400 font-bold">
-              {registrations.length === 0 
-                ? "Belum ada pendaftaran baru." 
-                : "Tidak ada data pendaftar yang cocok dengan kriteria pencarian atau filter Anda."}
-            </p>
-          </div>
-        )}
-        </div>
-      </div>
-    )}
-  </motion.div>
-)}
-          {/* Affiliates Section */}
-          {activeTab === 'affiliates' && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-              <div className="flex justify-between items-center bg-white p-8 rounded-[32px] border border-slate-100">
-                <h2 className="text-3xl font-black">Manajemen Affiliasi</h2>
-                <button 
-                  onClick={() => setEditingAffiliate({ name: '', email: '', referralCode: '' })}
-                  className="px-6 py-3 bg-indigo-600 text-white font-black rounded-2xl flex items-center gap-2 shadow-lg"
-                >
-                  <Plus className="w-5 h-5" /> Tambah Mitra
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {affiliates.map(af => (
-                  <div key={af.id} className="bg-white rounded-[32px] border border-slate-100 p-8 flex flex-col items-center text-center group shadow-sm hover:shadow-md transition-shadow">
-                    <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4 text-indigo-600">
-                      <Users className="w-8 h-8" />
-                    </div>
-                    <h4 className="font-black text-xl mb-2">{af.name}</h4>
-                    <p className="text-slate-500 text-sm font-bold mb-6">{af.email}</p>
-                    <div className="flex gap-2 w-full pt-4 border-t border-slate-50">
-                      <button onClick={() => setEditingAffiliate(af)} className="flex-1 py-3 bg-slate-50 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"><Edit2 className="w-4 h-4" /> Edit</button>
-                      <button onClick={() => handleDeleteAffiliate(af.id)} className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                ))}
-                {affiliates.length === 0 && (
-                  <div className="col-span-full py-20 text-center bg-white rounded-[40px] border-2 border-dashed border-slate-100">
-                    <p className="text-slate-400 font-bold">Belum ada mitra affiliasi.</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
         </div>
       </div>
 
@@ -1734,95 +1495,6 @@ export default function Admin() {
                 <div className="flex gap-4 pt-4">
                   <button type="submit" className="flex-1 py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl">Simpan</button>
                   <button type="button" onClick={() => setEditingProduct(null)} className="px-8 py-5 bg-slate-100 text-slate-600 font-black rounded-2xl">Batal</button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-
-        {editingAffiliate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditingAffiliate(null)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-white w-full max-w-xl p-12 rounded-[40px] shadow-2xl">
-              <h3 className="text-3xl font-black mb-8">{editingAffiliate.id ? 'Edit' : 'Tambah'} Mitra Affiliasi</h3>
-              <form onSubmit={handleSaveAffiliate} className="space-y-6">
-                <div>
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-400">Nama Mitra</label>
-                  <input type="text" required value={editingAffiliate.name} onChange={e => setEditingAffiliate({ ...editingAffiliate, name: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">Email Affiliate</label>
-                    <input type="email" required value={editingAffiliate.email} onChange={e => setEditingAffiliate({ ...editingAffiliate, email: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">Referral Code</label>
-                    <input type="text" required value={editingAffiliate.referralCode} onChange={e => setEditingAffiliate({ ...editingAffiliate, referralCode: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" placeholder="Contoh: MITRA01" />
-                  </div>
-                </div>
-                <div className="flex gap-4 pt-4">
-                  <button type="submit" className="flex-1 py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl">Simpan</button>
-                  <button type="button" onClick={() => setEditingAffiliate(null)} className="px-8 py-5 bg-slate-100 text-slate-600 font-black rounded-2xl">Batal</button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-
-        {editingRegistration && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setEditingRegistration(null)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-white w-full max-w-xl p-10 rounded-[40px] shadow-2xl overflow-y-auto max-h-[90vh]">
-              <h3 className="text-3xl font-black mb-8">Tambah / Edit Pendaftar</h3>
-              <form onSubmit={handleSaveRegistration} className="space-y-6">
-                <div>
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-400">Subdomain (cth: sekolah1)</label>
-                  <input type="text" required value={editingRegistration.subdomain || ''} onChange={e => setEditingRegistration({ ...editingRegistration, subdomain: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" />
-                </div>
-                <div>
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-400">Nama Sekolah / Instansi</label>
-                  <input type="text" required value={editingRegistration.school_name || ''} onChange={e => setEditingRegistration({ ...editingRegistration, school_name: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" />
-                </div>
-                <div>
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-400">NPSN</label>
-                  <input type="text" required value={editingRegistration.npsn || ''} onChange={e => setEditingRegistration({ ...editingRegistration, npsn: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" />
-                </div>
-                <div>
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-400">Nama Admin Sekolah</label>
-                  <input type="text" required value={editingRegistration.admin_name || ''} onChange={e => setEditingRegistration({ ...editingRegistration, admin_name: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">Email Admin Sekolah</label>
-                    <input type="email" required value={editingRegistration.admin_email || ''} onChange={e => setEditingRegistration({ ...editingRegistration, admin_email: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">WhatsApp / HP (WA)</label>
-                    <input type="text" value={editingRegistration.WA || ''} onChange={e => setEditingRegistration({ ...editingRegistration, WA: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold" placeholder="08xxxxxxxx" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">Status</label>
-                    <select value={editingRegistration.status} onChange={e => setEditingRegistration({ ...editingRegistration, status: e.target.value })} className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-600 font-bold">
-                        <option value="pending">Pending</option>
-                        <option value="verified">Verified</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-4 px-4 bg-slate-50 rounded-2xl">
-                    <input 
-                      type="checkbox" 
-                      id="is_approved"
-                      checked={editingRegistration.is_approved} 
-                      onChange={e => setEditingRegistration({ ...editingRegistration, is_approved: e.target.checked })}
-                      className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
-                    />
-                    <label htmlFor="is_approved" className="text-xs font-black uppercase tracking-widest text-slate-600 cursor-pointer">Approved (is_approved)</label>
-                  </div>
-                </div>
-                <div className="flex gap-4 pt-4">
-                  <button type="submit" className="flex-1 py-5 bg-indigo-600 text-white font-black rounded-2xl shadow-xl">Simpan</button>
-                  <button type="button" onClick={() => setEditingRegistration(null)} className="px-8 py-5 bg-slate-100 text-slate-600 font-black rounded-2xl">Batal</button>
                 </div>
               </form>
             </motion.div>

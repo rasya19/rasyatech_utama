@@ -26,6 +26,7 @@ interface Pendaftar {
   whatsapp: string;
   business_name: string;
   product_type: ProductType;
+  package?: string;
   status: 'pending' | 'active';
   meta_data: any;
   created_at: string;
@@ -196,6 +197,7 @@ export default function ManajemenPendaftarSaaS() {
                     <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Nama Lengkap</th>
                     <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Instansi / Bisnis</th>
                     <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">WhatsApp</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Paket</th>
                     <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">{getDynamicColumnHeader()}</th>
                     <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
                     <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-right">Aksi</th>
@@ -221,6 +223,11 @@ export default function ManajemenPendaftarSaaS() {
                         </div>
                       </td>
                       <td className="py-6 px-4 font-mono text-slate-400 text-sm">{item.whatsapp}</td>
+                      <td className="py-6 px-4">
+                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                          {item.package || 'default'}
+                        </span>
+                      </td>
                       <td className="py-6 px-4">
                         <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
                           {getDynamicValue(item.meta_data)}
