@@ -17,7 +17,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-type ProductType = 'scanbite' | 'lms' | 'siput' | 'instafood' | 'restoran_asli';
+type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
 
 interface Pendaftar {
   id: string;
@@ -27,21 +27,21 @@ interface Pendaftar {
   business_name: string;
   product_type: ProductType;
   package?: string;
-  status: 'pending' | 'active';
+  status: 'pending' | 'active' | 'verified';
   meta_data: any;
   created_at: string;
 }
 
 const TABS = [
+  { id: 'lms', label: 'LMS Kesetaraan', icon: '📖', color: 'text-blue-400' },
   { id: 'scanbite', label: 'Scanbite', icon: '☕', color: 'text-emerald-400' },
   { id: 'restoran_asli', label: 'Restoran Asli', icon: '🍽️', color: 'text-rose-400' },
-  { id: 'lms', label: 'LMS Kesetaraan', icon: '📖', color: 'text-blue-400' },
   { id: 'siput', label: 'SIPUT', icon: '🐌', color: 'text-sky-400' },
-  { id: 'instafood', label: 'Instafood', icon: '🍔', color: 'text-orange-400' },
+  { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
 ] as const;
 
 export default function ManajemenPendaftarSaaS() {
-  const [activeTab, setActiveTab] = useState<ProductType>('scanbite');
+  const [activeTab, setActiveTab] = useState<ProductType>('lms');
   const [data, setData] = useState<Pendaftar[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +51,50 @@ export default function ManajemenPendaftarSaaS() {
     setLoading(true);
     setError(null);
     try {
-      const { data: pendaftar, error: fetchError } = await supabase
-        .from('pendaftar')
-        .select('*')
-        .eq('product_type', activeTab)
-        .order('created_at', { ascending: false });
+      if (activeTab === 'lms') {
+        // Fetch from registrations table for schools
+        const { data: regs, error: fetchError } = await supabase
+          .from('registrations')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
-      setData(pendaftar || []);
+        if (fetchError) throw fetchError;
+        
+        // Map registrations to Pendaftar format
+        const mappedData: Pendaftar[] = (regs || []).map(r => ({
+          id: r.id,
+          full_name: r.admin_name || r.name || '-',
+          email: r.admin_email || r.email || '-',
+          whatsapp: r.whatsapp || r.WA || '-',
+          business_name: r.school_name || '-',
+          product_type: 'lms',
+          package: r.paket_langganan || 'silver',
+          status: r.status === 'verified' ? 'active' : 'pending',
+          meta_data: { npsn: r.npsn },
+          created_at: r.created_at
+        }));
+        
+        // Also fetch from pendaftar table where product_type = 'lms' just in case
+        const { data: saasLms } = await supabase
+          .from('pendaftar')
+          .select('*')
+          .eq('product_type', 'lms');
+        
+        const unified = [...mappedData, ...(saasLms || [])];
+        // Sort by created_at
+        unified.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        
+        setData(unified);
+      } else {
+        const { data: pendaftar, error: fetchError } = await supabase
+          .from('pendaftar')
+          .select('*')
+          .eq('product_type', activeTab)
+          .order('created_at', { ascending: false });
+
+        if (fetchError) throw fetchError;
+        setData(pendaftar || []);
+      }
     } catch (err: any) {
       setError(err.message || 'Gagal memuat data pendaftar');
     } finally {
@@ -73,10 +109,18 @@ export default function ManajemenPendaftarSaaS() {
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
     setUpdatingId(id);
     try {
+      const isLms = activeTab === 'lms';
       const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
+      const table = isLms ? 'registrations' : 'pendaftar';
+      
+      // Map status for registrations table if needed
+      const statusValue = isLms 
+        ? (nextStatus === 'active' ? 'verified' : 'pending')
+        : nextStatus;
+
       const { error: updateError } = await supabase
-        .from('pendaftar')
-        .update({ status: nextStatus })
+        .from(table)
+        .update({ status: statusValue })
         .eq('id', id);
 
       if (updateError) throw updateError;
@@ -92,7 +136,7 @@ export default function ManajemenPendaftarSaaS() {
 
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
-    if (activeTab === 'instafood') return 'Jml Outlet';
+    if (activeTab === 'instafoto') return 'Jml Outlet';
     if (activeTab === 'lms' || activeTab === 'siput') return 'NPSN';
     return '-';
   };
@@ -100,7 +144,7 @@ export default function ManajemenPendaftarSaaS() {
   const getDynamicValue = (meta: any) => {
     if (!meta) return '-';
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return meta.tables_count || '-';
-    if (activeTab === 'instafood') return meta.outlet_count || '-';
+    if (activeTab === 'instafoto') return meta.outlet_count || '-';
     if (activeTab === 'lms' || activeTab === 'siput') return meta.npsn || '-';
     return '-';
   };

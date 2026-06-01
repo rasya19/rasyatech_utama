@@ -18,7 +18,7 @@ import {
   Database
 } from 'lucide-react';
 
-type ProductType = 'scanbite' | 'lms' | 'siput' | 'instafood' | 'restoran_asli';
+type ProductType = 'lms' | 'scanbite' | 'siput' | 'instafoto' | 'restoran_asli';
 
 export default function FormPendaftaranSaaS() {
   const [searchParams] = useSearchParams();
@@ -29,7 +29,7 @@ export default function FormPendaftaranSaaS() {
 
   // Determine current product from URL
   const productParam = searchParams.get('product') as ProductType;
-  const currentProduct: ProductType = ['scanbite', 'lms', 'siput', 'instafood', 'restoran_asli'].includes(productParam) 
+  const currentProduct: ProductType = ['scanbite', 'lms', 'siput', 'instafoto', 'restoran_asli'].includes(productParam) 
     ? productParam 
     : 'lms';
 
@@ -51,14 +51,14 @@ export default function FormPendaftaranSaaS() {
     setFormData(prev => ({ ...prev, product_type: currentProduct }));
   }, [currentProduct]);
 
-  const isCulinary = ['scanbite', 'restoran_asli', 'instafood'].includes(formData.product_type);
+  const isCulinary = ['scanbite', 'restoran_asli', 'instafoto'].includes(formData.product_type);
 
   const getProductLabel = (type: string = formData.product_type) => {
     switch (type) {
       case 'scanbite': return 'ScanBite (Gizi & Nutrisi)';
       case 'lms': return 'Rasya LMS PKBM';
       case 'siput': return 'SIPUT (Sistem Informasi Penduduk)';
-      case 'instafood': return 'Instafood (Manajemen Menu)';
+      case 'instafoto': return 'Instafoto (E-Menu & Delivery)';
       case 'restoran_asli': return 'Restoran Asli (POS & Kasir)';
       default: return 'Layanan Rasyatech';
     }
@@ -69,7 +69,7 @@ export default function FormPendaftaranSaaS() {
       case 'scanbite': return 'Solusi pemindaian gizi makanan cerdas untuk institusi pendidikan dan kesehatan.';
       case 'lms': return 'Learning Management System terpadu untuk PKBM, LKP, dan Satuan Pendidikan Non-Formal.';
       case 'siput': return 'Digitalisasi administrasi kependudukan dan layanan publik tingkat desa/kelurahan.';
-      case 'instafood': return 'Manajemen menu digital dan integrasi kurir internal untuk bisnis kuliner modern.';
+      case 'instafoto': return 'Manajemen menu digital dan integrasi kurir internal untuk bisnis kuliner modern.';
       case 'restoran_asli': return 'Point of Sales (POS) handal dengan manajemen stok dan pelaporan komprehensif.';
       default: return 'Silakan isi formulir di bawah untuk memulai pendaftaran.';
     }
@@ -85,7 +85,7 @@ export default function FormPendaftaranSaaS() {
       const meta_data: Record<string, string> = {};
       if (formData.product_type === 'scanbite' || formData.product_type === 'restoran_asli') {
         meta_data.tables_count = formData.tables_count;
-      } else if (formData.product_type === 'instafood') {
+      } else if (formData.product_type === 'instafoto') {
         meta_data.outlet_count = formData.outlet_count;
       } else if (formData.product_type === 'lms' || formData.product_type === 'siput') {
         meta_data.npsn = formData.npsn;
@@ -169,7 +169,7 @@ export default function FormPendaftaranSaaS() {
             <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
               {formData.product_type === 'lms' && <School className="w-5 h-5 text-blue-400" />}
               {formData.product_type === 'scanbite' && <LayoutGrid className="w-5 h-5 text-emerald-400" />}
-              {formData.product_type === 'instafood' && <Store className="w-5 h-5 text-orange-400" />}
+              {formData.product_type === 'instafoto' && <Store className="w-5 h-5 text-orange-400" />}
               {formData.product_type === 'siput' && <Database className="w-5 h-5 text-emerald-500" />}
               {getProductLabel()}
             </h3>
@@ -226,7 +226,7 @@ export default function FormPendaftaranSaaS() {
                   <option value="lms">Rasya LMS (Sekolah / PKBM)</option>
                   <option value="scanbite">ScanBite (Gizi & Nutrisi Kuliner)</option>
                   <option value="restoran_asli">Restoran Asli (POS & Kasir)</option>
-                  <option value="instafood">Instafood (E-Menu & Delivery)</option>
+                  <option value="instafoto">Instafoto (E-Menu & Delivery)</option>
                   <option value="siput">SIPUT (Sistem Informasi Penduduk)</option>
                 </select>
               </div>
@@ -354,7 +354,7 @@ export default function FormPendaftaranSaaS() {
                 </motion.div>
               )}
 
-              {formData.product_type === 'instafood' && (
+              {formData.product_type === 'instafoto' && (
                 <motion.div 
                    initial={{ opacity: 0, height: 0 }}
                    animate={{ opacity: 1, height: 'auto' }}
