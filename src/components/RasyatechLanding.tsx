@@ -232,6 +232,26 @@ export default function RasyatechLanding() {
     is_approved: false
   };
 
+  // Webhook Notification to Pipedream
+  try {
+    fetch('https://eokh2lzws2oigii.m.pipedream.net', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...registrationData,
+        package: pkg,
+        address: addr,
+        referral_code: refCode,
+        timestamp: new Date().toISOString(),
+        source: 'lms_landing_registration'
+      }),
+    }).catch(err => console.error('Webhook error:', err));
+  } catch (webhookErr) {
+    console.error('Webhook try-catch error:', webhookErr);
+  }
+
     console.log("Attempting registration with database-valid payload:", registrationData);
 
     // Prepare WhatsApp message

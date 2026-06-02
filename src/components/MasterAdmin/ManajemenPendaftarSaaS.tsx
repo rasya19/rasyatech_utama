@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
+import { supabaseKuliner } from '../../lib/supabase-kuliner';
 import { 
   Users, 
   MessageCircle, 
@@ -86,14 +87,32 @@ export default function ManajemenPendaftarSaaS() {
         
         setData(unified);
       } else {
-        const { data: pendaftar, error: fetchError } = await supabase
-          .from('pendaftar')
+        // Fetch from culinary supabase registrations table
+        const { data: pendaftar, error: fetchError } = await supabaseKuliner
+          .from('registrations')
           .select('*')
-          .eq('product_type', activeTab)
+          .eq('business_type', activeTab)
           .order('created_at', { ascending: false });
 
         if (fetchError) throw fetchError;
-        setData(pendaftar || []);
+        
+        const mappedData: Pendaftar[] = (pendaftar || []).map((r: any) => ({
+          id: r.id,
+          full_name: r.full_name || '-',
+          email: r.email || '-',
+          whatsapp: r.whatsapp_number || '-',
+          business_name: r.business_name || '-',
+          product_type: activeTab,
+          package: r.selected_package || 'standard',
+          status: r.status as any,
+          meta_data: { 
+            tables_count: r.table_count,
+            outlet_count: r.table_count
+          },
+          created_at: r.created_at
+        }));
+
+        setData(mappedData);
       }
     } catch (err: any) {
       setError(err.message || 'Gagal memuat data pendaftar');
@@ -110,15 +129,16 @@ export default function ManajemenPendaftarSaaS() {
     setUpdatingId(id);
     try {
       const isLms = activeTab === 'lms';
+      const client = isLms ? supabase : supabaseKuliner;
       const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-      const table = isLms ? 'registrations' : 'pendaftar';
+      const table = isLms ? 'registrations' : 'registrations';
       
       // Map status for registrations table if needed
       const statusValue = isLms 
         ? (nextStatus === 'active' ? 'verified' : 'pending')
         : nextStatus;
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await client
         .from(table)
         .update({ status: statusValue })
         .eq('id', id);

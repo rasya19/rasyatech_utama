@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
+import { supabaseKuliner } from '../lib/supabase-kuliner';
 import { 
   Building2, 
   Mail, 
@@ -91,18 +92,51 @@ export default function FormPendaftaranSaaS() {
         meta_data.npsn = formData.npsn;
       }
 
-      const { error: submitError } = await supabase
-        .from('pendaftar')
-        .insert([{
-          full_name: formData.full_name,
-          email: formData.email,
-          whatsapp: formData.whatsapp,
-          business_name: formData.business_name,
-          product_type: formData.product_type,
-          package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
-          meta_data: meta_data,
-          status: 'pending'
-        }]);
+      const isLms = formData.product_type === 'lms';
+      const supabaseClient = isLms ? supabase : supabaseKuliner;
+      const tableName = isLms ? 'pendaftar' : 'registrations';
+
+      // Webhook Notification to Pipedream (Fires every click)
+      try {
+        await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...formData,
+            meta_data: meta_data,
+            timestamp: new Date().toISOString(),
+            source: 'saas_registration_form'
+          }),
+        });
+      } catch (webhookErr) {
+        console.error('Webhook error:', webhookErr);
+      }
+
+      const submissionData = isLms ? {
+        full_name: formData.full_name,
+        email: formData.email,
+        whatsapp: formData.whatsapp,
+        business_name: formData.business_name,
+        product_type: formData.product_type,
+        package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
+        meta_data: meta_data,
+        status: 'pending'
+      } : {
+        full_name: formData.full_name,
+        email: formData.email,
+        whatsapp_number: formData.whatsapp,
+        business_type: formData.product_type,
+        business_name: formData.business_name,
+        selected_package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
+        table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+        status: 'pending'
+      };
+
+      const { error: submitError } = await supabaseClient
+        .from(tableName)
+        .insert([submissionData]);
 
       if (submitError) throw submitError;
 
