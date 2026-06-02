@@ -18,7 +18,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
+type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafood';
 
 interface Pendaftar {
   id: string;
@@ -38,7 +38,7 @@ const TABS = [
   { id: 'scanbite', label: 'Scanbite', icon: '☕', color: 'text-emerald-400' },
   { id: 'restoran_asli', label: 'Restoran Asli', icon: '🍽️', color: 'text-rose-400' },
   { id: 'siput', label: 'SIPUT', icon: '🐌', color: 'text-sky-400' },
-  { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
+  { id: 'instafood', label: 'instafood', icon: '🍽️', color: 'text-orange-400' },
 ] as const;
 
 export default function ManajemenPendaftarSaaS() {
@@ -156,7 +156,7 @@ export default function ManajemenPendaftarSaaS() {
 
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
-    if (activeTab === 'instafoto') return 'Jml Outlet';
+    if (activeTab === 'instafood') return 'Jml Outlet';
     if (activeTab === 'lms' || activeTab === 'siput') return 'NPSN';
     return '-';
   };
@@ -164,7 +164,7 @@ export default function ManajemenPendaftarSaaS() {
   const getDynamicValue = (meta: any) => {
     if (!meta) return '-';
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return meta.tables_count || '-';
-    if (activeTab === 'instafoto') return meta.outlet_count || '-';
+    if (activeTab === 'instafood') return meta.outlet_count || '-';
     if (activeTab === 'lms' || activeTab === 'siput') return meta.npsn || '-';
     return '-';
   };
