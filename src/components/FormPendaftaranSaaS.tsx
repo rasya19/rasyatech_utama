@@ -19,7 +19,7 @@ import {
   Database
 } from 'lucide-react';
 
-type ProductType = 'lms' | 'scanbite' | 'siput' | 'instafoto' | 'restoran_asli';
+type ProductType = 'lms' | 'scanbite' | 'siput' | 'Instafood' | 'restoran_asli';
 
 export default function FormPendaftaranSaaS() {
   const [searchParams] = useSearchParams();
@@ -27,10 +27,11 @@ export default function FormPendaftaranSaaS() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(6);
 
   // Determine current product from URL
   const productParam = searchParams.get('product') as ProductType;
-  const currentProduct: ProductType = ['scanbite', 'lms', 'siput', 'instafoto', 'restoran_asli'].includes(productParam) 
+  const currentProduct: ProductType = ['scanbite', 'lms', 'siput', 'Instafood', 'restoran_asli'].includes(productParam) 
     ? productParam 
     : 'lms';
 
@@ -47,19 +48,54 @@ export default function FormPendaftaranSaaS() {
     npsn: ''
   });
 
+  const getProductRedirectDetails = (type: string) => {
+    switch (type) {
+      case 'lms': 
+        return { name: 'Rasya LMS Kesetaraan', url: 'https://kesetaraan.rasyatech.com' };
+      case 'siput': 
+        return { name: 'SIPUT ', url: 'https://siput.rasyatech.com' };
+      case 'scanbite': 
+        return { name: 'ScanBite (Cafe & Barista)', url: 'https://scanbite.rasyatech.com' };
+      case 'restoran_asli': 
+        return { name: 'Restoran Asli POS & Kasir', url: 'https://restoran.rasyatech.com' };
+      case 'instafood': 
+        return { name: 'Instafood E-Menu & Delivery', url: 'https://Instafood.rasyatech.com' };
+      default: 
+        return { name: 'Layanan Rasyatech', url: '/' };
+    }
+  };
+
+  useEffect(() => {
+    if (!submitted) return;
+    
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          const redirectDetails = getProductRedirectDetails(formData.product_type);
+          window.location.href = redirectDetails.url;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [submitted, formData.product_type]);
+
   // Keep business_name synchronized if it's LMS/SIPUT
   useEffect(() => {
     setFormData(prev => ({ ...prev, product_type: currentProduct }));
   }, [currentProduct]);
 
-  const isCulinary = ['scanbite', 'restoran_asli', 'instafoto'].includes(formData.product_type);
+  const isCulinary = ['scanbite', 'restoran_asli', 'Instafood'].includes(formData.product_type);
 
   const getProductLabel = (type: string = formData.product_type) => {
     switch (type) {
-      case 'scanbite': return 'ScanBite (Gizi & Nutrisi)';
+      case 'scanbite': return 'ScanBite (Cafe & Barista)';
       case 'lms': return 'Rasya LMS PKBM';
-      case 'siput': return 'SIPUT (Sistem Informasi Penduduk)';
-      case 'instafoto': return 'Instafoto (E-Menu & Delivery)';
+      case 'siput': return 'SIPUT (Sistem Informasi PAUD Terpadu)';
+      case 'Instafood': return 'Instafood (E-Menu & Delivery)';
       case 'restoran_asli': return 'Restoran Asli (POS & Kasir)';
       default: return 'Layanan Rasyatech';
     }
@@ -67,10 +103,10 @@ export default function FormPendaftaranSaaS() {
 
   const getProductDescription = (type: string = formData.product_type) => {
     switch (type) {
-      case 'scanbite': return 'Solusi pemindaian gizi makanan cerdas untuk institusi pendidikan dan kesehatan.';
+      case 'scanbite': return 'Solusi pemindaian menu makanan cerdas untuk efisiensi operasional cafe.';
       case 'lms': return 'Learning Management System terpadu untuk PKBM, LKP, dan Satuan Pendidikan Non-Formal.';
       case 'siput': return 'Digitalisasi administrasi kependudukan dan layanan publik tingkat desa/kelurahan.';
-      case 'instafoto': return 'Manajemen menu digital dan integrasi kurir internal untuk bisnis kuliner modern.';
+      case 'Instafood': return 'Manajemen menu digital dan integrasi kurir internal untuk bisnis kuliner modern.';
       case 'restoran_asli': return 'Point of Sales (POS) handal dengan manajemen stok dan pelaporan komprehensif.';
       default: return 'Silakan isi formulir di bawah untuk memulai pendaftaran.';
     }
@@ -86,15 +122,13 @@ export default function FormPendaftaranSaaS() {
       const meta_data: Record<string, string> = {};
       if (formData.product_type === 'scanbite' || formData.product_type === 'restoran_asli') {
         meta_data.tables_count = formData.tables_count;
-      } else if (formData.product_type === 'instafoto') {
+      } else if (formData.product_type === 'Instafood') {
         meta_data.outlet_count = formData.outlet_count;
       } else if (formData.product_type === 'lms' || formData.product_type === 'siput') {
         meta_data.npsn = formData.npsn;
       }
 
       const isLms = formData.product_type === 'lms';
-      const supabaseClient = isLms ? supabase : supabaseKuliner;
-      const tableName = isLms ? 'pendaftar' : 'registrations';
 
       // Webhook Notification to Pipedream (Fires every click)
       try {
@@ -114,31 +148,51 @@ export default function FormPendaftaranSaaS() {
         console.error('Webhook error:', webhookErr);
       }
 
-      const submissionData = isLms ? {
-        full_name: formData.full_name,
-        email: formData.email,
+      // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
+      const lmsInsertData = {
+        school_name: formData.business_name,
+        admin_name: formData.full_name,
+        admin_email: formData.email,
         whatsapp: formData.whatsapp,
-        business_name: formData.business_name,
-        product_type: formData.product_type,
-        package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
-        meta_data: meta_data,
-        status: 'pending'
-      } : {
-        full_name: formData.full_name,
-        email: formData.email,
-        whatsapp_number: formData.whatsapp,
-        business_type: formData.product_type,
-        business_name: formData.business_name,
-        selected_package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
-        table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-        status: 'pending'
+        npsn: formData.npsn || '-',
+        subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
+        password: 'defaultpassword123',
+        status: 'pending',
+        is_approved: false,
+        paket_langganan: formData.product_type === 'lms' ? (formData.package || 'silver') : (formData.package || 'standard')
       };
 
-      const { error: submitError } = await supabaseClient
-        .from(tableName)
-        .insert([submissionData]);
+      const { error: lmsError } = await supabase
+        .from('registrations')
+        .insert([lmsInsertData]);
 
-      if (submitError) throw submitError;
+      if (lmsError) {
+        console.error('Error inserting into Supabase LMS registrations table:', lmsError);
+        if (isLms) throw lmsError;
+      }
+
+      // If it is NOT LMS (ie. culinary/siput), also insert into Supabase Culinary 'registrations' table
+      if (!isLms) {
+        const culinaryInsertData = {
+          full_name: formData.full_name,
+          email: formData.email,
+          whatsapp_number: formData.whatsapp,
+          business_type: formData.product_type,
+          business_name: formData.business_name,
+          selected_package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
+          table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+          status: 'pending'
+        };
+
+        const { error: culinaryError } = await supabaseKuliner
+          .from('registrations')
+          .insert([culinaryInsertData]);
+
+        if (culinaryError) {
+          console.error('Error inserting into Supabase Culinary registrations table:', culinaryError);
+          throw culinaryError;
+        }
+      }
 
       setSubmitted(true);
     } catch (err: any) {
@@ -150,26 +204,76 @@ export default function FormPendaftaranSaaS() {
   };
 
   if (submitted) {
+    const redirectDetails = getProductRedirectDetails(formData.product_type);
     return (
-      <div className="min-h-screen bg-[#0A0F1E] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-[#0A0F1E] flex items-center justify-center p-6 selection:bg-blue-500/30">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full bg-[#151C30] border border-slate-800 rounded-[32px] p-12 text-center shadow-2xl"
+          className="max-w-lg w-full bg-[#151C30] border border-slate-800 rounded-[32px] p-8 md:p-12 text-center shadow-2xl relative overflow-hidden"
         >
-          <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-8">
+          {/* Flame effect */}
+          <div className="absolute top-[10%] right-[-10%] w-[30%] h-[30%] bg-blue-500/10 blur-[80px] rounded-full pointer-events-none animate-pulse" />
+          <div className="absolute bottom-[10%] left-[-10%] w-[30%] h-[30%] bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none animate-pulse" />
+
+          <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 className="w-10 h-10 text-emerald-400" />
           </div>
-          <h2 className="text-3xl font-bold text-white mb-4">Pendaftaran Berhasil!</h2>
-          <p className="text-slate-400 mb-10 leading-relaxed">
-            Terima kasih telah mendaftar untuk <span className="text-white font-semibold">{getProductLabel()}</span>. Tim kami akan menghubungi Anda melalui WhatsApp dalam waktu 1x24 jam.
+          
+          <h2 className="text-3xl font-black text-white mb-2 tracking-tight">Pendaftaran Sukses!</h2>
+          
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-xs font-bold uppercase tracking-wider mb-6">
+            Rasyatech Ecosystem Gateway
+          </div>
+
+          <p className="text-slate-400 text-sm leading-relaxed mb-6">
+            Terima kasih telah mendaftar untuk layanan <span className="text-white font-bold">{getProductLabel()}</span>.<br />
+            Tim support Rasyatech akan menghubungi Anda via WhatsApp dalam waktu 1x24 jam untuk verifikasi detail akun.
           </p>
-          <button 
-            onClick={() => navigate('/')}
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold rounded-2xl transition-all shadow-lg active:scale-[0.98]"
-          >
-            Kembali ke Beranda
-          </button>
+
+          {/* Redirection indicator */}
+          <div className="p-4 bg-slate-900/50 border border-slate-800/80 rounded-2xl mb-8 flex flex-col items-center justify-center gap-1.5">
+            <p className="text-xs text-slate-400">
+              Mengarahkan Anda ke portal <span className="text-blue-400 font-bold">{redirectDetails.name}</span> secara automatis
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+              <p className="text-sm text-white font-extrabold font-mono">
+                dalam {countdown} detik...
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button 
+              onClick={() => { window.location.href = redirectDetails.url; }}
+              className="flex-1 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-500/10 active:scale-[0.98] text-sm"
+            >
+              Lanjutkan Sekarang
+            </button>
+            <button 
+              onClick={() => navigate('/')}
+              className="py-4 px-6 bg-slate-800 hover:bg-slate-755 text-slate-300 font-bold rounded-2xl transition-all text-sm"
+            >
+              Kembali ke Beranda
+            </button>
+          </div>
+
+          {/* Powered by Rasyatech Ads Block */}
+          <div className="mt-8 p-6 bg-gradient-to-br from-blue-950/40 to-slate-900/80 border border-blue-500/20 rounded-2xl relative overflow-hidden text-left">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-400 mb-3 border border-blue-500/30 tracking-wider">
+              POWERED BY RASYATECH 🔥
+            </span>
+            <h4 className="text-white font-bold text-sm mb-1">Butuh Digitalisasi Sekolah atau UMKM?</h4>
+            <p className="text-slate-400 text-xs leading-relaxed mb-3">
+              Rasyatech Cloud menyediakan layanan LMS, POS Kasir, dan Sistem Kependudukan terpadu dengan infrastruktur server awan handal di Kuningan. Selesai cepat & support WhatsApp 24/7.
+            </p>
+            <div className="text-[9px] font-extrabold text-blue-400/90 tracking-widest uppercase flex justify-between items-center">
+              <span>Rasyatech Core Cloud Hosting</span>
+              <span>Kuningan, Jawa Barat</span>
+            </div>
+          </div>
         </motion.div>
       </div>
     );
@@ -203,7 +307,7 @@ export default function FormPendaftaranSaaS() {
             <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
               {formData.product_type === 'lms' && <School className="w-5 h-5 text-blue-400" />}
               {formData.product_type === 'scanbite' && <LayoutGrid className="w-5 h-5 text-emerald-400" />}
-              {formData.product_type === 'instafoto' && <Store className="w-5 h-5 text-orange-400" />}
+              {formData.product_type === 'Instafood' && <Store className="w-5 h-5 text-orange-400" />}
               {formData.product_type === 'siput' && <Database className="w-5 h-5 text-emerald-500" />}
               {getProductLabel()}
             </h3>
@@ -258,9 +362,9 @@ export default function FormPendaftaranSaaS() {
                   className="w-full bg-[#0A0F1E] border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all appearance-none"
                 >
                   <option value="lms">Rasya LMS (Sekolah / PKBM)</option>
-                  <option value="scanbite">ScanBite (Gizi & Nutrisi Kuliner)</option>
+                  <option value="scanbite">ScanBite (Cafe & Barista)</option>
                   <option value="restoran_asli">Restoran Asli (POS & Kasir)</option>
-                  <option value="instafoto">Instafoto (E-Menu & Delivery)</option>
+                  <option value="Instafood">Instafood (E-Menu & Delivery)</option>
                   <option value="siput">SIPUT (Sistem Informasi Penduduk)</option>
                 </select>
               </div>
@@ -388,7 +492,7 @@ export default function FormPendaftaranSaaS() {
                 </motion.div>
               )}
 
-              {formData.product_type === 'instafoto' && (
+              {formData.product_type === 'Instafood' && (
                 <motion.div 
                    initial={{ opacity: 0, height: 0 }}
                    animate={{ opacity: 1, height: 'auto' }}

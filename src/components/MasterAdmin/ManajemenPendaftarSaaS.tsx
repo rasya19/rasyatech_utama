@@ -18,7 +18,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafood';
+type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
 
 interface Pendaftar {
   id: string;
@@ -38,7 +38,7 @@ const TABS = [
   { id: 'scanbite', label: 'Scanbite', icon: '☕', color: 'text-emerald-400' },
   { id: 'restoran_asli', label: 'Restoran Asli', icon: '🍽️', color: 'text-rose-400' },
   { id: 'siput', label: 'SIPUT', icon: '🐌', color: 'text-sky-400' },
-  { id: 'instafood', label: 'instafood', icon: '🍽️', color: 'text-orange-400' },
+  { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
 ] as const;
 
 export default function ManajemenPendaftarSaaS() {
@@ -70,7 +70,7 @@ export default function ManajemenPendaftarSaaS() {
           business_name: r.school_name || '-',
           product_type: 'lms',
           package: r.paket_langganan || 'silver',
-          status: r.status === 'verified' ? 'active' : 'pending',
+          status: (r.status === 'verified' || r.status === 'active') ? 'active' : 'pending',
           meta_data: { npsn: r.npsn },
           created_at: r.created_at
         }));
@@ -131,24 +131,31 @@ export default function ManajemenPendaftarSaaS() {
       const isLms = activeTab === 'lms';
       const client = isLms ? supabase : supabaseKuliner;
       const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-      const table = isLms ? 'registrations' : 'registrations';
+      const table = 'registrations';
       
-      // Map status for registrations table if needed
+      // HUKUM #4: LMS WAJIB update status ke 'active'
       const statusValue = isLms 
-        ? (nextStatus === 'active' ? 'verified' : 'pending')
+        ? (nextStatus === 'active' ? 'active' : 'pending')
         : nextStatus;
+
+      const updatePayload: any = { status: statusValue };
+      if (isLms) {
+        updatePayload.is_approved = (statusValue === 'active');
+      }
 
       const { error: updateError } = await client
         .from(table)
-        .update({ status: statusValue })
+        .update(updatePayload)
         .eq('id', id);
 
       if (updateError) throw updateError;
       
-      // Update local state
+      // Update local state (Kalo sukses → baru UI berubah jadi AKTIF)
       setData(prev => prev.map(item => item.id === id ? { ...item, status: nextStatus as any } : item));
     } catch (err: any) {
-      alert('Gagal memperbarui status: ' + err.message);
+      console.error('Update operation error:', err);
+      // HUKUM #4: Kalo gagal → kasih alert "Gagal update database bang"
+      alert('Gagal update database bang');
     } finally {
       setUpdatingId(null);
     }
@@ -156,7 +163,7 @@ export default function ManajemenPendaftarSaaS() {
 
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
-    if (activeTab === 'instafood') return 'Jml Outlet';
+    if (activeTab === 'instafoto') return 'Jml Outlet';
     if (activeTab === 'lms' || activeTab === 'siput') return 'NPSN';
     return '-';
   };
@@ -164,7 +171,7 @@ export default function ManajemenPendaftarSaaS() {
   const getDynamicValue = (meta: any) => {
     if (!meta) return '-';
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return meta.tables_count || '-';
-    if (activeTab === 'instafood') return meta.outlet_count || '-';
+    if (activeTab === 'instafoto') return meta.outlet_count || '-';
     if (activeTab === 'lms' || activeTab === 'siput') return meta.npsn || '-';
     return '-';
   };
