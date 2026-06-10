@@ -69,8 +69,7 @@ function AppRoutes() {
       
       {/* Centralized Complaint Monitoring Portfolios for Dinas Pendidikan and Internal Command */}
       <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
-      <Route path="/admin/kanban" element={<MonitoringDashboard />} />
-      
+            
       {/* Global SaaS Registration Form */}
       <Route path="/daftar" element={<FormPendaftaranSaaS />} />
       
