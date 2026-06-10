@@ -48,6 +48,38 @@ export default function SchoolLogin() {
           </button>
         </form>
         {message && <p className="mt-4 text-center">{message}</p>}
+
+        <div className="mt-6 border-t border-gray-200 pt-6 space-y-3">
+          <p className="text-[10px] text-gray-400 font-extrabold text-center uppercase tracking-wider">Mode Akses Uji Coba</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => {
+                const mockSession = {
+                  user: { email: 'dinas@kuningan.go.id', id: 'mock-dinas-id' },
+                  schoolData: { school_name: 'Dinas Pendidikan Kab. Kuningan', role: 'DINAS', subdomain: 'dinas' }
+                };
+                sessionStorage.setItem('siput_mock_session', JSON.stringify(mockSession));
+                window.location.reload();
+              }}
+              className="p-2.5 bg-slate-900 hover:bg-black text-emerald-400 font-bold text-xs rounded-lg transition-all text-center shadow-sm border border-slate-800"
+            >
+              Demo Dinas 🏛️
+            </button>
+            <button
+              onClick={() => {
+                const mockSession = {
+                  user: { email: 'paud_melati@siput.id', id: 'mock-sekolah-id' },
+                  schoolData: { id: 'demo-school-id', school_name: 'PAUD Melati Kuningan', subdomain: 'paudmelati', npsn: '20230412', address: 'Jl. Raya Cilimus No. 12, Kuningan' }
+                };
+                sessionStorage.setItem('siput_mock_session', JSON.stringify(mockSession));
+                window.location.reload();
+              }}
+              className="p-2.5 bg-[#00BEC4] hover:bg-[#14B8A6] text-[#0B2447] font-bold text-xs rounded-lg transition-all text-center shadow-sm"
+            >
+              Demo Sekolah 💻
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
