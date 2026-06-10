@@ -12,25 +12,18 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-// PWA Service Worker Registration
+// PWA Service Worker Registration - DIPISAH SCOPE NYA
 if ('serviceWorker' in navigator) {
   const path = window.location.pathname;
   const scope = path.startsWith('/master-admin') 
-  ? '/master-admin/' 
-  : '/admin/';
-    const registerSW = () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      .then(reg => {
-        console.log('SW registered successfully with scope: ', reg.scope);
-      })
-      .catch(err => {
-        console.log('SW registration failed: ', err);
-      });
-  };
-
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    registerSW();
-  } else {
-    window.addEventListener('load', registerSW);
-  }
+    ? '/master-admin/' 
+    : '/admin/'; // default admin
+    
+  navigator.serviceWorker.register('/sw.js', { scope }) // ← pake variabel scope, bukan '/'
+    .then(reg => {
+      console.log('SW registered with scope: ', reg.scope);
+    })
+    .catch(err => {
+      console.log('SW registration failed: ', err);
+    });
 }
