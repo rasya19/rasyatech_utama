@@ -437,3 +437,14 @@ footer {
     .hero h1 { font-size: 2.5rem; } 
     .form-container { padding: 2.5rem 1.5rem; }
 }
+
+/* Isolated CSS Cleanroom for Dinas Panel */
+.dinas-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: row;
+  position: relative;
+  overflow: hidden;
+}
+

@@ -5,7 +5,8 @@ import TeachersTable from './TeachersTable';
 import StudentsTable from './StudentsTable';
 import { 
   LayoutDashboard, Users, BookOpen, Settings, Loader2, School, LogOut,
-  FileText, CheckCircle2, AlertTriangle, TrendingUp, ShieldCheck, HelpCircle, BarChart2
+  FileText, CheckCircle2, AlertTriangle, TrendingUp, ShieldCheck, HelpCircle, BarChart2,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import { 
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
@@ -115,6 +116,9 @@ export default function TenantDashboard() {
                   schoolData?.role === 'DINAS' || 
                   schoolData?.paket_langganan?.toUpperCase() === 'DINAS';
 
+  // Debugging Role-State
+  console.log('Current Layout Role:', isDinas ? 'DINAS' : 'SEKOLAH');
+
   // ----------------------------------------------------
   // GOVERNMENT DINAS PANEL LAYOUT (completely decoupled)
   // ----------------------------------------------------
@@ -129,7 +133,7 @@ export default function TenantDashboard() {
     const currentTab = dinasTabs.find(t => t.id === activeTab) || dinasTabs[0];
 
     return (
-      <div className="w-screen h-screen flex bg-slate-950 text-slate-100 overflow-hidden font-sans">
+      <div className="dinas-container bg-slate-950 text-slate-100 font-sans">
         
         {/* Conditional Sidebar: Dinas Exclusive Sidebar. School sidebar is fully omitted. */}
         <aside className="w-72 flex-shrink-0 bg-slate-900 flex flex-col shadow-2xl border-r border-slate-800/80 h-full z-20">
