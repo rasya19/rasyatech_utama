@@ -105,7 +105,7 @@ export default function FormPendaftaranSaaS() {
     switch (type) {
       case 'scanbite': return 'Solusi pemindaian menu makanan cerdas untuk efisiensi operasional cafe.';
       case 'lms': return 'Learning Management System terpadu untuk PKBM, LKP, dan Satuan Pendidikan Non-Formal.';
-      case 'siput': return 'Digitalisasi administrasi kependudukan dan layanan publik tingkat desa/kelurahan.';
+      case 'siput': return 'Aplikasi manajemen data murid, guru, dan kelas untuk PAUD/TK';
       case 'Instafood': return 'Manajemen menu digital dan integrasi kurir internal untuk bisnis kuliner modern.';
       case 'restoran_asli': return 'Point of Sales (POS) handal dengan manajemen stok dan pelaporan komprehensif.';
       default: return 'Silakan isi formulir di bawah untuk memulai pendaftaran.';
@@ -267,7 +267,7 @@ export default function FormPendaftaranSaaS() {
             </span>
             <h4 className="text-white font-bold text-sm mb-1">Butuh Digitalisasi Sekolah atau UMKM?</h4>
             <p className="text-slate-400 text-xs leading-relaxed mb-3">
-              Rasyatech Cloud menyediakan layanan LMS, POS Kasir, dan Sistem Kependudukan terpadu dengan infrastruktur server awan handal di Kuningan. Selesai cepat & support WhatsApp 24/7.
+              Rasyatech Cloud menyediakan layanan LMS, POS Kasir, dan Sistem Informasi PAUD Terpadu dengan infrastruktur server awan handal di Kuningan. Selesai cepat & support WhatsApp 24/7.
             </p>
             <div className="text-[9px] font-extrabold text-blue-400/90 tracking-widest uppercase flex justify-between items-center">
               <span>Rasyatech Core Cloud Hosting</span>
@@ -365,7 +365,7 @@ export default function FormPendaftaranSaaS() {
                   <option value="scanbite">ScanBite (Cafe & Barista)</option>
                   <option value="restoran_asli">Restoran Asli (POS & Kasir)</option>
                   <option value="Instafood">Instafood (E-Menu & Delivery)</option>
-                  <option value="siput">SIPUT (Sistem Informasi Penduduk)</option>
+                  <option value="siput">SIPUT (Sistem Informasi PAUD Terpadu)</option>
                 </select>
               </div>
             </div>

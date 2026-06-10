@@ -357,7 +357,7 @@ export default function MonitoringDashboard() {
                   <td className="border-r border-black p-3 font-semibold">{t.school_name}</td>
                   <td className="border-r border-black p-3">{t.subdistrict}</td>
                   <td className="border-r border-black p-3">
-                    {t.source === 'SIPUT' ? 'SIPUT (Adm Penduduk)' : t.source === 'LMS_ARMILLA' ? 'Rasya LMS PKBM' : 'Scanbite Gizi Mandiri'}
+                    {t.source === 'SIPUT' ? 'SIPUT (PAUD Terpadu)' : t.source === 'LMS_ARMILLA' ? 'Rasya LMS PKBM' : 'Scanbite Gizi Mandiri'}
                   </td>
                   <td className="border-r border-black p-3 italic leading-snug">"{t.description}"</td>
                   <td className="border-r border-black p-3 text-center uppercase font-bold">
@@ -460,7 +460,7 @@ export default function MonitoringDashboard() {
                 Monitoring Keluhan Terpusat <span className="text-rose-500 font-serif text-sm italic font-normal">(Rasyatech Portofolio Dinas)</span>
               </h1>
               <p className="text-slate-400 text-sm mt-1 max-w-2xl font-medium">
-                Pusat kendali operasional lintas platform. Singkronisasi data pengaduan sekolah SIPUT (Sistem Informasi Penduduk Terpadu), Rasya LMS PKBM Armilla Nusa, dan Scanbite Gizi secara real-time.
+                Pusat kendali operasional lintas platform. Singkronisasi data pengaduan sekolah SIPUT (Sistem Informasi PAUD Terpadu), Rasya LMS PKBM Armilla Nusa, dan Scanbite Gizi secara real-time.
               </p>
             </div>
           </div>
@@ -565,7 +565,7 @@ export default function MonitoringDashboard() {
               className="w-full bg-transparent text-slate-200 font-bold text-xs py-3 outline-none cursor-pointer"
             >
               <option value="all" className="bg-[#111827] text-slate-300">Semua Program</option>
-              <option value="SIPUT" className="bg-[#111827] text-slate-200">SIPUT (Penduduk)</option>
+              <option value="SIPUT" className="bg-[#111827] text-slate-200">SIPUT (PAUD Terpadu)</option>
               <option value="LMS_ARMILLA" className="bg-[#111827] text-slate-200">Rasya LMS</option>
               <option value="SCANBITE" className="bg-[#111827] text-slate-200">Scanbite</option>
             </select>
