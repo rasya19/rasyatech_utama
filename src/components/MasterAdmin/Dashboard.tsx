@@ -892,7 +892,7 @@ export default function Admin() {
               <h2 className="text-lg font-black tracking-tight text-[#0B2447] leading-none flex items-center gap-1">
                 Rasya<span className="text-[#00BEC4]">Tech</span>
               </h2>
-              <span className="text-[9px] uppercase font-bold tracking-widest text-[#475569] block mt-1">Master Portal</span>
+              <span className="text-[9px] uppercase font-bold tracking-widest text-[#475569] block mt-1">Admin Rasyatech</span>
             </div>
           </div>
         </div>
@@ -962,11 +962,11 @@ export default function Admin() {
             >
               <Menu className="w-6 h-6" />
             </button>
-            <h1 className="text-xl md:text-2xl font-black text-[#0B2447] tracking-tight">Master Admin Panel</h1>
+            <h1 className="text-xl md:text-2xl font-black text-[#0B2447] tracking-tight">Admin Panel - Rasyatech</h1>
           </div>
           <div className="bg-[#f8fafc] px-4 md:px-6 py-2 md:py-3 rounded-2xl border border-slate-100 shadow-sm font-bold text-[#0B2447] flex items-center gap-2 text-xs md:text-sm">
             <span className="w-2.5 h-2.5 rounded-full bg-[#14B8A6] animate-pulse"></span>
-            Super Admin
+            Admin Rasyatech
           </div>
         </header>
 

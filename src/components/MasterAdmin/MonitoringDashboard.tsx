@@ -93,7 +93,7 @@ const INITIAL_TICKETS: ComplaintTicket[] = [
     source: 'LMS_ARMILLA',
     school_name: 'PKBM Armilla Sejahtera',
     subdistrict: 'Penjaringan',
-    description: 'Reset password admin sekolah lms tidak bekerja, sudah di-override manual oleh master admin.',
+    description: 'Reset password admin sekolah lms tidak bekerja, sudah di-override manual oleh Admin Rasyatech.',
     status: 'solved',
     created_at: '2026-05-23T11:10:00Z',
     reporter_name: 'Ismanto (Admin)',

@@ -71,7 +71,7 @@ export default function ResetPassword() {
             </svg>
           </div>
           <h2 className="text-3xl font-black text-white tracking-tight leading-none">Reset Password</h2>
-          <p className="text-slate-400 font-medium text-sm mt-3 leading-relaxed">Masukkan password baru untuk akun Super Admin/Master Admin Anda.</p>
+          <p className="text-slate-400 font-medium text-sm mt-3 leading-relaxed">Masukkan password baru untuk akun Admin Rasyatech Anda.</p>
         </div>
 
         {success ? (
