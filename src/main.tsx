@@ -14,7 +14,11 @@ createRoot(document.getElementById('root')!).render(
 
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {
-  const registerSW = () => {
+  const path = window.location.pathname;
+  const scope = path.startsWith('/master-admin') 
+  ? '/master-admin/' 
+  : '/admin/';
+    const registerSW = () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then(reg => {
         console.log('SW registered successfully with scope: ', reg.scope);
