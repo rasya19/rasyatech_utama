@@ -116,8 +116,10 @@ export default function TenantDashboard() {
                   schoolData?.role === 'DINAS' || 
                   schoolData?.paket_langganan?.toUpperCase() === 'DINAS';
 
+  const role = isDinas ? 'DINAS' : 'SEKOLAH';
+
   // Debugging Role-State
-  console.log('Current Layout Role:', isDinas ? 'DINAS' : 'SEKOLAH');
+  console.log('Current Layout Role: ' + role);
 
   // ----------------------------------------------------
   // GOVERNMENT DINAS PANEL LAYOUT (completely decoupled)
@@ -510,82 +512,84 @@ export default function TenantDashboard() {
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex">
       {/* Premium Sidebar with Midnight Blue `#0B2447` */}
-      <aside id="tenant-sidebar" className="w-72 flex-shrink-0 bg-[#0B2447] flex flex-col shadow-2xl z-20">
-        
-        {/* Sidebar Header with Brushed Metal and Silver Steel texture */}
-        <div id="sidebar-header" className="brushed-metal p-6 flex flex-col items-center justify-center border-b border-white/10 relative">
-          <div className="flex items-center gap-3 relative z-10">
-            <div className="w-11 h-11 bg-[#0b2447] rounded-xl flex items-center justify-center text-[#00BEC4] shadow-md border border-white/20">
-              <School className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 id="sidebar-logo-text" className="text-lg font-black tracking-tight text-[#0B2447] leading-none flex items-center gap-1">
-                Rasya<span className="text-[#00BEC4]">Tech</span>
-              </h2>
-              <span className="text-[9px] uppercase font-bold tracking-widest text-[#475569] block mt-1">School Portal</span>
+      {role === 'DINAS' ? null : (
+        <aside id="tenant-sidebar" className="w-72 flex-shrink-0 bg-[#0B2447] flex flex-col shadow-2xl z-20">
+          
+          {/* Sidebar Header with Brushed Metal and Silver Steel texture */}
+          <div id="sidebar-header" className="brushed-metal p-6 flex flex-col items-center justify-center border-b border-white/10 relative">
+            <div className="flex items-center gap-3 relative z-10">
+              <div className="w-11 h-11 bg-[#0b2447] rounded-xl flex items-center justify-center text-[#00BEC4] shadow-md border border-white/20">
+                <School className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 id="sidebar-logo-text" className="text-lg font-black tracking-tight text-[#0B2447] leading-none flex items-center gap-1">
+                  Rasya<span className="text-[#00BEC4]">Tech</span>
+                </h2>
+                <span className="text-[9px] uppercase font-bold tracking-widest text-[#475569] block mt-1">School Portal</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Navigation Section */}
-        <div className="flex-1 p-6 flex flex-col justify-between">
-          <nav className="flex flex-col gap-2">
-            {tabs.map(tab => {
-              const isActive = activeTab === tab.id;
-              return (
+          {/* Navigation Section */}
+          <div className="flex-1 p-6 flex flex-col justify-between">
+            <nav className="flex flex-col gap-2">
+              {tabs.map(tab => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    id={`tab-btn-${tab.id}`}
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold transition-all duration-200 text-left ${
+                      isActive 
+                        ? 'bg-[#00BEC4] text-[#0B2447] shadow-lg shadow-[#00BEC4]/20 translate-x-1' 
+                        : 'text-slate-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span className={isActive ? 'text-[#0B2447]' : 'text-[#00BEC4]'}>{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Sidebar Footer Account Action */}
+            <div className="pt-6 border-t border-white/5 space-y-4">
+              <div className="px-3">
+                <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Logged in as</p>
+                <p className="text-xs font-bold text-white truncate mt-0.5">{user.email}</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
                 <button
-                  id={`tab-btn-${tab.id}`}
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold transition-all duration-200 text-left ${
-                    isActive 
-                      ? 'bg-[#00BEC4] text-[#0B2447] shadow-lg shadow-[#00BEC4]/20 translate-x-1' 
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
-                  }`}
+                  onClick={() => {
+                    const mockSession = {
+                      user: { email: 'dinas@kuningan.go.id', id: 'mock-dinas-id' },
+                      schoolData: { school_name: 'Dinas Pendidikan Kab. Kuningan', role: 'DINAS', subdomain: 'dinas' }
+                    };
+                    sessionStorage.setItem('siput_mock_session', JSON.stringify(mockSession));
+                    window.location.reload();
+                  }}
+                  className="w-full py-2 bg-white/10 hover:bg-white/15 text-slate-300 font-bold text-[11px] rounded-lg transition"
                 >
-                  <span className={isActive ? 'text-[#0B2447]' : 'text-[#00BEC4]'}>{tab.icon}</span>
-                  {tab.label}
+                  Beralih ke Portal Dinas
                 </button>
-              );
-            })}
-          </nav>
-
-          {/* Sidebar Footer Account Action */}
-          <div className="pt-6 border-t border-white/5 space-y-4">
-            <div className="px-3">
-              <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Logged in as</p>
-              <p className="text-xs font-bold text-white truncate mt-0.5">{user.email}</p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-2">
-              <button
-                onClick={() => {
-                  const mockSession = {
-                    user: { email: 'dinas@kuningan.go.id', id: 'mock-dinas-id' },
-                    schoolData: { school_name: 'Dinas Pendidikan Kab. Kuningan', role: 'DINAS', subdomain: 'dinas' }
-                  };
-                  sessionStorage.setItem('siput_mock_session', JSON.stringify(mockSession));
-                  window.location.reload();
-                }}
-                className="w-full py-2 bg-white/10 hover:bg-white/15 text-slate-300 font-bold text-[11px] rounded-lg transition"
-              >
-                Beralih ke Portal Dinas
-              </button>
-              <button
-                onClick={() => {
-                  sessionStorage.removeItem('siput_mock_session');
-                  supabase.auth.signOut();
-                  window.location.reload();
-                }}
-                className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all duration-200"
-              >
-                <LogOut className="w-5 h-5 text-rose-400" />
-                Sign Out
-              </button>
+                <button
+                  onClick={() => {
+                    sessionStorage.removeItem('siput_mock_session');
+                    supabase.auth.signOut();
+                    window.location.reload();
+                  }}
+                  className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all duration-200"
+                >
+                  <LogOut className="w-5 h-5 text-rose-400" />
+                  Sign Out
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+      )}
 
       {/* Main Workspace Frame */}
       <main className="flex-1 min-w-0 flex flex-col">
