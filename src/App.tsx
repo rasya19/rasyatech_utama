@@ -10,6 +10,7 @@ import SplashScreen from './components/SplashScreen';
 import MonitoringDashboard from './components/MasterAdmin/MonitoringDashboard';
 import FormPendaftaranSaaS from './components/FormPendaftaranSaaS';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
+import { LandingDataProvider } from './lib/LandingDataContext';
 import { supabase } from './lib/supabase';
 
 function AppRoutes() {
@@ -84,16 +85,18 @@ export default function App() {
 
   return (
     <SubdomainProvider>
-      <Router>
-        {showSplash && (
-          <SplashScreen 
-            onComplete={() => {
-              setShowSplash(false);
-            }} 
-          />
-        )}
-        <AppRoutes />
-      </Router>
+      <LandingDataProvider>
+        <Router>
+          {showSplash && (
+            <SplashScreen 
+              onComplete={() => {
+                setShowSplash(false);
+              }} 
+            />
+          )}
+          <AppRoutes />
+        </Router>
+      </LandingDataProvider>
     </SubdomainProvider>
   );
 }

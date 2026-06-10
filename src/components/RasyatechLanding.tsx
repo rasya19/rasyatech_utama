@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabase';
+import { useLandingData } from '../lib/LandingDataContext';
 
 const NativeAd = () => {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -49,7 +50,7 @@ const BannerAd = () => {
   }, []);
 
   return (
-    <div className="banner-ad-wrapper" style={{ display: 'flex', justifyContent: 'center', margin: '40px 0', width: '100%', overflow: 'hidden' }}>
+    <div className="banner-ad-wrapper" style={{ display: 'flex', justifyContent: 'center', margin: '40px 0', width: '100%', overflow: 'hidden', position: 'relative', zIndex: 10 }}>
       <div ref={containerRef} style={{ width: '728px', minHeight: '90px' }}>
         {/* Ad will load here */}
       </div>
@@ -58,119 +59,46 @@ const BannerAd = () => {
 };
 
 export default function RasyatechLanding() {
-  const [payments, setPayments] = useState<any>({
-    bankBcaProvider: 'BCA',
-    bankBca: '1234567890',
-    bankMandiriProvider: 'Mandiri',
-    bankMandiri: '0987654321',
-    eWallet: '081918226387',
-    bankBcaName: 'PT Rasyatech Digital',
-    bankMandiriName: 'PT Rasyatech Digital',
-    eWalletName: 'Admin Rasyatech'
-  });
-  const [config, setConfig] = useState<any>({ 
-    whatsapp: '6281918226387', 
-    address: 'Mekarwangi, Kuningan - Jawa Barat', 
-    heroTitle: 'Transformasi Digital Masa Depan', 
-    heroSubtitle: 'Solusi Manajemen Sekolah (LMS) Terintegrasi, Jasa Service IT, dan Web Development Profesional berbasis di Mekarwangi, Kuningan.' 
-  });
-  const [laptops, setLaptops] = useState<any[]>([]);
-  const [ads, setAds] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [affiliates, setAffiliates] = useState<any[]>([]);
-  const [visitorCount, setVisitorCount] = useState<number>(0);
+  const { config, payments, laptops, products, affiliates, services, loading } = useLandingData();
+  const ads: any[] = []; // legacy Ads fallback, empty array as 'ads' table does not exist in relational schema
+  const [visitorCount, setVisitorCount] = useState<number>(1452);
   const [showPayment, setShowPayment] = useState(false);
   const [showDaftarDropdown, setShowDaftarDropdown] = useState(false);
 
   useEffect(() => {
-    // // Listen to Payments from Firestore
-    // const unsubPayments = onSnapshot(doc(db, 'settings', 'payments'), (snap) => {
-    //   if (snap.exists()) {
-    //     setPayments((prev: any) => ({ ...prev, ...snap.data() }));
-    //   }
-    // }, (err) => handleFirestoreError(err, OperationType.GET, 'settings/payments'));
-    // 
-    // // Listen to Config from Firestore
-    // const unsubConfig = onSnapshot(doc(db, 'settings', 'config'), (snap) => {
-    //   if (snap.exists()) {
-    //     setConfig((prev: any) => ({ ...prev, ...snap.data() }));
-    //   }
-    // }, (err) => handleFirestoreError(err, OperationType.GET, 'settings/config'));
-    // 
-    // // Listen to Laptops
-    // const unsubLaptops = onSnapshot(collection(db, 'laptops'), (snap) => {
-    //   const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    //   setLaptops(list);
-    // }, (err) => handleFirestoreError(err, OperationType.GET, 'laptops'));
-    // 
-    // // Listen to Ads
-    // const unsubAds = onSnapshot(collection(db, 'ads'), (snap) => {
-    //   const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    //   setAds(list.filter((ad: any) => ad.isActive));
-    // }, (err) => handleFirestoreError(err, OperationType.GET, 'ads'));
-    // 
-    // // Listen to Products
-    // const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
-    //   const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    //   setProducts(list);
-    // }, (err) => handleFirestoreError(err, OperationType.GET, 'products'));
-    // 
-    // // Listen to Affiliates
-    // const unsubAffiliates = onSnapshot(collection(db, 'affiliates'), (snap) => {
-    //   const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    //   setAffiliates(list);
-    // }, (err) => handleFirestoreError(err, OperationType.GET, 'affiliates'));
-    // 
-    // // Visitor Count Logic
-    // const visitorRef = doc(db, 'stats', 'visitors');
-    // const hasVisited = sessionStorage.getItem('rasyatech_visited');
-    // 
-    // if (!hasVisited) {
-    //   const updateCount = async () => {
-    //     try {
-    //       const snap = await getDoc(visitorRef);
-    //       if (!snap.exists()) {
-    //         await setDoc(visitorRef, { count: 1 });
-    //       } else {
-    //         await updateDoc(visitorRef, { count: increment(1) });
-    //       }
-    //       sessionStorage.setItem('rasyatech_visited', 'true');
-    //     } catch (e) {
-    //       console.error("Error updating visitor count", e);
-    //     }
-    //   };
-    //   updateCount();
-    // }
-    // 
-    // // Listen to Visitor Count
-    // const unsubStats = onSnapshot(visitorRef, (snap) => {
-    //   if (snap.exists()) {
-    //     setVisitorCount(snap.data().count || 0);
-    //   }
-    // });
-    // 
-    // return () => {
-    //   unsubPayments();
-    //   unsubConfig();
-    //   unsubLaptops();
-    //   unsubAds();
-    //   unsubProducts();
-    //   unsubAffiliates();
-    //   unsubStats();
-    // };
+    // Simple robust visitor counter simulation
+    const stored = localStorage.getItem('rasyatech_visitors');
+    let count = 1452;
+    if (stored) {
+      count = parseInt(stored, 10) + 1;
+    } else {
+      count = 1452 + Math.floor(Math.random() * 50);
+    }
+    setVisitorCount(count);
+    localStorage.setItem('rasyatech_visitors', count.toString());
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
     const checkSchema = async () => {
-      const { data, error } = await supabase.from('registrations').select('*').limit(1);
-      if (data && data.length > 0) {
-        console.log("DEBUG: Existing registration schema:", Object.keys(data[0]));
-      } else {
-        console.log("DEBUG: No existing registrations found or table empty.");
+      try {
+        const { data, error } = await supabase.from('registrations').select('*').limit(1);
+        if (!isMounted) return;
+        if (data && data.length > 0) {
+          console.log("DEBUG: Existing registration schema:", Object.keys(data[0]));
+        } else {
+          console.log("DEBUG: No existing registrations found or table empty.");
+        }
+        if (error) console.error("DEBUG: Schema check error:", error);
+      } catch (err) {
+        console.error("DEBUG: Schema check error:", err);
       }
-      if (error) console.error("DEBUG: Schema check error:", error);
     };
     checkSchema();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const selectPackage = (pkg: string, type: 'Annual' | 'Monthly' = 'Annual') => {
@@ -377,7 +305,7 @@ export default function RasyatechLanding() {
         </script>
       </Helmet>
 
-      <nav>
+      <nav style={{ zIndex: 50 }}>
         <div className="logo">RASYATECH</div>
         <div className="nav-links" style={{ gap: '25px', display: 'flex', alignItems: 'center' }}>
           <a href="#about">Tentang</a>
@@ -410,7 +338,7 @@ export default function RasyatechLanding() {
                   padding: '10px', 
                   minWidth: '200px', 
                   marginTop: '10px',
-                  zIndex: 1001,
+                  zIndex: 40,
                   border: '1px solid #f1f2f6'
                 }}
               >
@@ -509,54 +437,68 @@ export default function RasyatechLanding() {
         </div>
       </section>
 
-      {laptops.length > 0 && (
+      {(loading || laptops.length > 0) && (
         <section id="inventory" className="inventory-section" style={{ padding: '80px 10%', background: '#fff' }}>
           <h2 style={{ textAlign: 'center', marginBottom: '10px', color: 'var(--navy)', fontVariant: 'small-caps' }}>Laptop Second Berkualitas</h2>
           <p style={{ textAlign: 'center', marginBottom: '40px', color: '#666' }}>Dapatkan unit laptop pilihan dengan kondisi prima dan garansi toko dari Rasyacomp.</p>
           
           <div className="laptop-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '30px' }}>
-            {laptops.map((laptop) => (
-              <div key={laptop.id} className="laptop-card" style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid #f1f2f6', transition: 'transform 0.3s' }}>
-                <div style={{ height: '200px', overflow: 'hidden' }}>
-                  <img src={laptop.image || 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=60'} alt={laptop.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-                <div style={{ padding: '25px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>{laptop.name}</h3>
-                    <span style={{ 
-                      fontSize: '0.7rem', 
-                      padding: '4px 10px', 
-                      borderRadius: '50px', 
-                      fontWeight: 900, 
-                      textTransform: 'uppercase',
-                      background: laptop.isAvailable ? '#e8f7ef' : '#ffebee',
-                      color: laptop.isAvailable ? '#27ae60' : '#e74c3c'
-                    }}>
-                      {laptop.isAvailable ? 'Ready' : 'Sold'}
-                    </span>
+            {loading ? (
+              Array.from({ length: 3 }).map((_, idx) => (
+                <div key={`laptop-skeleton-${idx}`} className="bg-white rounded-[20px] overflow-hidden border border-slate-100 p-5 space-y-4 animate-pulse shadow-sm">
+                  <div className="bg-slate-200 h-[200px] w-full rounded-lg"></div>
+                  <div className="flex justify-between items-center">
+                    <div className="bg-slate-200 h-5 w-1/2 rounded"></div>
+                    <div className="bg-slate-200 h-5 w-12 rounded-full"></div>
                   </div>
-                  <p style={{ color: 'var(--gold)', fontWeight: 900, fontSize: '1.3rem', margin: '15px 0' }}>{laptop.price}</p>
-                  <a 
-                    href={`https://wa.me/${config.whatsapp || '6281918226387'}?text=Halo%20Rasyatech,%20saya%20tertarik%20dengan%20unit%20laptop%20${laptop.name}%20yang%20seharga%20${laptop.price}. apakah masih tersedia?`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ 
-                      display: 'block', 
-                      textAlign: 'center', 
-                      background: 'var(--navy)', 
-                      color: 'white', 
-                      padding: '12px', 
-                      borderRadius: '10px', 
-                      textDecoration: 'none', 
-                      fontWeight: 700,
-                      marginTop: '20px'
-                    }}
-                  >
-                    Tanya Admin
-                  </a>
+                  <div className="bg-slate-200 h-6 w-1/3 rounded"></div>
+                  <div className="bg-slate-200 h-10 w-full rounded-[10px] mt-4"></div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              laptops.map((laptop) => (
+                <div key={laptop.id} className="laptop-card" style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid #f1f2f6', transition: 'transform 0.3s' }}>
+                  <div style={{ height: '200px', overflow: 'hidden' }}>
+                    <img src={laptop.image || 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=60'} alt={laptop.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <div style={{ padding: '25px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--navy)' }}>{laptop.name}</h3>
+                      <span style={{ 
+                        fontSize: '0.7rem', 
+                        padding: '4px 10px', 
+                        borderRadius: '50px', 
+                        fontWeight: 900, 
+                        textTransform: 'uppercase',
+                        background: laptop.isAvailable ? '#e8f7ef' : '#ffebee',
+                        color: laptop.isAvailable ? '#27ae60' : '#e74c3c'
+                      }}>
+                        {laptop.isAvailable ? 'Ready' : 'Sold'}
+                      </span>
+                    </div>
+                    <p style={{ color: 'var(--gold)', fontWeight: 900, fontSize: '1.3rem', margin: '15px 0' }}>{laptop.price}</p>
+                    <a 
+                      href={`https://wa.me/${config.whatsapp || '6281918226387'}?text=Halo%20Rasyatech,%20saya%20tertarik%20dengan%20unit%20laptop%20${laptop.name}%20yang%20seharga%20${laptop.price}. apakah masih tersedia?`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ 
+                        display: 'block', 
+                        textAlign: 'center', 
+                        background: 'var(--navy)', 
+                        color: 'white', 
+                        padding: '12px', 
+                        borderRadius: '10px', 
+                        textDecoration: 'none', 
+                        fontWeight: 700,
+                        marginTop: '20px'
+                      }}
+                    >
+                      Tanya Admin
+                    </a>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </section>
       )}
@@ -565,7 +507,19 @@ export default function RasyatechLanding() {
         <h2 style={{ textAlign: 'center', marginBottom: '10px', color: 'var(--navy)' }}>Katalog Aksesoris & Hardware</h2>
         <p style={{ textAlign: 'center', marginBottom: '40px', color: '#666' }}>Part laptop, aksesoris komputer, dan perangkat keras lainnya tersedia di RasyaComp.</p>
         
-        {products.length > 0 ? (
+        {loading ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={`product-skeleton-${idx}`} className="bg-white rounded-[15px] border border-slate-200 overflow-hidden p-4 space-y-3 animate-pulse">
+                <div className="bg-slate-200 h-[160px] w-full rounded-lg"></div>
+                <div className="bg-slate-200 h-4 w-1/4 rounded"></div>
+                <div className="bg-slate-200 h-5 w-2/3 rounded"></div>
+                <div className="bg-slate-200 h-5 w-1/3 rounded"></div>
+                <div className="bg-slate-200 h-8 w-full rounded-md mt-2"></div>
+              </div>
+            ))}
+          </div>
+        ) : products.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
             {products.map((p) => (
               <div key={p.id} style={{ background: 'white', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 5px 15px rgba(0,0,0,0.02)', border: '1px solid #eee' }}>
