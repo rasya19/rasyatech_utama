@@ -334,17 +334,16 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // 1. Definisikan static folder default
+    // Definisi distPath HANYA SATU KALI di sini
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
 
-    // 2. Satu-satunya handler untuk routing (jangan ada app.get('*') lain)
+    // Routing utama
     app.get('*', async (req, res) => {
       const hostname = req.hostname;
       const subdomain = hostname.split('.')[0];
 
       try {
-        // Cek database untuk tentukan folder
         const { data: tenant } = await adminSupabase
           .from('tenant_master')
           .select('product_app')
@@ -353,14 +352,11 @@ async function startServer() {
 
         const folderApp = (tenant?.product_app === 'siput') ? 'dist-siput' : 'dist-lms';
         const targetPath = path.join(process.cwd(), folderApp, 'index.html');
-
-        console.log(`Routing ${subdomain} ke folder: ${folderApp}`);
         
-        // Kirim index.html dari folder yang sesuai
+        console.log(`Routing ${subdomain} ke: ${folderApp}`);
         res.sendFile(targetPath);
       } catch (err) {
-        // Jika subdomain tidak ditemukan atau error, balik ke default dist
-        console.warn(`Subdomain ${subdomain} tidak ditemukan, pakai default.`);
+        // Fallback jika tidak ditemukan
         res.sendFile(path.join(distPath, 'index.html'));
       }
     });
