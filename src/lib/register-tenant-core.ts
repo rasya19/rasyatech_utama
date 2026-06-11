@@ -31,25 +31,35 @@ function tenantUrl(subdomain: string): string {
   return `https://${subdomain}.${TENANT_DOMAIN.replace(/^\.+/, '')}`;
 }
 
+function isMissingTenantMasterTable(message: string): boolean {
+  return (
+    message.includes("Could not find the table 'public.tenant_master'") ||
+    message.includes('tenant_master') && message.includes('schema cache')
+  );
+}
+
 async function isSubdomainTaken(
   adminSupabase: SupabaseClient,
   subdomain: string
 ): Promise<boolean> {
   const normalized = subdomain.toLowerCase();
 
-  const [{ data: fromMaster }, { data: fromRegs }] = await Promise.all([
-    adminSupabase
-      .from('tenant_master')
-      .select('id')
-      .eq('subdomain', normalized)
-      .maybeSingle(),
-    adminSupabase
-      .from('registrations')
-      .select('id')
-      .eq('subdomain', normalized)
-      .neq('status', 'rejected')
-      .maybeSingle(),
-  ]);
+  const { data: fromMaster, error: masterError } = await adminSupabase
+    .from('tenant_master')
+    .select('id')
+    .eq('subdomain', normalized)
+    .maybeSingle();
+
+  if (masterError && !isMissingTenantMasterTable(masterError.message)) {
+    throw new Error(masterError.message);
+  }
+
+  const { data: fromRegs } = await adminSupabase
+    .from('registrations')
+    .select('id')
+    .eq('subdomain', normalized)
+    .neq('status', 'rejected')
+    .maybeSingle();
 
   return Boolean(fromMaster || fromRegs);
 }
@@ -89,14 +99,22 @@ export async function registerTenant(
     updated_at: now,
   };
 
-  const { data: masterData, error: masterError } = await adminSupabase
+  let masterData: { id: string } | null = null;
+  const { data: insertedMaster, error: masterError } = await adminSupabase
     .from('tenant_master')
     .insert([tenantMasterRow])
     .select('id')
     .single();
 
   if (masterError) {
-    throw new Error(`Gagal menyimpan ke tenant_master: ${masterError.message}`);
+    if (!isMissingTenantMasterTable(masterError.message)) {
+      throw new Error(`Gagal menyimpan ke tenant_master: ${masterError.message}`);
+    }
+    console.warn(
+      '[register-tenant] tenant_master belum ada — fallback ke tabel registrations saja. Jalankan migration SQL.'
+    );
+  } else {
+    masterData = insertedMaster;
   }
 
   // 2. Insert ke registrations (kompatibilitas alur verifikasi admin existing)
@@ -109,15 +127,13 @@ export async function registerTenant(
     subdomain,
     password: 'defaultpassword123',
     status: 'pending',
-    is_approved: false,
-    paket_langganan: payload.package_tier || 'standard',
+    product_name: productApp,
     created_at: now,
   };
 
   const registrationExtended = {
     ...registrationBase,
-    product_app: productApp,
-    tenant_master_id: masterData.id,
+    ...(masterData ? { tenant_master_id: masterData.id } : {}),
   };
 
   let regData: { id: string } | null = null;
@@ -142,23 +158,29 @@ export async function registerTenant(
   }
 
   if (regError || !regData) {
-    await adminSupabase.from('tenant_master').delete().eq('id', masterData.id);
+    if (masterData) {
+      await adminSupabase.from('tenant_master').delete().eq('id', masterData.id);
+    }
     throw new Error(`Gagal menyimpan ke registrations: ${regError?.message ?? 'unknown'}`);
   }
 
-  // 3. Tautkan registration_id kembali ke tenant_master
-  await adminSupabase
-    .from('tenant_master')
-    .update({ registration_id: regData.id, updated_at: now })
-    .eq('id', masterData.id);
+  // 3. Tautkan registration_id kembali ke tenant_master (jika tabel tersedia)
+  if (masterData) {
+    await adminSupabase
+      .from('tenant_master')
+      .update({ registration_id: regData.id, updated_at: now })
+      .eq('id', masterData.id);
+  }
 
   return {
     success: true,
-    tenant_master_id: masterData.id,
+    tenant_master_id: masterData?.id,
     registration_id: regData.id,
     subdomain,
     tenant_url: tenantUrl(subdomain),
-    message: 'Pendaftaran tenant berhasil disimpan ke Supabase.',
+    message: masterData
+      ? 'Pendaftaran tenant berhasil disimpan ke Supabase.'
+      : 'Pendaftaran tersimpan di registrations (tenant_master belum dimigrasi).',
   };
 }
 
@@ -168,11 +190,15 @@ export async function checkSubdomainAvailable(
 ): Promise<{ available: boolean; takenIn?: 'tenant_master' | 'registrations' }> {
   const normalized = subdomain.trim().toLowerCase();
 
-  const { data: fromMaster } = await adminSupabase
+  const { data: fromMaster, error: masterError } = await adminSupabase
     .from('tenant_master')
     .select('id')
     .eq('subdomain', normalized)
     .maybeSingle();
+
+  if (masterError && !isMissingTenantMasterTable(masterError.message)) {
+    throw new Error(masterError.message);
+  }
 
   if (fromMaster) {
     return { available: false, takenIn: 'tenant_master' };
