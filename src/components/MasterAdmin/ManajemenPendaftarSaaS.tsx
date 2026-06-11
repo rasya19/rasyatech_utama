@@ -156,30 +156,25 @@ export default function ManajemenPendaftarSaaS() {
     }
   };
 
-  // --- FUNGSI DELETE BARU ---
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Yakin ingin menghapus data pendaftar ini secara permanen?")) return;
+  if (!window.confirm("Yakin ingin menghapus data ini?")) return;
 
-    try {
-      const isLms = activeTab === 'lms';
-      const client = isLms ? supabase : supabaseKuliner;
-      const table = 'registrations'; // Menghapus dari tabel registrations
+  try {
+    // Karena cuma ada 1 tabel, pakai supabase utama saja
+    const { error } = await supabase
+      .from('registrations') // Targetkan tabel tunggal ini
+      .delete()
+      .eq('id', id);
 
-      const { error: deleteError } = await client
-        .from(table)
-        .delete()
-        .eq('id', id);
+    if (error) throw error;
 
-      if (deleteError) throw deleteError;
-
-      // Refresh data setelah berhasil dihapus
-      await fetchData();
-    } catch (err: any) {
-      console.error('Delete operation error:', err);
-      alert('Gagal menghapus data dari database.');
-    }
-  };
-  // --------------------------
+    alert('Data berhasil dihapus.');
+    await fetchData(); // Refresh data setelah hapus
+  } catch (err: any) {
+    console.error('Error saat menghapus:', err);
+    alert('Gagal menghapus data.');
+  }
+};
 
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
