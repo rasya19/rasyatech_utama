@@ -15,7 +15,8 @@ import {
   LayoutGrid,
   Clock,
   RefreshCcw,
-  AlertCircle
+  AlertCircle,
+  Trash2 // <-- Ditambahkan ikon Trash2
 } from 'lucide-react';
 
 type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
@@ -53,7 +54,6 @@ export default function ManajemenPendaftarSaaS() {
     setError(null);
     try {
       if (activeTab === 'lms') {
-        // Fetch from registrations table for schools
         const { data: regs, error: fetchError } = await supabase
           .from('registrations')
           .select('*')
@@ -61,8 +61,7 @@ export default function ManajemenPendaftarSaaS() {
 
         if (fetchError) throw fetchError;
         
-        // Map registrations to Pendaftar format
-        const mappedData: Pendaftar[] = (regs || []).map(r => ({
+        const mappedData: Pendaftar[] = (regs || []).map((r: any) => ({
           id: r.id,
           full_name: r.admin_name || r.name || '-',
           email: r.admin_email || r.email || '-',
@@ -70,24 +69,21 @@ export default function ManajemenPendaftarSaaS() {
           business_name: r.school_name || '-',
           product_type: 'lms',
           package: r.paket_langganan || 'silver',
-          status: (r.status === 'verified' || r.status === 'active') ? 'active' : 'pending',
+          status: (r.status === 'verified' || r.status === 'active' || r.is_approved === true) ? 'active' : 'pending',
           meta_data: { npsn: r.npsn },
           created_at: r.created_at
         }));
         
-        // Also fetch from pendaftar table where product_type = 'lms' just in case
         const { data: saasLms } = await supabase
           .from('pendaftar')
           .select('*')
           .eq('product_type', 'lms');
         
         const unified = [...mappedData, ...(saasLms || [])];
-        // Sort by created_at
         unified.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         setData(unified);
       } else {
-        // Fetch from culinary supabase registrations table
         const { data: pendaftar, error: fetchError } = await supabaseKuliner
           .from('registrations')
           .select('*')
@@ -133,7 +129,6 @@ export default function ManajemenPendaftarSaaS() {
       const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
       const table = 'registrations';
       
-      // HUKUM #4: LMS WAJIB update status ke 'active'
       const statusValue = isLms 
         ? (nextStatus === 'active' ? 'active' : 'pending')
         : nextStatus;
@@ -150,16 +145,41 @@ export default function ManajemenPendaftarSaaS() {
 
       if (updateError) throw updateError;
       
-      // Update local state (Kalo sukses → baru UI berubah jadi AKTIF)
-      setData(prev => prev.map(item => item.id === id ? { ...item, status: nextStatus as any } : item));
+      // KUNCI PERBAIKAN: Refresh data dari database setelah update berhasil
+      await fetchData(); 
+      
     } catch (err: any) {
       console.error('Update operation error:', err);
-      // HUKUM #4: Kalo gagal → kasih alert "Gagal update database bang"
       alert('Gagal update database bang');
     } finally {
       setUpdatingId(null);
     }
   };
+
+  // --- FUNGSI DELETE BARU ---
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Yakin ingin menghapus data pendaftar ini secara permanen?")) return;
+
+    try {
+      const isLms = activeTab === 'lms';
+      const client = isLms ? supabase : supabaseKuliner;
+      const table = 'registrations'; // Menghapus dari tabel registrations
+
+      const { error: deleteError } = await client
+        .from(table)
+        .delete()
+        .eq('id', id);
+
+      if (deleteError) throw deleteError;
+
+      // Refresh data setelah berhasil dihapus
+      await fetchData();
+    } catch (err: any) {
+      console.error('Delete operation error:', err);
+      alert('Gagal menghapus data dari database.');
+    }
+  };
+  // --------------------------
 
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
@@ -318,7 +338,7 @@ export default function ManajemenPendaftarSaaS() {
                         )}
                       </td>
                       <td className="py-6 px-4 text-right">
-                        <div className="flex items-center justify-end gap-3">
+                        <div className="flex items-center justify-end gap-2">
                           <a 
                             href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`} 
                             target="_blank" 
@@ -334,7 +354,7 @@ export default function ManajemenPendaftarSaaS() {
                             disabled={updatingId === item.id}
                             className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
                               item.status === 'active'
-                                ? 'bg-slate-800 text-slate-500 border border-slate-700'
+                                ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
                                 : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
                             }`}
                           >
@@ -345,6 +365,15 @@ export default function ManajemenPendaftarSaaS() {
                             ) : (
                               'Setujui'
                             )}
+                          </button>
+
+                          {/* Tombol Hapus Ditambahkan Di Sini */}
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
+                            title="Hapus Data"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
