@@ -49,10 +49,9 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Ambil data mentah registrations dari LandingDataContext
-  const context = useLandingData() || {};
-const regs = context.registrations || [];
-const refreshContext = context.fetchData || (() => Promise.resolve());
+  // Ambil data mentah registrations dari LandingDataContext dengan safe defaults
+  const { registrations: contextRegs = [], fetchData: refreshContext = async () => {} } = useLandingData() || {};
+  const regs: any[] = Array.isArray(contextRegs) ? contextRegs : [];
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -84,7 +83,7 @@ const refreshContext = context.fetchData || (() => Promise.resolve());
       });
 
       // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
-      const mappedData: Pendaftar[] = filteredRegs.map((r: any) => ({
+      const mappedData: Pendaftar[] = (filteredRegs || []).map((r: any) => ({
         id: r.id,
         full_name: r.admin_name || r.full_name || r.name || '-',
         email: r.admin_email || r.email || '-',

@@ -511,7 +511,7 @@ export default function Admin() {
       console.log(`Updating 'paket_langganan' to ${newPackage} for school subdomain '${subdomain}'...`);
       
       // Update local state immediately for a highly responsive UI
-      setRegistrations(prev => prev.map(r => {
+      setRegistrations(prev => (prev || []).map(r => {
         if (r.subdomain === subdomain) {
           return { ...r, paket_langganan: newPackage };
         }
@@ -580,7 +580,7 @@ export default function Admin() {
       "Tanggal Pendaftaran"
     ];
 
-    const rows = registrations.map(reg => [
+    const rows = (registrations || []).map(reg => [
       reg.id || '',
       (reg.school_name || '').replace(/"/g, '""'),
       reg.npsn || '-',
@@ -750,7 +750,7 @@ export default function Admin() {
   );
 
   const getTrendingData = () => {
-    const rawRegs = registrations || [];
+    const rawRegs = Array.isArray(registrations) ? registrations : [];
     
     if (chartView === 'daily') {
       // Create date slots for last 15 days
@@ -839,7 +839,7 @@ export default function Admin() {
 
   const trendData = getTrendingData();
 
-  const filteredRegistrations = registrations.filter(reg => {
+  const filteredRegistrations = (registrations || []).filter(reg => {
     const matchesSearch = !searchRegQuery.trim() || 
       (reg.school_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
       (reg.admin_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
@@ -1213,7 +1213,7 @@ export default function Admin() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {services.map(s => (
+                {(services || []).map(s => (
                   <div key={s.id} className="bg-white p-8 rounded-[32px] border border-slate-100 hover:shadow-xl transition-all">
                     <div className="flex justify-between items-start mb-6">
                       <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
@@ -1246,7 +1246,7 @@ export default function Admin() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                {laptops.map(l => (
+                {(laptops || []).map(l => (
                   <div key={l.id} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden group">
                     <div className="h-48 overflow-hidden relative">
                       <img src={l.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -1283,7 +1283,7 @@ export default function Admin() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {products.map(p => (
+                {(products || []).map(p => (
                   <div key={p.id} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden group">
                     <div className="h-40 overflow-hidden relative">
                       <img src={p.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
