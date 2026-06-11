@@ -370,7 +370,6 @@ app.get('*', async (req, res) => {
 });
    
     const folderApp = tenant.product_app === 'siput' ? 'dist-siput' : 'dist-lms';
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
 
     app.get('*', async (req, res) => {
