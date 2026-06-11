@@ -1,10 +1,12 @@
 import dotenv from "dotenv";
+import fs from "fs";
+// Muat .env.local dulu (dev lokal), lalu .env sebagai fallback
+dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
 import cors from "cors";
@@ -14,8 +16,8 @@ import {
   type TenantRegistrationPayload,
 } from "./src/lib/register-tenant-core";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const ROOT = process.cwd();
+const isProduction = process.env.NODE_ENV === "production";
 
 async function startServer() {
   const app = express();
@@ -421,23 +423,65 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  // Frontend SPA — port 3000 melayani UI + API (bukan API saja)
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
-    app.use(vite.middlewares);
+
+    // Lewati Vite untuk route API
+    app.use((req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return next();
+      }
+      vite.middlewares(req, res, next);
+    });
+
+    // SPA fallback: /daftar, /master-admin, dll. → index.html + React Router
+    app.use("*", async (req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return next();
+      }
+      try {
+        const template = fs.readFileSync(path.join(ROOT, "index.html"), "utf-8");
+        const html = await vite.transformIndexHtml(req.originalUrl, template);
+        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+      } catch (error) {
+        next(error);
+      }
+    });
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(ROOT, "dist");
+    const indexHtml = path.join(distPath, "index.html");
+
+    if (!fs.existsSync(indexHtml)) {
+      console.error(
+        "ERROR: dist/index.html tidak ditemukan. Jalankan `npm run build` sebelum `npm start`."
+      );
+      process.exit(1);
+    }
+
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+
+    // SPA fallback production (React Router: /daftar, /master-admin, ...)
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return next();
+      }
+      res.sendFile(indexHtml);
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log("");
+    console.log("═══════════════════════════════════════════════════════");
+    console.log(`  Rasyatech dev server — mode: ${isProduction ? "production" : "development"}`);
+    console.log(`  URL utama : http://localhost:${PORT}`);
+    console.log(`  Form daftar: http://localhost:${PORT}/daftar`);
+    console.log(`  API tenant : POST http://localhost:${PORT}/api/register-tenant`);
+    console.log("═══════════════════════════════════════════════════════");
+    console.log("");
   });
 }
 
