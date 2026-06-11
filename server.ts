@@ -341,8 +341,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://erosuotjshhmhduopr
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// ... (kode lainnya)
-
 // 2. Ubah route '*' menjadi pintar
 app.get('*', async (req, res) => {
   const hostname = req.hostname; 
@@ -372,21 +370,37 @@ app.get('*', async (req, res) => {
 });
    
     const folderApp = tenant.product_app === 'siput' ? 'dist-siput' : 'dist-lms';
-    const distPath = path.join(process.cwd(), folderApp);
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
 
-    console.log(`Routing ${subdomain} ke aplikasi: ${folderApp}`);
-    res.sendFile(path.join(distPath, 'index.html'));
+    app.get('*', async (req, res) => {
+      const hostname = req.hostname;
+      const subdomain = hostname.split('.')[0];
 
-  } catch (err) {
-    console.error("Routing error:", err);
-    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+      try {
+        const { data: tenant } = await adminSupabase
+          .from('tenant_master')
+          .select('product_app')
+          .eq('subdomain', subdomain)
+          .single();
+
+        const folderApp = (tenant?.product_app === 'siput') ? 'dist-siput' : 'dist-lms';
+        const targetPath = path.join(process.cwd(), folderApp, 'index.html');
+        
+        // Cek apakah file ada, jika tidak, pakai default dist
+        res.sendFile(targetPath);
+      } catch (err) {
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
+    });
+    // --- SELESAI GANTI ---
   }
-});
 
+  // JANGAN LUPA PENUTUP INI HARUS ADA DI PALING BAWAH
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
-}
+} 
 
 startServer();
 
