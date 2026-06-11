@@ -345,32 +345,31 @@ const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // 2. Ubah route '*' menjadi pintar
 app.get('*', async (req, res) => {
-    const hostname = req.hostname; 
-    const subdomain = hostname.split('.')[0];
+  const hostname = req.hostname; 
+  const subdomain = hostname.split('.')[0];
 
-    try {
-      // 1. Coba cari tenant berdasarkan subdomain
-      const { data: tenant, error } = await adminSupabase
-        .from('tenant_master')
-        .select('product_app')
-        .eq('subdomain', subdomain)
-        .single();
+  try {
+    // 1. Cek tenant
+    const { data: tenant, error } = await adminSupabase
+      .from('tenant_master')
+      .select('product_app')
+      .eq('subdomain', subdomain)
+      .single();
 
-      // 2. Tentukan folder tujuan
-      // Jika tenant ditemukan dan product_app adalah 'siput', pakai 'dist-siput'
-      const folderApp = (tenant?.product_app === 'siput') ? 'dist-siput' : 'dist-lms';
-      const pathToServe = path.join(process.cwd(), folderApp);
+    // 2. Tentukan folder
+    // Pastikan folder ini ada di server Abang
+    const folderApp = (tenant?.product_app === 'siput') ? 'dist-siput' : 'dist-lms';
+    const pathToServe = path.join(process.cwd(), folderApp);
 
-      console.log(`Routing ${subdomain} ke: ${folderApp}`);
-      res.sendFile(path.join(pathToServe, 'index.html'));
-
-    } catch (err) {
-      // 3. Fallback: Jika error database atau tenant tidak ketemu, pakai 'dist' default
-      console.error("Routing error:", err);
-      const defaultDist = path.join(process.cwd(), 'dist');
-      res.sendFile(path.join(defaultDist, 'index.html'));
-    }
-  }); // <--- Ini penutup app.get yang benar
+    console.log(`Routing ${subdomain} ke: ${folderApp}`);
+    res.sendFile(path.join(pathToServe, 'index.html'));
+  } catch (err) {
+    // 3. Fallback jika ada error
+    console.error("Routing error:", err);
+    const defaultDist = path.join(process.cwd(), 'dist');
+    res.sendFile(path.join(defaultDist, 'index.html'));
+  }
+});
    
     const folderApp = tenant.product_app === 'siput' ? 'dist-siput' : 'dist-lms';
     const distPath = path.join(process.cwd(), folderApp);
