@@ -59,7 +59,11 @@ const BannerAd = () => {
 };
 
 export default function RasyatechLanding() {
-  const { config, payments, laptops, products, affiliates, services, loading } = useLandingData();
+  const { config, payments, loading } = useLandingData();
+  // These fields are not provided by LandingDataContext; keep as safe empty arrays to prevent .map() crashes
+  const laptops: any[] = [];
+  const products: any[] = [];
+  const affiliates: any[] = [];
   const ads: any[] = []; // legacy Ads fallback, empty array as 'ads' table does not exist in relational schema
   const [visitorCount, setVisitorCount] = useState<number>(1452);
   const [showPayment, setShowPayment] = useState(false);
@@ -131,7 +135,7 @@ export default function RasyatechLanding() {
     
     let affiliateEmail = '';
     if (refCode) {
-      const affiliate = affiliates.find(a => a.referralCode?.toUpperCase() === refCode);
+      const affiliate = (affiliates || []).find(a => a.referralCode?.toUpperCase() === refCode);
       if (affiliate) {
         affiliateEmail = affiliate.email || '';
       }
@@ -437,7 +441,7 @@ export default function RasyatechLanding() {
         </div>
       </section>
 
-      {(loading || laptops.length > 0) && (
+      {(loading || (laptops || []).length > 0) && (
         <section id="inventory" className="inventory-section" style={{ padding: '80px 10%', background: '#fff' }}>
           <h2 style={{ textAlign: 'center', marginBottom: '10px', color: 'var(--navy)', fontVariant: 'small-caps' }}>Laptop Second Berkualitas</h2>
           <p style={{ textAlign: 'center', marginBottom: '40px', color: '#666' }}>Dapatkan unit laptop pilihan dengan kondisi prima dan garansi toko dari Rasyacomp.</p>
@@ -456,7 +460,7 @@ export default function RasyatechLanding() {
                 </div>
               ))
             ) : (
-              laptops.map((laptop) => (
+              (laptops || []).map((laptop) => (
                 <div key={laptop.id} className="laptop-card" style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid #f1f2f6', transition: 'transform 0.3s' }}>
                   <div style={{ height: '200px', overflow: 'hidden' }}>
                     <img src={laptop.image || 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=60'} alt={laptop.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -519,9 +523,9 @@ export default function RasyatechLanding() {
               </div>
             ))}
           </div>
-        ) : products.length > 0 ? (
+        ) : (products || []).length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
-            {products.map((p) => (
+            {(products || []).map((p) => (
               <div key={p.id} style={{ background: 'white', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 5px 15px rgba(0,0,0,0.02)', border: '1px solid #eee' }}>
                 <div style={{ height: '160px', overflow: 'hidden' }}>
                   <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -717,7 +721,7 @@ export default function RasyatechLanding() {
         <h2>Mitra Strategis & Klien</h2>
         <div className="mitra-grid" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '30px', alignItems: 'center', marginTop: '40px' }}>
           <div className="client-logo">PKBM ARMILLA NUSA</div>
-          {affiliates.map(af => (
+          {(affiliates || []).map(af => (
             <a 
               key={af.id} 
               href={af.website || '#'} 

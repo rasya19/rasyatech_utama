@@ -86,18 +86,16 @@ export default function App() {
 
   return (
     <SubdomainProvider>
-      <LandingDataProvider>
-        <Router>
-          {showSplash && (
-            <SplashScreen 
-              onComplete={() => {
-                setShowSplash(false);
-              }} 
-            />
-          )}
-          <AppRoutes />
-        </Router>
-      </LandingDataProvider>
+      <Router>
+        {showSplash && (
+          <SplashScreen 
+            onComplete={() => {
+              setShowSplash(false);
+            }} 
+          />
+        )}
+        <AppRoutes />
+      </Router>
     </SubdomainProvider>
   );
 }

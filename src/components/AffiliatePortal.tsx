@@ -85,8 +85,8 @@ export default function AffiliatePortal() {
     }
   };
 
-  const totalCommission = registrations.reduce((sum, reg) => sum + (reg.commission || 0), 0);
-  const verifiedCount = registrations.filter(r => r.status === 'verified').length;
+  const totalCommission = (registrations || []).reduce((sum, reg) => sum + (reg.commission || 0), 0);
+  const verifiedCount = (registrations || []).filter(r => r.status === 'verified').length;
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -211,7 +211,7 @@ export default function AffiliatePortal() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {registrations.map(reg => (
+                {(registrations || []).map(reg => (
                   <tr key={reg.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-8 py-6">
                       <div className="font-black text-slate-900">{reg.schoolName}</div>
