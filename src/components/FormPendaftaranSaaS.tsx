@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion'; // Pastikan import motion dari 'framer-motion'
 import { supabase } from '../lib/supabase';
 import { supabaseKuliner } from '../lib/supabase-kuliner';
 import { 
@@ -45,7 +45,12 @@ export default function FormPendaftaranSaaS() {
     // Dynamic fields
     tables_count: '',
     outlet_count: '',
-    npsn: ''
+    npsn: '',
+    // Tambahin 4 ini buat API register
+    school_name: '',
+    subdomain: '',
+    admin_email: '',
+    password: ''
   });
 
   const getProductRedirectDetails = (type: string) => {
@@ -118,34 +123,35 @@ export default function FormPendaftaranSaaS() {
     setError(null);
 
     try {
-  // Package meta_data based on product
-  const meta_data: Record<string, string> = {};
-  if (formData.product_type === 'scanbite' || formData.product_type === 'restoran_asli') {
-    meta_data.tables_count = formData.tables_count;
-  } else if (formData.product_type === 'Instafood') {
-    meta_data.outlet_count = formData.outlet_count;
-  } else if (formData.product_type === 'lms' || formData.product_type === 'siput') {
-    meta_data.npsn = formData.npsn;
-  }
+      // 1. Logic meta_data
+      const meta_data: Record<string, string> = {};
+      if (formData.product_type === 'scanbite' || formData.product_type === 'restoran_asli') {
+        meta_data.tables_count = formData.tables_count;
+      } else if (formData.product_type === 'Instafood') {
+        meta_data.outlet_count = formData.outlet_count;
+      } else if (formData.product_type === 'lms' || formData.product_type === 'siput') {
+        meta_data.npsn = formData.npsn;
+      }
 
       const isLms = formData.product_type === 'lms';
 
-      // Webhook Notification to Pipedream (Fires every click)
+      // 2. Webhook
       try {
-        await fetch('/api/register', { // <-- INI URL BACKEND BAPAK
-        method: 'POST',
-        headers: {
-      'Content-Type': 'application/json',
-  },
-        body: JSON.stringify({
-        school_name: formData.school_name,
-        subdomain: formData.subdomain,
-        admin_email: formData.admin_email,
-        password: formData.password
-  }),
-});
+        await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            school_name: formData.school_name,
+            subdomain: formData.subdomain,
+            admin_email: formData.admin_email,
+            password: formData.password
+          }),
+        });
+      } catch (webhookErr) {
+        console.error('Webhook gagal:', webhookErr);
+      }
 
-      // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
+      // 3. Supabase Logic
       const lmsInsertData = {
         school_name: formData.business_name,
         admin_name: formData.full_name,
@@ -159,16 +165,9 @@ export default function FormPendaftaranSaaS() {
         paket_langganan: formData.product_type === 'lms' ? (formData.package || 'silver') : (formData.package || 'standard')
       };
 
-      const { error: lmsError } = await supabase
-        .from('registrations')
-        .insert([lmsInsertData]);
+      const { error: lmsError } = await supabase.from('registrations').insert([lmsInsertData]);
+      if (lmsError && isLms) throw lmsError;
 
-      if (lmsError) {
-        console.error('Error inserting into Supabase LMS registrations table:', lmsError);
-        if (isLms) throw lmsError;
-      }
-
-      // If it is NOT LMS (ie. culinary/siput), also insert into Supabase Culinary 'registrations' table
       if (!isLms) {
         const culinaryInsertData = {
           full_name: formData.full_name,
@@ -180,15 +179,8 @@ export default function FormPendaftaranSaaS() {
           table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
           status: 'pending'
         };
-
-        const { error: culinaryError } = await supabaseKuliner
-          .from('registrations')
-          .insert([culinaryInsertData]);
-
-        if (culinaryError) {
-          console.error('Error inserting into Supabase Culinary registrations table:', culinaryError);
-          throw culinaryError;
-        }
+        const { error: culinaryError } = await supabaseKuliner.from('registrations').insert([culinaryInsertData]);
+        if (culinaryError) throw culinaryError;
       }
 
       setSubmitted(true);
@@ -200,6 +192,7 @@ export default function FormPendaftaranSaaS() {
     }
   };
 
+  // --- EARLY RETURN UNTUK TAMPILAN SUKSES ---
   if (submitted) {
     const redirectDetails = getProductRedirectDetails(formData.product_type);
     return (
@@ -264,7 +257,7 @@ export default function FormPendaftaranSaaS() {
             </span>
             <h4 className="text-white font-bold text-sm mb-1">Butuh Digitalisasi Sekolah atau UMKM?</h4>
             <p className="text-slate-400 text-xs leading-relaxed mb-3">
-              Rasyatech Cloud menyediakan layanan LMS, POS Kasir, dan Sistem Informasi PAUD Terpadu dengan infrastruktur server awan handal di Kuningan. Selesai cepat & support WhatsApp 24/7.
+              Rasyatech Cloud menyediakan layanan LMS, POS Kasir, dan Sistem Informasi PAUD Terpadu dengan infrastruktur server awan handal. Selesai cepat & support WhatsApp 24/7.
             </p>
             <div className="text-[9px] font-extrabold text-blue-400/90 tracking-widest uppercase flex justify-between items-center">
               <span>Rasyatech Core Cloud Hosting</span>
@@ -276,6 +269,7 @@ export default function FormPendaftaranSaaS() {
     );
   }
 
+  // --- RETURN UTAMA UNTUK TAMPILAN FORM ---
   return (
     <div className="min-h-screen bg-[#0A0F1E] text-slate-200 font-sans selection:bg-blue-500/30">
       {/* Decorative background elements */}
