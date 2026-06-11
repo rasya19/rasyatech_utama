@@ -50,7 +50,9 @@ export default function ManajemenPendaftarSaaS() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Ambil data mentah registrations dari LandingDataContext
-  const { registrations: regs, fetchData: refreshContext } = useLandingData();
+  const context = useLandingData() || {};
+const regs = context.registrations || [];
+const refreshContext = context.fetchData || (() => Promise.resolve());
   const fetchData = async () => {
     setLoading(true);
     setError(null);
