@@ -19,6 +19,80 @@ import {
 const ROOT = process.cwd();
 const isProduction = process.env.NODE_ENV === "production";
 
+const DEFAULT_SUPABASE_URL =
+  process.env.VITE_SUPABASE_URL ||
+  process.env.SUPABASE_URL ||
+  "https://erosuotjshhmhduoprwi.supabase.co";
+
+function createAdminSupabase() {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return null;
+  return createClient(DEFAULT_SUPABASE_URL, serviceKey);
+}
+
+/** Ambil slug tenant dari Host header (armillanusa.rsch.my.id → armillanusa). */
+function parseTenantSubdomain(host: string | undefined): string | null {
+  if (!host) return null;
+  const hostname = host.split(":")[0].toLowerCase();
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return null;
+  }
+  const parts = hostname.split(".");
+  if (parts.length < 3) return null;
+  const slug = parts[0];
+  if (["www", "rasyatech", "api", "mail"].includes(slug)) {
+    return null;
+  }
+  return slug;
+}
+
+function normalizeTenantPillar(product: string | null | undefined): "siput" | "lms" | null {
+  const value = (product || "").toLowerCase();
+  if (value === "siput") return "siput";
+  if (value === "lms" || value === "armilla") return "lms";
+  return null;
+}
+
+/** Cek tenant_master (utama) lalu registrations (fallback). */
+async function resolveTenantPillarFromDatabase(
+  subdomain: string
+): Promise<"siput" | "lms" | null> {
+  const adminSupabase = createAdminSupabase();
+  if (!adminSupabase) return null;
+
+  const { data: tenantRow, error: tenantError } = await adminSupabase
+    .from("tenant_master")
+    .select("product_app")
+    .eq("subdomain", subdomain)
+    .neq("status", "rejected")
+    .maybeSingle();
+
+  if (tenantError) {
+    const missingTable =
+      tenantError.message.includes("tenant_master") &&
+      tenantError.message.includes("schema cache");
+    if (!missingTable) {
+      throw tenantError;
+    }
+  } else {
+    const pillar = normalizeTenantPillar(tenantRow?.product_app);
+    if (pillar) return pillar;
+  }
+
+  const { data: regRow, error: regError } = await adminSupabase
+    .from("registrations")
+    .select("product_name, product_app")
+    .eq("subdomain", subdomain)
+    .neq("status", "rejected")
+    .maybeSingle();
+
+  if (regError) {
+    throw regError;
+  }
+
+  return normalizeTenantPillar(regRow?.product_name || regRow?.product_app);
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -443,6 +517,22 @@ async function startServer() {
       if (req.path.startsWith("/api")) {
         return next();
       }
+
+      const tenantSubdomain = parseTenantSubdomain(req.headers.host);
+      if (tenantSubdomain && req.path === "/") {
+        try {
+          const pillar = await resolveTenantPillarFromDatabase(tenantSubdomain);
+          if (pillar === "siput") {
+            return res.redirect(302, "/admin");
+          }
+          if (pillar === "lms") {
+            return res.redirect(302, "/login-sekolah");
+          }
+        } catch (routingError: any) {
+          console.warn("[tenant-routing][dev]", routingError.message);
+        }
+      }
+
       try {
         const template = fs.readFileSync(path.join(ROOT, "index.html"), "utf-8");
         const html = await vite.transformIndexHtml(req.originalUrl, template);
@@ -465,10 +555,26 @@ async function startServer() {
     app.use(express.static(distPath));
 
     // SPA fallback production (React Router: /daftar, /master-admin, ...)
-    app.get("*", (req, res, next) => {
+    app.get("*", async (req, res, next) => {
       if (req.path.startsWith("/api")) {
         return next();
       }
+
+      const tenantSubdomain = parseTenantSubdomain(req.headers.host);
+      if (tenantSubdomain && req.path === "/") {
+        try {
+          const pillar = await resolveTenantPillarFromDatabase(tenantSubdomain);
+          if (pillar === "siput") {
+            return res.redirect(302, "/admin");
+          }
+          if (pillar === "lms") {
+            return res.redirect(302, "/login-sekolah");
+          }
+        } catch (routingError: any) {
+          console.warn("[tenant-routing][prod]", routingError.message);
+        }
+      }
+
       res.sendFile(indexHtml);
     });
   }
