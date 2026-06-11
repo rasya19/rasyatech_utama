@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. GLOBAL SAFETY NET
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. PRIMITIVE HELPERS
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email.lower() == 'ismanto095@gmail.com' ||
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'super-admin'
+      );
+    }
+
+    function isAffiliate(data) {
+      return isSignedIn() && data.affiliateEmail.lower() == request.auth.token.email.lower();
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    // 2. VALIDATION BLUEPRINTS
+    function isValidConfig(data) {
+      return data.keys().hasAll(['whatsapp', 'address']) &&
+             data.whatsapp is string && data.whatsapp.size() <= 20 &&
+             data.address is string && data.address.size() <= 500;
+    }
+
+    function isValidPayments(data) {
+      return data.keys().hasAll(['eWallet', 'eWalletName']) &&
+             data.eWallet is string && data.eWallet.size() <= 20 &&
+             data.eWalletName is string && data.eWalletName.size() <= 100;
+    }
+
+    function isValidService(data) {
+      return data.keys().hasAll(['title', 'description']) &&
+             data.title is string && data.title.size() <= 100 &&
+             data.description is string && data.description.size() <= 500;
+    }
+
+    function isValidLaptop(data) {
+      return data.keys().hasAll(['name', 'price', 'image']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.price is string && data.price.size() <= 50 &&
+             data.image is string && data.image.size() <= 1000;
+    }
+
+    function isValidRegistration(data) {
+      return data.keys().hasAll(['schoolName', 'package', 'email']) &&
+             data.schoolName is string && data.schoolName.size() <= 100 &&
+             data.email is string && data.email.size() <= 100;
+    }
+
+    // 3. COLLECTIONS (THE FORTRESS)
+
+    match /settings/config {
+      allow read: if true;
+      allow write: if isSuperAdmin() && isValidConfig(incoming());
+    }
+
+    match /settings/payments {
+      allow read: if true;
+      allow write: if isSuperAdmin() && isValidPayments(incoming());
+    }
+
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() && isValidId(adId);
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() && isValidId(productId);
+    }
+
+    // Registrations (Multi-tenant isolation)
+    match /registrations/{regId} {
+      // Super Admin sees all. Affiliates only see their referrals.
+      allow read: if isSuperAdmin() || isAffiliate(existing());
+      
+      // Public can create, Super Admin can manage.
+      allow create: if isValidRegistration(incoming()) && isValidId(regId);
+      allow update: if isSuperAdmin() && isValidRegistration(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'package', 'contractEnd', 'updatedAt'])
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    match /stats/{docId} {
+      allow read: if true;
+      allow write: if true; // Public visitor counter
+    }
+
+    match /affiliates/{affiliateId} {
+      allow read: if true; // Public list or verified profile
+      // Only Super Admin can write/delete
+      allow write: if isSuperAdmin() && isValidId(affiliateId);
+    }
+
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() && isValidService(incoming()) && isValidId(serviceId);
+    }
+
+    match /laptops/{laptopId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() && isValidLaptop(incoming()) && isValidId(laptopId);
+    }
+
+    match /users/{userId} {
+      allow read: if isSuperAdmin() || (isSignedIn() && request.auth.token.email.lower() == userId.lower());
+      allow write: if isSuperAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && (request.auth.uid == adminId || isSuperAdmin());
+      allow write: if false; // Managed via Firebase Console or special script
+    }
+  }
+}

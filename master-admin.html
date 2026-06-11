@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head><title>Master Admin Rasyatech</title></head>
+<body>
+<h2>Daftar PAUD Tenant</h2>
+<table border="1" id="tabelSekolah">
+  <tr><th>Nama PAUD</th><th>Subdomain</th><th>Status</th><th>Trial End</th></tr>
+</table>
+
+<script>
+async function loadData() {
+  const res = await fetch('/api/master-admin'); // tembak API kita
+  const data = await res.json();
+  
+  const tabel = document.getElementById('tabelSekolah');
+  data.schools.forEach(s => {
+    tabel.innerHTML += `<tr>
+      <td>${s.name}</td>
+      <td>${s.subdomain}</td>
+      <td>${s.status}</td>
+      <td>${new Date(s.trial_end).toLocaleDateString('id')}</td>
+    </tr>`;
+  });
+}
+loadData();
+</script>
+</body>
+</html>

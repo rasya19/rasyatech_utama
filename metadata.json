@@ -1,0 +1,6 @@
+{
+  "name": "Rasyatech",
+  "description": "Solusi terpercaya untuk servis laptop, LMS Sekolah terintegrasi, dan web development profesional di Kuningan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

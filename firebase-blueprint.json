@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "Config": {
+      "title": "Website Configuration",
+      "description": "Global settings for the website like contact info and announcement.",
+      "type": "object",
+      "properties": {
+        "whatsapp": { "type": "string" },
+        "address": { "type": "string" },
+        "openingHours": { "type": "string" },
+        "heroTitle": { "type": "string" },
+        "heroSubtitle": { "type": "string" }
+      },
+      "required": ["whatsapp", "address"]
+    },
+    "Service": {
+      "title": "Service Offering",
+      "description": "A service provided by rasyacomp.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "order": { "type": "number" }
+      },
+      "required": ["title", "description"]
+    },
+    "Laptop": {
+      "title": "Available Laptop",
+      "description": "A laptop unit available for sale.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "string" },
+        "image": { "type": "string" },
+        "specs": { "type": "array" },
+        "isAvailable": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "price", "image"]
+    }
+  },
+  "firestore": {
+    "settings/config": {
+      "schema": "Config",
+      "description": "Global website configuration"
+    },
+    "services/{serviceId}": {
+      "schema": "Service",
+      "description": "List of services"
+    },
+    "laptops/{laptopId}": {
+      "schema": "Laptop",
+      "description": "Laptop inventory"
+    }
+  }
+}
