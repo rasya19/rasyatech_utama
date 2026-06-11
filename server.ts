@@ -334,40 +334,37 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    // 1. Definisikan static folder default
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    // 1. Pindahkan/Buat Supabase Client di luar route (di dalam startServer)
-const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// 2. Ubah route '*' menjadi pintar
-app.get('*', async (req, res) => {
-  const hostname = req.hostname; 
-  const subdomain = hostname.split('.')[0];
+    // 2. Satu-satunya handler untuk routing (jangan ada app.get('*') lain)
+    app.get('*', async (req, res) => {
+      const hostname = req.hostname;
+      const subdomain = hostname.split('.')[0];
 
-  try {
-    // 1. Cek tenant
-    const { data: tenant, error } = await adminSupabase
-      .from('tenant_master')
-      .select('product_app')
-      .eq('subdomain', subdomain)
-      .single();
+      try {
+        // Cek database untuk tentukan folder
+        const { data: tenant } = await adminSupabase
+          .from('tenant_master')
+          .select('product_app')
+          .eq('subdomain', subdomain)
+          .single();
 
-    // 2. Tentukan folder
-    // Pastikan folder ini ada di server Abang
-    const folderApp = (tenant?.product_app === 'siput') ? 'dist-siput' : 'dist-lms';
-    const pathToServe = path.join(process.cwd(), folderApp);
+        const folderApp = (tenant?.product_app === 'siput') ? 'dist-siput' : 'dist-lms';
+        const targetPath = path.join(process.cwd(), folderApp, 'index.html');
 
-    console.log(`Routing ${subdomain} ke: ${folderApp}`);
-    res.sendFile(path.join(pathToServe, 'index.html'));
-  } catch (err) {
-    // 3. Fallback jika ada error
-    console.error("Routing error:", err);
-    const defaultDist = path.join(process.cwd(), 'dist');
-    res.sendFile(path.join(defaultDist, 'index.html'));
+        console.log(`Routing ${subdomain} ke folder: ${folderApp}`);
+        
+        // Kirim index.html dari folder yang sesuai
+        res.sendFile(targetPath);
+      } catch (err) {
+        // Jika subdomain tidak ditemukan atau error, balik ke default dist
+        console.warn(`Subdomain ${subdomain} tidak ditemukan, pakai default.`);
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
+    });
   }
-});
    
     const folderApp = tenant.product_app === 'siput' ? 'dist-siput' : 'dist-lms';
     app.use(express.static(distPath));
