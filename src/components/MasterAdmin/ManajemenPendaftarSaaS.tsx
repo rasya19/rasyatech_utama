@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
-import { supabaseKuliner } from '../../lib/supabase-kuliner';
+import { useLandingData } from '../../lib/LandingDataContext'
 import { 
   Users, 
   MessageCircle, 
@@ -49,67 +49,60 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  // Ambil data mentah registrations dari LandingDataContext
+  const { registrations: regs, fetchData: refreshContext } = useLandingData();
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      if (activeTab === 'lms') {
-        const { data: regs, error: fetchError } = await supabase
-          .from('registrations')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (fetchError) throw fetchError;
-        
-        const mappedData: Pendaftar[] = (regs || []).map((r: any) => ({
-          id: r.id,
-          full_name: r.admin_name || r.name || '-',
-          email: r.admin_email || r.email || '-',
-          whatsapp: r.whatsapp || r.WA || '-',
-          business_name: r.school_name || '-',
-          product_type: 'lms',
-          package: r.paket_langganan || 'silver',
-          status: (r.status === 'verified' || r.status === 'active' || r.is_approved === true) ? 'active' : 'pending',
-          meta_data: { npsn: r.npsn },
-          created_at: r.created_at
-        }));
-        
-        const { data: saasLms } = await supabase
-          .from('pendaftar')
-          .select('*')
-          .eq('product_type', 'lms');
-        
-        const unified = [...mappedData, ...(saasLms || [])];
-        unified.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        
-        setData(unified);
-      } else {
-        const { data: pendaftar, error: fetchError } = await supabaseKuliner
-          .from('registrations')
-          .select('*')
-          .eq('business_type', activeTab)
-          .order('created_at', { ascending: false });
-
-        if (fetchError) throw fetchError;
-        
-        const mappedData: Pendaftar[] = (pendaftar || []).map((r: any) => ({
-          id: r.id,
-          full_name: r.full_name || '-',
-          email: r.email || '-',
-          whatsapp: r.whatsapp_number || '-',
-          business_name: r.business_name || '-',
-          product_type: activeTab,
-          package: r.selected_package || 'standard',
-          status: r.status as any,
-          meta_data: { 
-            tables_count: r.table_count,
-            outlet_count: r.table_count
-          },
-          created_at: r.created_at
-        }));
-
-        setData(mappedData);
+      // Amankan jika data dari context belum siap / kosong
+      if (!regs || regs.length === 0) {
+        setData([]);
+        return;
       }
+
+      // 1. Filter data lokal berdasarkan activeTab menggunakan kolom product_name (case-insensitive)
+      const filteredRegs = regs.filter((r: any) => {
+        const pName = (r.product_name || '').toLowerCase();
+        
+        switch (activeTab) {
+          case 'lms':
+            return pName.includes('lms') || pName.includes('armilla') || pName.includes('kesetaraan');
+          case 'siput':
+            return pName.includes('siput');
+          case 'scanbite':
+            return pName.includes('scanbite');
+          case 'instafoto':
+            return pName.includes('instafoto') || pName.includes('instafood');
+          case 'restoran_asli':
+            return pName.includes('resto') || pName.includes('restoran');
+          default:
+            return false;
+        }
+      });
+
+      // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
+      const mappedData: Pendaftar[] = filteredRegs.map((r: any) => ({
+        id: r.id,
+        full_name: r.admin_name || r.full_name || r.name || '-',
+        email: r.admin_email || r.email || '-',
+        whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
+        business_name: r.school_name || r.business_name || '-',
+        product_type: activeTab,
+        package: r.paket_langganan || r.selected_package || 'silver',
+        status: (r.status === 'verified' || r.status === 'active' || r.approved === true || r.is_approved === true || r.is_approved === 'true') ? 'active' : 'pending',
+        meta_data: { 
+          npsn: r.npsn || null,
+          tables_count: r.table_count || r.outlet_count || 0,
+          outlet_count: r.outlet_count || r.table_count || 0
+        },
+        created_at: r.created_at
+      }));
+
+      // 3. Urutkan dari data pendaftaran yang paling baru
+      mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      setData(mappedData);
     } catch (err: any) {
       setError(err.message || 'Gagal memuat data pendaftar');
     } finally {
@@ -119,38 +112,31 @@ export default function ManajemenPendaftarSaaS() {
 
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, regs]); // <-- Tambahkan regs di dependency array
 
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
     setUpdatingId(id);
     try {
-      const isLms = activeTab === 'lms';
-      const client = isLms ? supabase : supabaseKuliner;
       const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-      const table = 'registrations';
-      
-      const statusValue = isLms 
-        ? (nextStatus === 'active' ? 'active' : 'pending')
-        : nextStatus;
+      const isApprovedValue = (nextStatus === 'active');
 
-      const updatePayload: any = { status: statusValue };
-      if (isLms) {
-        updatePayload.is_approved = (statusValue === 'active');
-      }
-
-      const { error: updateError } = await client
-        .from(table)
-        .update(updatePayload)
+      // Update status di tabel tunggal registrations
+      const { error: updateError } = await supabase
+        .from('registrations')
+        .update({ 
+          status: nextStatus,
+          is_approved: isApprovedValue
+        })
         .eq('id', id);
 
       if (updateError) throw updateError;
       
-      // KUNCI PERBAIKAN: Refresh data dari database setelah update berhasil
-      await fetchData(); 
+      alert('Status pendaftar berhasil diperbarui!');
+      if (refreshContext) await refreshContext(); // Paksa context mengambil data terbaru dari database
       
     } catch (err: any) {
       console.error('Update operation error:', err);
-      alert('Gagal update database bang');
+      alert('Gagal memperbarui status pendaftar.');
     } finally {
       setUpdatingId(null);
     }
