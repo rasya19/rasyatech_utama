@@ -336,10 +336,45 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    // 1. Pindahkan/Buat Supabase Client di luar route (di dalam startServer)
+const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// ... (kode lainnya)
+
+// 2. Ubah route '*' menjadi pintar
+app.get('*', async (req, res) => {
+  const hostname = req.hostname; // misal: tkarmillanusa.rsch.my.id
+  const subdomain = hostname.split('.')[0];
+
+  try {
+    // Cek tenant ke database
+    const { data: tenant, error } = await adminSupabase
+      .from('tenant_master')
+      .select('product_app')
+      .eq('subdomain', subdomain)
+      .single();
+
+    if (error || !tenant) {
+      console.log(`Tenant ${subdomain} tidak ditemukan, default ke LMS`);
+      // Tetap sajikan LMS sebagai fallback atau redirect ke error
+      return res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+    }
+
+    // Tentukan folder berdasarkan product_app
+    // Pastikan Abang punya folder 'dist-lms' dan 'dist-siput'
+    const folderApp = tenant.product_app === 'siput' ? 'dist-siput' : 'dist-lms';
+    const distPath = path.join(process.cwd(), folderApp);
+
+    console.log(`Routing ${subdomain} ke aplikasi: ${folderApp}`);
+    res.sendFile(path.join(distPath, 'index.html'));
+
+  } catch (err) {
+    console.error("Routing error:", err);
+    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
   }
+});
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
