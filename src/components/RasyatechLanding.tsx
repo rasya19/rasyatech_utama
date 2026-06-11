@@ -60,10 +60,11 @@ const BannerAd = () => {
 
 export default function RasyatechLanding() {
   const { config, payments, loading } = useLandingData();
-  // These fields are not provided by LandingDataContext; keep as safe empty arrays to prevent .map() crashes
-  const laptops: any[] = [];
-  const products: any[] = [];
-  const affiliates: any[] = [];
+  // These fields are not in LandingDataContext — fetched directly from Supabase below
+  const [laptops, setLaptops] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [affiliates, setAffiliates] = useState<any[]>([]);
+  const [loadingExtras, setLoadingExtras] = useState(true);
   const ads: any[] = []; // legacy Ads fallback, empty array as 'ads' table does not exist in relational schema
   const [visitorCount, setVisitorCount] = useState<number>(1452);
   const [showPayment, setShowPayment] = useState(false);
@@ -80,6 +81,29 @@ export default function RasyatechLanding() {
     }
     setVisitorCount(count);
     localStorage.setItem('rasyatech_visitors', count.toString());
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchExtras = async () => {
+      try {
+        const [laptopsRes, productsRes, affiliatesRes] = await Promise.all([
+          supabase.from('laptops').select('*'),
+          supabase.from('products').select('*'),
+          supabase.from('affiliates').select('*').order('name', { ascending: true }),
+        ]);
+        if (!isMounted) return;
+        if (laptopsRes.data) setLaptops(laptopsRes.data);
+        if (productsRes.data) setProducts(productsRes.data);
+        if (affiliatesRes.data) setAffiliates(affiliatesRes.data);
+      } catch (err) {
+        console.error('Error fetching extras:', err);
+      } finally {
+        if (isMounted) setLoadingExtras(false);
+      }
+    };
+    fetchExtras();
+    return () => { isMounted = false; };
   }, []);
 
   useEffect(() => {
@@ -315,7 +339,7 @@ export default function RasyatechLanding() {
           <a href="#about">Tentang</a>
           <a href="#layanan">Layanan</a>
           {ads.length > 0 && <a href="#ads">Promo</a>}
-          <a href="#inventory">Unit Laptop</a>
+          {(loadingExtras || laptops.length > 0) && <a href="#inventory">Unit Laptop</a>}
           <a href="#shop">Katalog Produk</a>
           <a href="#paket">Paket</a>
           <div className="relative group" style={{ position: 'relative' }}>
@@ -441,13 +465,13 @@ export default function RasyatechLanding() {
         </div>
       </section>
 
-      {(loading || (laptops || []).length > 0) && (
+      {(loadingExtras || (laptops || []).length > 0) && (
         <section id="inventory" className="inventory-section" style={{ padding: '80px 10%', background: '#fff' }}>
           <h2 style={{ textAlign: 'center', marginBottom: '10px', color: 'var(--navy)', fontVariant: 'small-caps' }}>Laptop Second Berkualitas</h2>
           <p style={{ textAlign: 'center', marginBottom: '40px', color: '#666' }}>Dapatkan unit laptop pilihan dengan kondisi prima dan garansi toko dari Rasyacomp.</p>
           
           <div className="laptop-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '30px' }}>
-            {loading ? (
+            {loadingExtras ? (
               Array.from({ length: 3 }).map((_, idx) => (
                 <div key={`laptop-skeleton-${idx}`} className="bg-white rounded-[20px] overflow-hidden border border-slate-100 p-5 space-y-4 animate-pulse shadow-sm">
                   <div className="bg-slate-200 h-[200px] w-full rounded-lg"></div>
@@ -511,7 +535,7 @@ export default function RasyatechLanding() {
         <h2 style={{ textAlign: 'center', marginBottom: '10px', color: 'var(--navy)' }}>Katalog Aksesoris & Hardware</h2>
         <p style={{ textAlign: 'center', marginBottom: '40px', color: '#666' }}>Part laptop, aksesoris komputer, dan perangkat keras lainnya tersedia di RasyaComp.</p>
         
-        {loading ? (
+        {loadingExtras ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
             {Array.from({ length: 4 }).map((_, idx) => (
               <div key={`product-skeleton-${idx}`} className="bg-white rounded-[15px] border border-slate-200 overflow-hidden p-4 space-y-3 animate-pulse">
