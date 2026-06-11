@@ -307,7 +307,7 @@ async function startServer() {
            }
         }
 
-        // 4. Akhirnya hapus data pendaftaran utama
+        // 4. Akhirnya hapus data pendaftaran utamares.sendFil
         console.log(`Deleting record from registrations table for ID: ${id}`);
         const { error: deleteError } = await adminSupabase
             .from('registrations')
@@ -361,9 +361,9 @@ app.get('*', async (req, res) => {
       // Tetap sajikan LMS sebagai fallback atau redirect ke error
       return res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
     }
-
-    // Tentukan folder berdasarkan product_app
-    // Pastikan Abang punya folder 'dist-lms' dan 'dist-siput'
+}); // <--- INI KURUNG PENUTUP app.get YANG MUNGKIN HILANG
+} // <--- INI KURUNG PENUTUP ELSE YANG JUGA HARUS ADA
+   
     const folderApp = tenant.product_app === 'siput' ? 'dist-siput' : 'dist-lms';
     const distPath = path.join(process.cwd(), folderApp);
 
