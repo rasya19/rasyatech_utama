@@ -1,0 +1,193 @@
+/**
+ * Logika inti pendaftaran tenant — dipakai server Express & Vercel API.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+export interface TenantRegistrationPayload {
+  tenant_name: string;
+  product_app: string;
+  subdomain: string;
+  admin_name: string;
+  admin_email: string;
+  whatsapp: string;
+  npsn?: string;
+  package_tier?: string;
+  meta_data?: Record<string, unknown>;
+  source?: string;
+}
+
+export interface TenantRegistrationResult {
+  success: boolean;
+  tenant_master_id?: string;
+  registration_id?: string;
+  subdomain: string;
+  tenant_url: string;
+  message: string;
+}
+
+const TENANT_DOMAIN = process.env.VITE_TENANT_DOMAIN || 'rsch.my.id';
+
+function tenantUrl(subdomain: string): string {
+  return `https://${subdomain}.${TENANT_DOMAIN.replace(/^\.+/, '')}`;
+}
+
+async function isSubdomainTaken(
+  adminSupabase: SupabaseClient,
+  subdomain: string
+): Promise<boolean> {
+  const normalized = subdomain.toLowerCase();
+
+  const [{ data: fromMaster }, { data: fromRegs }] = await Promise.all([
+    adminSupabase
+      .from('tenant_master')
+      .select('id')
+      .eq('subdomain', normalized)
+      .maybeSingle(),
+    adminSupabase
+      .from('registrations')
+      .select('id')
+      .eq('subdomain', normalized)
+      .neq('status', 'rejected')
+      .maybeSingle(),
+  ]);
+
+  return Boolean(fromMaster || fromRegs);
+}
+
+/**
+ * Simpan pendaftaran ke tenant_master (tabel master) dan registrations (legacy).
+ */
+export async function registerTenant(
+  adminSupabase: SupabaseClient,
+  payload: TenantRegistrationPayload
+): Promise<TenantRegistrationResult> {
+  const subdomain = payload.subdomain.trim().toLowerCase();
+  const productApp = payload.product_app;
+
+  if (await isSubdomainTaken(adminSupabase, subdomain)) {
+    throw new Error('Subdomain sudah digunakan. Silakan pilih subdomain lain.');
+  }
+
+  const now = new Date().toISOString();
+  const meta = payload.meta_data ?? {};
+
+  // 1. Insert ke tenant_master (Gerbang Pendaftaran — sumber kebenaran tenant)
+  const tenantMasterRow = {
+    tenant_name: payload.tenant_name,
+    product_app: productApp,
+    subdomain,
+    subdomain_host: `${subdomain}.${TENANT_DOMAIN.replace(/^\.+/, '')}`,
+    admin_name: payload.admin_name,
+    admin_email: payload.admin_email,
+    whatsapp: payload.whatsapp,
+    npsn: payload.npsn || '-',
+    package_tier: payload.package_tier || 'standard',
+    meta_data: meta,
+    status: 'pending',
+    source: payload.source || 'gerbang_pendaftaran',
+    created_at: now,
+    updated_at: now,
+  };
+
+  const { data: masterData, error: masterError } = await adminSupabase
+    .from('tenant_master')
+    .insert([tenantMasterRow])
+    .select('id')
+    .single();
+
+  if (masterError) {
+    throw new Error(`Gagal menyimpan ke tenant_master: ${masterError.message}`);
+  }
+
+  // 2. Insert ke registrations (kompatibilitas alur verifikasi admin existing)
+  const registrationBase = {
+    school_name: payload.tenant_name,
+    admin_name: payload.admin_name,
+    admin_email: payload.admin_email,
+    whatsapp: payload.whatsapp,
+    npsn: payload.npsn || '-',
+    subdomain,
+    password: 'defaultpassword123',
+    status: 'pending',
+    is_approved: false,
+    paket_langganan: payload.package_tier || 'standard',
+    created_at: now,
+  };
+
+  const registrationExtended = {
+    ...registrationBase,
+    product_app: productApp,
+    tenant_master_id: masterData.id,
+  };
+
+  let regData: { id: string } | null = null;
+  let regError: { message: string } | null = null;
+
+  const extendedResult = await adminSupabase
+    .from('registrations')
+    .insert([registrationExtended])
+    .select('id')
+    .single();
+
+  if (extendedResult.error) {
+    const fallbackResult = await adminSupabase
+      .from('registrations')
+      .insert([registrationBase])
+      .select('id')
+      .single();
+    regData = fallbackResult.data;
+    regError = fallbackResult.error;
+  } else {
+    regData = extendedResult.data;
+  }
+
+  if (regError || !regData) {
+    await adminSupabase.from('tenant_master').delete().eq('id', masterData.id);
+    throw new Error(`Gagal menyimpan ke registrations: ${regError?.message ?? 'unknown'}`);
+  }
+
+  // 3. Tautkan registration_id kembali ke tenant_master
+  await adminSupabase
+    .from('tenant_master')
+    .update({ registration_id: regData.id, updated_at: now })
+    .eq('id', masterData.id);
+
+  return {
+    success: true,
+    tenant_master_id: masterData.id,
+    registration_id: regData.id,
+    subdomain,
+    tenant_url: tenantUrl(subdomain),
+    message: 'Pendaftaran tenant berhasil disimpan ke Supabase.',
+  };
+}
+
+export async function checkSubdomainAvailable(
+  adminSupabase: SupabaseClient,
+  subdomain: string
+): Promise<{ available: boolean; takenIn?: 'tenant_master' | 'registrations' }> {
+  const normalized = subdomain.trim().toLowerCase();
+
+  const { data: fromMaster } = await adminSupabase
+    .from('tenant_master')
+    .select('id')
+    .eq('subdomain', normalized)
+    .maybeSingle();
+
+  if (fromMaster) {
+    return { available: false, takenIn: 'tenant_master' };
+  }
+
+  const { data: fromRegs } = await adminSupabase
+    .from('registrations')
+    .select('id')
+    .eq('subdomain', normalized)
+    .neq('status', 'rejected')
+    .maybeSingle();
+
+  if (fromRegs) {
+    return { available: false, takenIn: 'registrations' };
+  }
+
+  return { available: true };
+}

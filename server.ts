@@ -8,6 +8,11 @@ import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
 import cors from "cors";
+import {
+  registerTenant,
+  checkSubdomainAvailable,
+  type TenantRegistrationPayload,
+} from "./src/lib/register-tenant-core";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +46,96 @@ async function startServer() {
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS
+    }
+  });
+
+  // Gerbang Pendaftaran — simpan tenant ke tenant_master + registrations
+  app.post("/api/register-tenant", async (req, res) => {
+    const {
+      tenant_name,
+      product_app,
+      subdomain,
+      admin_name,
+      admin_email,
+      whatsapp,
+      npsn,
+      package_tier,
+      meta_data,
+      source,
+    } = req.body ?? {};
+
+    const supabaseUrl =
+      process.env.VITE_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      "https://erosuotjshhmhduoprwi.supabase.co";
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseServiceKey) {
+      return res.status(500).json({ error: "Server configuration missing: Service Role Key" });
+    }
+
+    if (!tenant_name || !product_app || !subdomain || !admin_name || !admin_email || !whatsapp) {
+      return res.status(400).json({
+        error:
+          "Field wajib: tenant_name, product_app, subdomain, admin_name, admin_email, whatsapp",
+      });
+    }
+
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    try {
+      const payload: TenantRegistrationPayload = {
+        tenant_name,
+        product_app,
+        subdomain,
+        admin_name,
+        admin_email,
+        whatsapp,
+        npsn,
+        package_tier,
+        meta_data,
+        source,
+      };
+      const result = await registerTenant(adminSupabase, payload);
+      res.json(result);
+    } catch (error: any) {
+      console.error("register-tenant error:", error.message);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Cek ketersediaan subdomain (tenant_master + registrations)
+  app.get("/api/check-subdomain", async (req, res) => {
+    const subdomain = req.query.subdomain as string;
+    if (!subdomain) {
+      return res.status(400).json({ error: "Subdomain is required" });
+    }
+
+    const supabaseUrl =
+      process.env.VITE_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      "https://erosuotjshhmhduoprwi.supabase.co";
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseServiceKey) {
+      return res.status(500).json({ error: "Server configuration missing" });
+    }
+
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    try {
+      const result = await checkSubdomainAvailable(adminSupabase, subdomain);
+      if (result.available) {
+        return res.status(404).json({ success: true, available: true, subdomain });
+      }
+      return res.status(200).json({
+        success: true,
+        available: false,
+        takenIn: result.takenIn,
+        subdomain,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
