@@ -1,6 +1,10 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
+<<<<<<< HEAD
+  ]
+}
+=======
   ],
   "headers": [
     {
@@ -13,3 +17,4 @@
     }
   ]
 }
+>>>>>>> origin/main

@@ -24,7 +24,11 @@ function AppRoutes() {
     }
 
     // Also handle PASSWORD_RECOVERY event triggers
+<<<<<<< HEAD
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+=======
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string | any) => {
+>>>>>>> origin/main
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
       }
@@ -36,6 +40,48 @@ function AppRoutes() {
   }, [navigate]);
 
   return (
+<<<<<<< HEAD
+    <Routes>
+      {/* Landing Page only on main domain */}
+      <Route path="/" element={!subdomain ? <RasyatechLanding /> : <Navigate to="/admin" />} />
+      
+      {/* SuperAdmin/MasterAdmin only on main domain */}
+      <Route 
+        path="/master-admin" 
+        element={!subdomain ? <MasterAdmin /> : <Navigate to="/admin" />} 
+      />
+      
+      {/* Password Reset Page */}
+      <Route 
+        path="/reset-password" 
+        element={<ResetPassword />} 
+      />
+      
+      {/* Tenant Admin only on subdomains */}
+      <Route 
+        path="/admin" 
+        element={subdomain ? <TenantDashboard /> : <Navigate to="/master-admin" />} 
+      />
+      
+      <Route 
+        path="/affiliate/portal" 
+        element={!subdomain ? <AffiliatePortal /> : <Navigate to="/admin" />} 
+      />
+      <Route 
+        path="/login-sekolah" 
+        element={subdomain ? <SchoolLogin /> : <Navigate to="/" />} 
+      />
+      
+      {/* Centralized Complaint Monitoring Portfolios for Dinas Pendidikan and Internal Command */}
+      <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
+            
+      {/* Global SaaS Registration Form */}
+      <Route path="/daftar" element={<FormPendaftaranSaaS />} />
+      
+      {/* Catch-all */}
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+=======
     <LandingDataProvider>
       <Routes>
         {/* Landing Page only on main domain */}
@@ -78,6 +124,7 @@ function AppRoutes() {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </LandingDataProvider>
+>>>>>>> origin/main
   );
 }
 
@@ -86,6 +133,20 @@ export default function App() {
 
   return (
     <SubdomainProvider>
+<<<<<<< HEAD
+      <LandingDataProvider>
+        <Router>
+          {showSplash && (
+            <SplashScreen 
+              onComplete={() => {
+                setShowSplash(false);
+              }} 
+            />
+          )}
+          <AppRoutes />
+        </Router>
+      </LandingDataProvider>
+=======
       <Router>
         {showSplash && (
           <SplashScreen 
@@ -96,6 +157,7 @@ export default function App() {
         )}
         <AppRoutes />
       </Router>
+>>>>>>> origin/main
     </SubdomainProvider>
   );
 }

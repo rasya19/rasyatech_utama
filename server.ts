@@ -1,9 +1,102 @@
 import dotenv from "dotenv";
+<<<<<<< HEAD
+import fs from "fs";
+// Muat .env.local dulu (dev lokal), lalu .env sebagai fallback
+dotenv.config({ path: ".env.local" });
+=======
+>>>>>>> origin/main
 dotenv.config();
 
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+<<<<<<< HEAD
+import { createClient } from "@supabase/supabase-js";
+import nodemailer from "nodemailer";
+import cors from "cors";
+import {
+  registerTenant,
+  checkSubdomainAvailable,
+  type TenantRegistrationPayload,
+} from "./src/lib/register-tenant-core";
+
+const ROOT = process.cwd();
+const isProduction = process.env.NODE_ENV === "production";
+
+const DEFAULT_SUPABASE_URL =
+  process.env.VITE_SUPABASE_URL ||
+  process.env.SUPABASE_URL ||
+  "https://erosuotjshhmhduoprwi.supabase.co";
+
+function createAdminSupabase() {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return null;
+  return createClient(DEFAULT_SUPABASE_URL, serviceKey);
+}
+
+/** Ambil slug tenant dari Host header (armillanusa.rsch.my.id → armillanusa). */
+function parseTenantSubdomain(host: string | undefined): string | null {
+  if (!host) return null;
+  const hostname = host.split(":")[0].toLowerCase();
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return null;
+  }
+  const parts = hostname.split(".");
+  if (parts.length < 3) return null;
+  const slug = parts[0];
+  if (["www", "rasyatech", "api", "mail"].includes(slug)) {
+    return null;
+  }
+  return slug;
+}
+
+function normalizeTenantPillar(product: string | null | undefined): "siput" | "lms" | null {
+  const value = (product || "").toLowerCase();
+  if (value === "siput") return "siput";
+  if (value === "lms" || value === "armilla") return "lms";
+  return null;
+}
+
+/** Cek tenant_master (utama) lalu registrations (fallback). */
+async function resolveTenantPillarFromDatabase(
+  subdomain: string
+): Promise<"siput" | "lms" | null> {
+  const adminSupabase = createAdminSupabase();
+  if (!adminSupabase) return null;
+
+  const { data: tenantRow, error: tenantError } = await adminSupabase
+    .from("tenant_master")
+    .select("product_app")
+    .eq("subdomain", subdomain)
+    .neq("status", "rejected")
+    .maybeSingle();
+
+  if (tenantError) {
+    const missingTable =
+      tenantError.message.includes("tenant_master") &&
+      tenantError.message.includes("schema cache");
+    if (!missingTable) {
+      throw tenantError;
+    }
+  } else {
+    const pillar = normalizeTenantPillar(tenantRow?.product_app);
+    if (pillar) return pillar;
+  }
+
+  const { data: regRow, error: regError } = await adminSupabase
+    .from("registrations")
+    .select("product_name, product_app")
+    .eq("subdomain", subdomain)
+    .neq("status", "rejected")
+    .maybeSingle();
+
+  if (regError) {
+    throw regError;
+  }
+
+  return normalizeTenantPillar(regRow?.product_name || regRow?.product_app);
+}
+=======
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
@@ -11,6 +104,7 @@ import cors from "cors";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+>>>>>>> origin/main
 
 async function startServer() {
   const app = express();
@@ -44,6 +138,99 @@ async function startServer() {
     }
   });
 
+<<<<<<< HEAD
+  // Gerbang Pendaftaran — simpan tenant ke tenant_master + registrations
+  app.post("/api/register-tenant", async (req, res) => {
+    const {
+      tenant_name,
+      product_app,
+      subdomain,
+      admin_name,
+      admin_email,
+      whatsapp,
+      npsn,
+      package_tier,
+      meta_data,
+      source,
+    } = req.body ?? {};
+
+    const supabaseUrl =
+      process.env.VITE_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      "https://erosuotjshhmhduoprwi.supabase.co";
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseServiceKey) {
+      return res.status(500).json({ error: "Server configuration missing: Service Role Key" });
+    }
+
+    if (!tenant_name || !product_app || !subdomain || !admin_name || !admin_email || !whatsapp) {
+      return res.status(400).json({
+        error:
+          "Field wajib: tenant_name, product_app, subdomain, admin_name, admin_email, whatsapp",
+      });
+    }
+
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    try {
+      const payload: TenantRegistrationPayload = {
+        tenant_name,
+        product_app,
+        subdomain,
+        admin_name,
+        admin_email,
+        whatsapp,
+        npsn,
+        package_tier,
+        meta_data,
+        source,
+      };
+      const result = await registerTenant(adminSupabase, payload);
+      res.json(result);
+    } catch (error: any) {
+      console.error("register-tenant error:", error.message);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Cek ketersediaan subdomain (tenant_master + registrations)
+  app.get("/api/check-subdomain", async (req, res) => {
+    const subdomain = req.query.subdomain as string;
+    if (!subdomain) {
+      return res.status(400).json({ error: "Subdomain is required" });
+    }
+
+    const supabaseUrl =
+      process.env.VITE_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      "https://erosuotjshhmhduoprwi.supabase.co";
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseServiceKey) {
+      return res.status(500).json({ error: "Server configuration missing" });
+    }
+
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    try {
+      const result = await checkSubdomainAvailable(adminSupabase, subdomain);
+      if (result.available) {
+        return res.status(404).json({ success: true, available: true, subdomain });
+      }
+      return res.status(200).json({
+        success: true,
+        available: false,
+        takenIn: result.takenIn,
+        subdomain,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+=======
+>>>>>>> origin/main
   // API route for school registration (bypasses direct client RLS by using service role key)
   app.post("/api/register-school", async (req, res) => {
     console.log("Received POST to /api/register-school. Body:", req.body);
@@ -307,7 +494,11 @@ async function startServer() {
            }
         }
 
+<<<<<<< HEAD
+        // 4. Akhirnya hapus data pendaftaran utama
+=======
         // 4. Akhirnya hapus data pendaftaran utamares.sendFil
+>>>>>>> origin/main
         console.log(`Deleting record from registrations table for ID: ${id}`);
         const { error: deleteError } = await adminSupabase
             .from('registrations')
@@ -326,12 +517,106 @@ async function startServer() {
     }
   });
 
+<<<<<<< HEAD
+  // Frontend SPA — port 3000 melayani UI + API (bukan API saja)
+  if (!isProduction) {
+=======
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+>>>>>>> origin/main
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
+<<<<<<< HEAD
+
+    // Lewati Vite untuk route API
+    app.use((req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return next();
+      }
+      vite.middlewares(req, res, next);
+    });
+
+    // SPA fallback: /daftar, /master-admin, dll. → index.html + React Router
+    app.use("*", async (req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return next();
+      }
+
+      const tenantSubdomain = parseTenantSubdomain(req.headers.host);
+      if (tenantSubdomain && req.path === "/") {
+        try {
+          const pillar = await resolveTenantPillarFromDatabase(tenantSubdomain);
+          if (pillar === "siput") {
+            return res.redirect(302, "/admin");
+          }
+          if (pillar === "lms") {
+            return res.redirect(302, "/login-sekolah");
+          }
+        } catch (routingError: any) {
+          console.warn("[tenant-routing][dev]", routingError.message);
+        }
+      }
+
+      try {
+        const template = fs.readFileSync(path.join(ROOT, "index.html"), "utf-8");
+        const html = await vite.transformIndexHtml(req.originalUrl, template);
+        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+      } catch (error) {
+        next(error);
+      }
+    });
+  } else {
+    const distPath = path.join(ROOT, "dist");
+    const indexHtml = path.join(distPath, "index.html");
+
+    if (!fs.existsSync(indexHtml)) {
+      console.error(
+        "ERROR: dist/index.html tidak ditemukan. Jalankan `npm run build` sebelum `npm start`."
+      );
+      process.exit(1);
+    }
+
+    app.use(express.static(distPath));
+
+    // SPA fallback production (React Router: /daftar, /master-admin, ...)
+    app.get("*", async (req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return next();
+      }
+
+      const tenantSubdomain = parseTenantSubdomain(req.headers.host);
+      if (tenantSubdomain && req.path === "/") {
+        try {
+          const pillar = await resolveTenantPillarFromDatabase(tenantSubdomain);
+          if (pillar === "siput") {
+            return res.redirect(302, "/admin");
+          }
+          if (pillar === "lms") {
+            return res.redirect(302, "/login-sekolah");
+          }
+        } catch (routingError: any) {
+          console.warn("[tenant-routing][prod]", routingError.message);
+        }
+      }
+
+      res.sendFile(indexHtml);
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log("");
+    console.log("═══════════════════════════════════════════════════════");
+    console.log(`  Rasyatech dev server — mode: ${isProduction ? "production" : "development"}`);
+    console.log(`  URL utama : http://localhost:${PORT}`);
+    console.log(`  Form daftar: http://localhost:${PORT}/daftar`);
+    console.log(`  API tenant : POST http://localhost:${PORT}/api/register-tenant`);
+    console.log("═══════════════════════════════════════════════════════");
+    console.log("");
+  });
+}
+=======
     app.use(vite.middlewares);
   } else {
     // Definisi distPath HANYA SATU KALI di sini
@@ -393,6 +678,7 @@ async function startServer() {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 } 
+>>>>>>> origin/main
 
 startServer();
 
