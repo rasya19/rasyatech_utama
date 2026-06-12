@@ -181,7 +181,11 @@ export default function MonitoringDashboard() {
   // Move Ticket logic for Kanban board
   const moveTicket = (id: string, direction: 'forward' | 'backward') => {
     const statusOrder: ComplaintTicket['status'][] = ['draft', 'review', 'solved'];
+<<<<<<< HEAD
     const updated = tickets.map(ticket => {
+=======
+    const updated = (tickets || []).map(ticket => {
+>>>>>>> origin/main
       if (ticket.id === id) {
         const currentIndex = statusOrder.indexOf(ticket.status);
         let nextIndex = currentIndex;
@@ -240,7 +244,11 @@ export default function MonitoringDashboard() {
   };
 
   // Filter & Search computation
+<<<<<<< HEAD
   const filteredTickets = tickets.filter(t => {
+=======
+  const filteredTickets = (tickets || []).filter(t => {
+>>>>>>> origin/main
     const matchesSearch = 
       t.school_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.description.toLowerCase().includes(searchQuery.toLowerCase()) ||

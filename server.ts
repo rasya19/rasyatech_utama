@@ -1,12 +1,16 @@
 import dotenv from "dotenv";
+<<<<<<< HEAD
 import fs from "fs";
 // Muat .env.local dulu (dev lokal), lalu .env sebagai fallback
 dotenv.config({ path: ".env.local" });
+=======
+>>>>>>> origin/main
 dotenv.config();
 
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+<<<<<<< HEAD
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
 import cors from "cors";
@@ -92,6 +96,15 @@ async function resolveTenantPillarFromDatabase(
 
   return normalizeTenantPillar(regRow?.product_name || regRow?.product_app);
 }
+=======
+import { fileURLToPath } from "url";
+import { createClient } from "@supabase/supabase-js";
+import nodemailer from "nodemailer";
+import cors from "cors";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+>>>>>>> origin/main
 
 async function startServer() {
   const app = express();
@@ -125,6 +138,7 @@ async function startServer() {
     }
   });
 
+<<<<<<< HEAD
   // Gerbang Pendaftaran — simpan tenant ke tenant_master + registrations
   app.post("/api/register-tenant", async (req, res) => {
     const {
@@ -215,6 +229,8 @@ async function startServer() {
     }
   });
 
+=======
+>>>>>>> origin/main
   // API route for school registration (bypasses direct client RLS by using service role key)
   app.post("/api/register-school", async (req, res) => {
     console.log("Received POST to /api/register-school. Body:", req.body);
@@ -478,7 +494,11 @@ async function startServer() {
            }
         }
 
+<<<<<<< HEAD
         // 4. Akhirnya hapus data pendaftaran utama
+=======
+        // 4. Akhirnya hapus data pendaftaran utamares.sendFil
+>>>>>>> origin/main
         console.log(`Deleting record from registrations table for ID: ${id}`);
         const { error: deleteError } = await adminSupabase
             .from('registrations')
@@ -497,12 +517,18 @@ async function startServer() {
     }
   });
 
+<<<<<<< HEAD
   // Frontend SPA — port 3000 melayani UI + API (bukan API saja)
   if (!isProduction) {
+=======
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
+>>>>>>> origin/main
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
+<<<<<<< HEAD
 
     // Lewati Vite untuk route API
     app.use((req, res, next) => {
@@ -590,6 +616,69 @@ async function startServer() {
     console.log("");
   });
 }
+=======
+    app.use(vite.middlewares);
+  } else {
+    // Definisi distPath HANYA SATU KALI di sini
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+
+    // Routing utama
+    app.get('*', async (req, res) => {
+      const hostname = req.hostname;
+      const subdomain = hostname.split('.')[0];
+
+      try {
+        const { data: tenant } = await adminSupabase
+          .from('tenant_master')
+          .select('product_app')
+          .eq('subdomain', subdomain)
+          .single();
+
+        const folderApp = (tenant?.product_app === 'siput') ? 'dist-siput' : 'dist-lms';
+        const targetPath = path.join(process.cwd(), folderApp, 'index.html');
+        
+        console.log(`Routing ${subdomain} ke: ${folderApp}`);
+        res.sendFile(targetPath);
+      } catch (err) {
+        // Fallback jika tidak ditemukan
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
+    });
+  }
+   
+    const folderApp = tenant.product_app === 'siput' ? 'dist-siput' : 'dist-lms';
+    app.use(express.static(distPath));
+
+    app.get('*', async (req, res) => {
+      const hostname = req.hostname;
+      const subdomain = hostname.split('.')[0];
+
+      try {
+        const { data: tenant } = await adminSupabase
+          .from('tenant_master')
+          .select('product_app')
+          .eq('subdomain', subdomain)
+          .single();
+
+        const folderApp = (tenant?.product_app === 'siput') ? 'dist-siput' : 'dist-lms';
+        const targetPath = path.join(process.cwd(), folderApp, 'index.html');
+        
+        // Cek apakah file ada, jika tidak, pakai default dist
+        res.sendFile(targetPath);
+      } catch (err) {
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
+    });
+    // --- SELESAI GANTI ---
+  }
+
+  // JANGAN LUPA PENUTUP INI HARUS ADA DI PALING BAWAH
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+} 
+>>>>>>> origin/main
 
 startServer();
 

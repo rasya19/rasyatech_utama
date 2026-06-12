@@ -79,7 +79,11 @@ export default function TeachersTable({ schoolId }: { schoolId: string }) {
             </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
+<<<<<<< HEAD
             {teachers.map(t => (
+=======
+            {(teachers || []).map(t => (
+>>>>>>> origin/main
                 <tr key={t.id}>
                     <td className="py-4 font-bold">{t.name}</td>
                     <td className="py-4 font-bold">{t.nip}</td>

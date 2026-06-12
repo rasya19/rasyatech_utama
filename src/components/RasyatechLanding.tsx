@@ -59,7 +59,16 @@ const BannerAd = () => {
 };
 
 export default function RasyatechLanding() {
+<<<<<<< HEAD
   const { config, payments, laptops, products, affiliates, services, loading } = useLandingData();
+=======
+  const { config, payments, loading } = useLandingData();
+  // These fields are not in LandingDataContext — fetched directly from Supabase below
+  const [laptops, setLaptops] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [affiliates, setAffiliates] = useState<any[]>([]);
+  const [loadingExtras, setLoadingExtras] = useState(true);
+>>>>>>> origin/main
   const ads: any[] = []; // legacy Ads fallback, empty array as 'ads' table does not exist in relational schema
   const [visitorCount, setVisitorCount] = useState<number>(1452);
   const [showPayment, setShowPayment] = useState(false);
@@ -80,6 +89,32 @@ export default function RasyatechLanding() {
 
   useEffect(() => {
     let isMounted = true;
+<<<<<<< HEAD
+=======
+    const fetchExtras = async () => {
+      try {
+        const [laptopsRes, productsRes, affiliatesRes] = await Promise.all([
+          supabase.from('laptops').select('*'),
+          supabase.from('products').select('*'),
+          supabase.from('affiliates').select('*').order('name', { ascending: true }),
+        ]);
+        if (!isMounted) return;
+        if (laptopsRes.data) setLaptops(laptopsRes.data);
+        if (productsRes.data) setProducts(productsRes.data);
+        if (affiliatesRes.data) setAffiliates(affiliatesRes.data);
+      } catch (err) {
+        console.error('Error fetching extras:', err);
+      } finally {
+        if (isMounted) setLoadingExtras(false);
+      }
+    };
+    fetchExtras();
+    return () => { isMounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+>>>>>>> origin/main
     const checkSchema = async () => {
       try {
         const { data, error } = await supabase.from('registrations').select('*').limit(1);
@@ -131,7 +166,11 @@ export default function RasyatechLanding() {
     
     let affiliateEmail = '';
     if (refCode) {
+<<<<<<< HEAD
       const affiliate = affiliates.find(a => a.referralCode?.toUpperCase() === refCode);
+=======
+      const affiliate = (affiliates || []).find(a => a.referralCode?.toUpperCase() === refCode);
+>>>>>>> origin/main
       if (affiliate) {
         affiliateEmail = affiliate.email || '';
       }
@@ -311,7 +350,11 @@ export default function RasyatechLanding() {
           <a href="#about">Tentang</a>
           <a href="#layanan">Layanan</a>
           {ads.length > 0 && <a href="#ads">Promo</a>}
+<<<<<<< HEAD
           <a href="#inventory">Unit Laptop</a>
+=======
+          {(loadingExtras || laptops.length > 0) && <a href="#inventory">Unit Laptop</a>}
+>>>>>>> origin/main
           <a href="#shop">Katalog Produk</a>
           <a href="#paket">Paket</a>
           <div className="relative group" style={{ position: 'relative' }}>
@@ -437,13 +480,21 @@ export default function RasyatechLanding() {
         </div>
       </section>
 
+<<<<<<< HEAD
       {(loading || laptops.length > 0) && (
+=======
+      {(loadingExtras || (laptops || []).length > 0) && (
+>>>>>>> origin/main
         <section id="inventory" className="inventory-section" style={{ padding: '80px 10%', background: '#fff' }}>
           <h2 style={{ textAlign: 'center', marginBottom: '10px', color: 'var(--navy)', fontVariant: 'small-caps' }}>Laptop Second Berkualitas</h2>
           <p style={{ textAlign: 'center', marginBottom: '40px', color: '#666' }}>Dapatkan unit laptop pilihan dengan kondisi prima dan garansi toko dari Rasyacomp.</p>
           
           <div className="laptop-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '30px' }}>
+<<<<<<< HEAD
             {loading ? (
+=======
+            {loadingExtras ? (
+>>>>>>> origin/main
               Array.from({ length: 3 }).map((_, idx) => (
                 <div key={`laptop-skeleton-${idx}`} className="bg-white rounded-[20px] overflow-hidden border border-slate-100 p-5 space-y-4 animate-pulse shadow-sm">
                   <div className="bg-slate-200 h-[200px] w-full rounded-lg"></div>
@@ -456,7 +507,11 @@ export default function RasyatechLanding() {
                 </div>
               ))
             ) : (
+<<<<<<< HEAD
               laptops.map((laptop) => (
+=======
+              (laptops || []).map((laptop) => (
+>>>>>>> origin/main
                 <div key={laptop.id} className="laptop-card" style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid #f1f2f6', transition: 'transform 0.3s' }}>
                   <div style={{ height: '200px', overflow: 'hidden' }}>
                     <img src={laptop.image || 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=60'} alt={laptop.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -507,7 +562,11 @@ export default function RasyatechLanding() {
         <h2 style={{ textAlign: 'center', marginBottom: '10px', color: 'var(--navy)' }}>Katalog Aksesoris & Hardware</h2>
         <p style={{ textAlign: 'center', marginBottom: '40px', color: '#666' }}>Part laptop, aksesoris komputer, dan perangkat keras lainnya tersedia di RasyaComp.</p>
         
+<<<<<<< HEAD
         {loading ? (
+=======
+        {loadingExtras ? (
+>>>>>>> origin/main
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
             {Array.from({ length: 4 }).map((_, idx) => (
               <div key={`product-skeleton-${idx}`} className="bg-white rounded-[15px] border border-slate-200 overflow-hidden p-4 space-y-3 animate-pulse">
@@ -519,9 +578,15 @@ export default function RasyatechLanding() {
               </div>
             ))}
           </div>
+<<<<<<< HEAD
         ) : products.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
             {products.map((p) => (
+=======
+        ) : (products || []).length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
+            {(products || []).map((p) => (
+>>>>>>> origin/main
               <div key={p.id} style={{ background: 'white', borderRadius: '15px', overflow: 'hidden', boxShadow: '0 5px 15px rgba(0,0,0,0.02)', border: '1px solid #eee' }}>
                 <div style={{ height: '160px', overflow: 'hidden' }}>
                   <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -717,7 +782,11 @@ export default function RasyatechLanding() {
         <h2>Mitra Strategis & Klien</h2>
         <div className="mitra-grid" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '30px', alignItems: 'center', marginTop: '40px' }}>
           <div className="client-logo">PKBM ARMILLA NUSA</div>
+<<<<<<< HEAD
           {affiliates.map(af => (
+=======
+          {(affiliates || []).map(af => (
+>>>>>>> origin/main
             <a 
               key={af.id} 
               href={af.website || '#'} 
