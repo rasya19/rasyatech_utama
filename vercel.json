@@ -1,10 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }
-<<<<<<< HEAD
-  ]
-}
-=======
   ],
   "headers": [
     {
@@ -17,4 +14,3 @@
     }
   ]
 }
->>>>>>> origin/main
