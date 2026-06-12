@@ -1,18 +1,10 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "dist/server.mjs",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "dist/server.mjs"
-    }
-  ],
-  "headers": [
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+  
+{"headers": [
     {
       "source": "/(.*)",
       "headers": [
