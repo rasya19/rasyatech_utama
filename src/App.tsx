@@ -35,7 +35,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Landing Page */}
-      <Route path="/" element={!subdomain ? <RasyatechLanding /> : <Navigate to="/admin" />} />
+      <Route path="/" element={<RasyatechLanding />} />
       
       {/* SuperAdmin/MasterAdmin */}
       <Route path="/master-admin" element={<MasterAdmin />} />
