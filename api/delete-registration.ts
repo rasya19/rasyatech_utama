@@ -36,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // 1. Ambil data pendaftaran
     const { data: reg, error: fetchError } = await adminSupabase
-      .from('registrations')
+      .from('tenant_master')
       .select('id, subdomain, auth_uid')
       .eq('id', id)
       .single();
@@ -59,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 4. Hapus pendaftaran utama
     const { error: deleteError } = await adminSupabase
-      .from('registrations')
+      .from('tenant_master')
       .delete()
       .eq('id', id);
 
