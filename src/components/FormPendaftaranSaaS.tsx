@@ -151,21 +151,22 @@ export default function FormPendaftaranSaaS() {
         console.error('Webhook gagal:', webhookErr);
       }
 
-      // 3. Supabase Logic
-      const lmsInsertData = {
-        school_name: formData.business_name,
-        admin_name: formData.full_name,
-        admin_email: formData.email,
-        whatsapp: formData.whatsapp,
-        npsn: formData.npsn || '-',
-        subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
-        password: 'defaultpassword123',
-        status: 'pending',
-        is_approved: false,
-        paket_langganan: formData.product_type === 'lms' ? (formData.package || 'silver') : (formData.package || 'standard')
-      };
+      const schoolInsertData: any = {
+      product_app: formData.product_type,  // 'lms' atau 'siput'
+      subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
+      subdomainhost: `${formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.${formData.product_type}.rsch.my.id`,
+      admin_name: formData.full_name,
+      admin_email: formData.email,
+      whatsapp: formData.whatsapp,
+      npsn: formData.npsn || '-',
+      is_approved: false,
+      paket_langganan: 'free',  // default untuk SIPUT
+        };
 
-      // Cek apakah produk SEKOLAH (lms ATAU siput)
+// Hanya LMS yang bisa ganti paket_langganan
+if (formData.product_type === 'lms' && formData.package) {
+  schoolInsertData.paket_langganan = formData.package;
+}
       // Cek apakah produk SEKOLAH (lms ATAU siput)
       const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
 
