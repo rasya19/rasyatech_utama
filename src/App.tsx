@@ -12,6 +12,7 @@ import FormPendaftaranSaaS from './components/FormPendaftaranSaaS';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { LandingDataProvider } from './lib/LandingDataContext';
 import { supabase } from './lib/supabase';
+import DashboardSekolahCallback from './components/DashboardSekolahCallback';
 
 function AppRoutes() {
   const subdomain = useSubdomain();
@@ -54,6 +55,7 @@ function AppRoutes() {
         path="/reset-password" 
         element={<ResetPassword />} 
       />
+      <Route path="/dashboard-sekolah" element={<DashboardSekolahCallback />} />
       
       {/* Tenant Admin only on subdomains */}
       <Route 
