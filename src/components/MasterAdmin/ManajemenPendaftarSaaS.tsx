@@ -49,18 +49,19 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Ambil data mentah tenant_master dari LandingDataContext dengan safe defaults
-  const { tenant_master: contextRegs = [], fetchData: refreshContext = async () => {} } = useLandingData() || {};
-  const regs: any[] = Array.isArray(contextRegs) ? contextRegs : [];
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Amankan jika data dari context belum siap / kosong
-      if (!regs || regs.length === 0) {
-        setData([]);
-        return;
-      }
+  // Ambil data mentah dari LandingDataContext (sekarang isinya dari tenant_master)
+const { registrations: contextRegs = [], fetchData: refreshContext = async () => {} } = useLandingData() || {};
+const regs: any[] = Array.isArray(contextRegs) ? contextRegs : [];
+
+const fetchData = async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    // Amankan jika data dari context belum siap / kosong
+    if (!regs || regs.length === 0) {
+      setData([]);
+      return;
+    }
 
       // 1. Filter data lokal berdasarkan activeTab menggunakan kolom product_name (case-insensitive)
       const filteredRegs = regs.filter((r: any) => {
