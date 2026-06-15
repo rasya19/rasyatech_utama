@@ -60,11 +60,11 @@ export default function FormPendaftaranSaaS() {
       case 'siput': 
         return { name: 'SIPUT ', url: 'https://siput.rsch.my.id' };
       case 'scanbite': 
-        return { name: 'ScanBite (Cafe & Barista)', url: 'https://scanbite.rsch.web.id' };
+        return { name: 'ScanBite (Cafe & Barista)', url: 'https://sb.rsch.web.id' };
       case 'restoran_asli': 
-        return { name: 'Restoran Asli POS & Kasir', url: 'https://restoran.rsch.web.id' };
+        return { name: 'Restoran Asli POS & Kasir', url: 'https://ra.rsch.web.id' };
       case 'instafood': 
-        return { name: 'Instafood E-Menu & Delivery', url: 'https://Instafood.rsch.web.id' };
+        return { name: 'Instafood E-Menu & Delivery', url: 'https://if.rsch.web.id' };
       default: 
         return { name: 'Layanan Rasyatech', url: '/' };
     }
