@@ -63,25 +63,26 @@ const fetchData = async () => {
       return;
     }
 
-      // 1. Filter data lokal berdasarkan activeTab menggunakan kolom product_name (case-insensitive)
-      const filteredRegs = regs.filter((r: any) => {
-        const pName = (r.product_name || '').toLowerCase();
-        
-        switch (activeTab) {
-          case 'lms':
-            return pName.includes('lms') || pName.includes('armilla') || pName.includes('kesetaraan');
-          case 'siput':
-            return pName.includes('siput');
-          case 'scanbite':
-            return pName.includes('scanbite');
-          case 'instafoto':
-            return pName.includes('instafoto') || pName.includes('instafood');
-          case 'restoran_asli':
-            return pName.includes('resto') || pName.includes('restoran');
-          default:
-            return false;
-        }
-      });
+      
+  const filteredRegs = regs.filter((r: any) => {
+  // Pakai kolom product_app (bukan product_name)
+  const productApp = (r.product_app || r.product_name || '').toLowerCase();
+  
+  switch (activeTab) {
+    case 'lms':
+      return productApp === 'lms' || productApp === 'armilla';
+    case 'siput':
+      return productApp === 'siput';
+    case 'scanbite':
+      return productApp === 'scanbite';
+    case 'instafoto':
+      return productApp === 'instafood';
+    case 'restoran_asli':
+      return productApp === 'restoran_asli';
+    default:
+      return false;
+  }
+});
 
       // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
       const mappedData: Pendaftar[] = (filteredRegs || []).map((r: any) => ({
