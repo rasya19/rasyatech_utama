@@ -1,6 +1,6 @@
 // lib/notifications.ts
 
-const FONNTE_TOKEN = 'TOKEN_FONNTE_ANDA'; // Ganti dengan token Anda
+const FONNTE_TOKEN = 'jpRJKUuhWcFdnDFrbLVT'; // Ganti dengan token Anda
 
 export const sendWhatsAppNotification = async (formData: any) => {
   const getWaMessage = (data: any) => {
