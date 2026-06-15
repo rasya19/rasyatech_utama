@@ -16,8 +16,10 @@ import { supabase } from './lib/supabase';
 function AppRoutes() {
   const subdomain = useSubdomain();
   const navigate = useNavigate();
+  console.log('AppRoutes - subdomain detected:', subdomain); // ← TAMBAHKAN INI
 
   useEffect(() => {
+    console.log('Current hostname:', window.location.hostname); // ← TAMBAHKAN INI
     // Capture recovery URL hash from Supabase and redirect to password reset route
     if (window.location.hash && window.location.hash.includes('type=recovery')) {
       navigate('/reset-password');
