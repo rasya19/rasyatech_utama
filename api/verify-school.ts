@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     // 1. UPDATE STATUS DI TABEL registrations
     const { error: dbError } = await adminSupabase
-      .from('registrations')
+      .from('tenant_master')
       .update({ 
         status: 'verified',
         subdomain: subdomain // Pastikan subdomain juga diupdate di tabel registrations
