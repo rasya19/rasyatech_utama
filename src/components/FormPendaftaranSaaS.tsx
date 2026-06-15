@@ -165,32 +165,28 @@ export default function FormPendaftaranSaaS() {
         paket_langganan: formData.product_type === 'lms' ? (formData.package || 'silver') : (formData.package || 'standard')
       };
 
-      const { error: lmsError } = await supabase.from('tenant_master').insert([lmsInsertData]);
-      if (lmsError && isLms) throw lmsError;
+      // Cek apakah produk SEKOLAH (lms ATAU siput)
+const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
 
-      if (!isLms) {
-        const culinaryInsertData = {
-          full_name: formData.full_name,
-          email: formData.email,
-          whatsapp_number: formData.whatsapp,
-          business_type: formData.product_type,
-          business_name: formData.business_name,
-          selected_package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
-          table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-          status: 'pending'
-        };
-        const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
-        if (culinaryError) throw culinaryError;
-      }
-
-      setSubmitted(true);
-    } catch (err: any) {
-      console.error('Submission error:', err);
-      setError(err.message || 'Gagal mengirim pendaftaran. Silakan coba lagi.');
-    } finally {
-      setLoading(false);
-    }
+if (isSchoolProduct) {
+  // LMS dan SIPUT masuk ke tenant_master
+  const { error: schoolError } = await supabase.from('tenant_master').insert([lmsInsertData]);
+  if (schoolError) throw schoolError;
+} else {
+  // ScanBite, Restoran, Instafood masuk ke database kuliner
+  const culinaryInsertData = {
+    full_name: formData.full_name,
+    email: formData.email,
+    whatsapp_number: formData.whatsapp,
+    business_type: formData.product_type,
+    business_name: formData.business_name,
+    selected_package: formData.package || 'standard',
+    table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+    status: 'pending'
   };
+  const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
+  if (culinaryError) throw culinaryError;
+}
 
   // --- EARLY RETURN UNTUK TAMPILAN SUKSES ---
   if (submitted) {
