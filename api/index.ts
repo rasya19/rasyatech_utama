@@ -2,6 +2,11 @@ import express from "express";
 import cors from "cors";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
+import {
+  registerTenant,
+  checkSubdomainAvailable,
+  type TenantRegistrationPayload,
+} from "../src/lib/register-tenant-core";
 
 const app = express();
 
@@ -38,6 +43,72 @@ function getAdminSupabase() {
   }
   return createClient(DEFAULT_SUPABASE_URL, serviceKey);
 }
+
+app.post("/api/register-tenant", async (req, res) => {
+  const {
+    tenant_name,
+    product_app,
+    subdomain,
+    admin_name,
+    admin_email,
+    whatsapp,
+    npsn,
+    package_tier,
+    meta_data,
+    source,
+  } = req.body ?? {};
+
+  if (!tenant_name || !product_app || !subdomain || !admin_name || !admin_email || !whatsapp) {
+    return res.status(400).json({
+      error:
+        "Field wajib: tenant_name, product_app, subdomain, admin_name, admin_email, whatsapp",
+    });
+  }
+
+  try {
+    const adminSupabase = getAdminSupabase();
+    const payload: TenantRegistrationPayload = {
+      tenant_name,
+      product_app,
+      subdomain,
+      admin_name,
+      admin_email,
+      whatsapp,
+      npsn,
+      package_tier,
+      meta_data,
+      source,
+    };
+    const result = await registerTenant(adminSupabase, payload);
+    res.json(result);
+  } catch (error: any) {
+    console.error("register-tenant error:", error.message);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/check-subdomain", async (req, res) => {
+  const subdomain = req.query.subdomain as string;
+  if (!subdomain) {
+    return res.status(400).json({ error: "Subdomain is required" });
+  }
+
+  try {
+    const adminSupabase = getAdminSupabase();
+    const result = await checkSubdomainAvailable(adminSupabase, subdomain);
+    if (result.available) {
+      return res.status(404).json({ success: true, available: true, subdomain });
+    }
+    return res.status(200).json({
+      success: true,
+      available: false,
+      takenIn: result.takenIn,
+      subdomain,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.post("/api/register-school", async (req, res) => {
   const {
@@ -81,8 +152,7 @@ app.post("/api/register-school", async (req, res) => {
       data,
     });
   } catch (error: any) {
-    const status = error.message?.includes("configuration") ? 500 : 500;
-    res.status(status).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
