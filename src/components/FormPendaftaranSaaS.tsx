@@ -155,7 +155,6 @@ export default function FormPendaftaranSaaS() {
 const schoolInsertData: any = {
   product_app: formData.product_type,
   subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
-  subdomainhost: `${formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.${formData.product_type}.rsch.my.id`,
   admin_name: formData.full_name,
   admin_email: formData.email,
   whatsapp: formData.whatsapp,
