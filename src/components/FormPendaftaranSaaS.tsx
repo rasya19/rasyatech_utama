@@ -56,15 +56,15 @@ export default function FormPendaftaranSaaS() {
   const getProductRedirectDetails = (type: string) => {
     switch (type) {
       case 'lms': 
-        return { name: 'Rasya LMS Kesetaraan', url: 'https://kesetaraan.rasyatech.com' };
+        return { name: 'Rasya LMS Kesetaraan', url: 'https://kesetaraan.rsch.my.id' };
       case 'siput': 
-        return { name: 'SIPUT ', url: 'https://siput.rasyatech.com' };
+        return { name: 'SIPUT ', url: 'https://siput.rsch.my.id' };
       case 'scanbite': 
-        return { name: 'ScanBite (Cafe & Barista)', url: 'https://scanbite.rasyatech.com' };
+        return { name: 'ScanBite (Cafe & Barista)', url: 'https://scanbite.rsch.web.id' };
       case 'restoran_asli': 
-        return { name: 'Restoran Asli POS & Kasir', url: 'https://restoran.rasyatech.com' };
+        return { name: 'Restoran Asli POS & Kasir', url: 'https://restoran.rsch.web.id' };
       case 'instafood': 
-        return { name: 'Instafood E-Menu & Delivery', url: 'https://Instafood.rasyatech.com' };
+        return { name: 'Instafood E-Menu & Delivery', url: 'https://Instafood.rsch.web.id' };
       default: 
         return { name: 'Layanan Rasyatech', url: '/' };
     }
