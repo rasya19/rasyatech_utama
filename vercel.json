@@ -1,5 +1,15 @@
 {
   "rewrites": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?<tenant>[^\\.]*)\\.siput\\.rsch\\.my\\.id"
+        }
+      ],
+      "destination": "/?tenant=:tenant"
+    },
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
