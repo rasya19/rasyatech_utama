@@ -71,6 +71,29 @@ function detectSubdomain(): string | null {
     return null;
   }
 
+  // Format: tenant.siput.rsch.my.id (4 bagian)
+  const parts = hostname.split('.');
+  
+  if (parts.length >= 4) {
+    // Ambil bagian pertama sebagai tenant slug
+    const tenant = parts[0];
+    const product = parts[1]; // siput, lms, dll
+    
+    // Simpan product ke localStorage atau context
+    if (product === 'siput') {
+      localStorage.setItem('current_product', 'siput');
+      return tenant;
+    }
+  }
+  
+  // Format lama: siput.rsch.my.id (3 bagian) - no tenant
+  if (parts.length === 3 && parts[0] === 'siput') {
+    return null; // main domain
+  }
+
+  return null;
+}
+
   const parts = hostname.split('.');
   // Main domain patterns: rasyatech.rsch.my.id or www.rsch.my.id
   const isMainDomain =
