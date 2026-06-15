@@ -102,7 +102,7 @@ function detectSubdomain(): string | null {
     parts.length < 3;
 
   return isMainDomain ? null : parts[0];
-}
+
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
