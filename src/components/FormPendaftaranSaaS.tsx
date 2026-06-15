@@ -1,3 +1,4 @@
+import { sendWhatsAppNotification } from '../lib/notifications';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion'; // Pastikan import motion dari 'framer-motion'
@@ -133,8 +134,6 @@ export default function FormPendaftaranSaaS() {
         meta_data.npsn = formData.npsn;
       }
 
-      const isLms = formData.product_type === 'lms';
-
       // 2. Webhook
       try {
         await fetch('/api/register', {
@@ -151,55 +150,59 @@ export default function FormPendaftaranSaaS() {
         console.error('Webhook gagal:', webhookErr);
       }
 
-      // Base data untuk LMS dan SIPUT (sesuai struktur tabel)
-const schoolInsertData: any = {
-  tenant_name: formData.business_name,
-  product_app: formData.product_type,
-  subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
-  admin_name: formData.full_name,
-  admin_email: formData.email,
-  whatsapp: formData.whatsapp,
-  npsn: formData.npsn || '-',
-  is_approved: false,
-  paket_langganan: 'free',
-};
+      // 3. Base data untuk LMS dan SIPUT
+      const schoolInsertData: any = {
+        tenant_name: formData.business_name,
+        product_app: formData.product_type,
+        subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
+        admin_name: formData.full_name,
+        admin_email: formData.email,
+        whatsapp: formData.whatsapp,
+        npsn: formData.npsn || '-',
+        is_approved: false,
+        paket_langganan: 'free',
+      };
 
-// Hanya LMS yang bisa ganti paket_langganan
-if (formData.product_type === 'lms' && formData.package) {
-  schoolInsertData.paket_langganan = formData.package;
-}
+      if (formData.product_type === 'lms' && formData.package) {
+        schoolInsertData.paket_langganan = formData.package;
+      }
 
-// Cek apakah produk SEKOLAH (lms ATAU siput)
-const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
+      const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
 
-if (isSchoolProduct) {
-  // LMS dan SIPUT masuk ke tenant_master
-  const { error: schoolError } = await supabase.from('tenant_master').insert([schoolInsertData]);
-  if (schoolError) throw schoolError;
-} else {
-  // ScanBite, Restoran, Instafood masuk ke database kuliner
-  const culinaryInsertData = {
-    full_name: formData.full_name,
-    email: formData.email,
-    whatsapp_number: formData.whatsapp,
-    business_type: formData.product_type,
-    business_name: formData.business_name,
-    selected_package: formData.package || 'standard',
-    table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-    status: 'pending'
-  };
-  const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
-  if (culinaryError) throw culinaryError;
-}
+      // 4. Insert ke Database
+      if (isSchoolProduct) {
+        const { error: schoolError } = await supabase.from('tenant_master').insert([schoolInsertData]);
+        if (schoolError) throw schoolError;
+      } else {
+        const culinaryInsertData = {
+          full_name: formData.full_name,
+          email: formData.email,
+          whatsapp_number: formData.whatsapp,
+          business_type: formData.product_type,
+          business_name: formData.business_name,
+          selected_package: formData.package || 'standard',
+          table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+          status: 'pending'
+        };
+        const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
+        if (culinaryError) throw culinaryError;
+      }
 
-setSubmitted(true);
+      // 5. Kirim Notifikasi WhatsApp (Integrasi Baru)
+      try {
+        await sendWhatsAppNotification(formData);
+      } catch (waErr) {
+        console.error('Gagal kirim WA:', waErr);
+      }
+
+      setSubmitted(true);
     } catch (err: any) {
       console.error('Submission error:', err);
       setError(err.message || 'Gagal mengirim pendaftaran. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
-  };  // ← HARUS ADA (tutup handleSubmit)
+  };
 
   // --- EARLY RETURN UNTUK TAMPILAN SUKSES ---
   if (submitted) {
