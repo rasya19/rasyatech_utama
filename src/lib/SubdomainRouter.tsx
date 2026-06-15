@@ -1,24 +1,5 @@
 /**
  * Rasyatech Dynamic Subdomain Router
- *
- * How it works:
- *  1. Reads window.location.hostname to extract the subdomain.
- *  2. Looks up the subdomain in the master `registrations` table to get
- *     product_type and tenant metadata.
- *  3. Provides a <SubdomainRouterContext> consumed by App and child routes
- *     to render the correct product dashboard.
- *
- * Subdomain conventions:
- *  Main domain  → rasyatech.rsch.my.id   → Landing page (no subdomain)
- *  LMS tenant   → armillanusa.rsch.my.id → LMS dashboard
- *  SIPUT tenant → paudmelati.rsch.my.id  → SIPUT dashboard
- *  Scanbite     → warungbahagia.rsch.my.id → Scanbite dashboard
- *  etc.
- *
- * To add a new product pillar:
- *  1. Add its ProductType to src/lib/types/products.ts
- *  2. Add a case in the switch below
- *  3. Import and render your new <ProductDashboard> in App.tsx
  */
 
 import React, {
@@ -34,15 +15,10 @@ import type { ProductType, MasterRegistration } from './types/products';
 // ─── Context shape ────────────────────────────────────────────────────────────
 
 export interface SubdomainRouterState {
-  /** Raw subdomain string, e.g. "armillanusa". Null on main domain. */
   subdomain: string | null;
-  /** Which product pillar owns this subdomain. Null on main domain. */
   productType: ProductType | null;
-  /** Full tenant record from the registrations table. */
   tenant: MasterRegistration | null;
-  /** True while the DB lookup is in progress. */
   loading: boolean;
-  /** Error message if the lookup failed or subdomain is not registered. */
   error: string | null;
 }
 
@@ -75,34 +51,23 @@ function detectSubdomain(): string | null {
   const parts = hostname.split('.');
   
   if (parts.length >= 4) {
-    // Ambil bagian pertama sebagai tenant slug
     const tenant = parts[0];
-    const product = parts[1]; // siput, lms, dll
+    const product = parts[1];
     
-    // Simpan product ke localStorage atau context
-    if (product === 'siput') {
-      localStorage.setItem('current_product', 'siput');
+    if (product === 'siput' || product === 'lms') {
+      localStorage.setItem('current_product', product);
       return tenant;
     }
   }
   
-  // Format lama: siput.rsch.my.id (3 bagian) - no tenant
-  if (parts.length === 3 && parts[0] === 'siput') {
-    return null; // main domain
-  }
-
-  return null;
-}
-
-  const parts = hostname.split('.');
-  // Main domain patterns: rasyatech.rsch.my.id or www.rsch.my.id
+  // Main domain patterns
   const isMainDomain =
     parts[0] === 'rasyatech' ||
     parts[0] === 'www' ||
     parts.length < 3;
 
   return isMainDomain ? null : parts[0];
-
+}
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
@@ -113,7 +78,6 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
     const subdomain = detectSubdomain();
 
     if (!subdomain) {
-      // Main domain — no lookup needed
       setState({ subdomain: null, productType: null, tenant: null, loading: false, error: null });
       return;
     }
@@ -123,7 +87,7 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
     const resolve = async () => {
       try {
         const { data, error } = await supabaseMaster
-          .from('registrations')
+          .from('tenant_master')
           .select('*')
           .eq('subdomain', subdomain)
           .maybeSingle();
@@ -138,12 +102,12 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
             productType: null,
             tenant: null,
             loading: false,
-            error: `Subdomain "${subdomain}" tidak ditemukan. Silakan hubungi admin Rasyatech.`,
+            error: `Subdomain "${subdomain}" tidak ditemukan.`,
           });
           return;
         }
 
-        const productType = (data.product_type as ProductType) || inferProductFromData(data);
+        const productType = (data.product_app as ProductType) || inferProductFromData(data);
 
         setState({
           subdomain,
@@ -170,58 +134,42 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+// ─── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useSubdomainRouter(): SubdomainRouterState {
   return useContext(SubdomainRouterContext);
 }
 
-// ─── Legacy compatibility hook ────────────────────────────────────────────────
-
-/**
- * Drop-in replacement for the old useSubdomain() hook.
- * Returns null on main domain, or the subdomain string on tenant domains.
- */
 export function useSubdomain(): string | null {
   return useContext(SubdomainRouterContext).subdomain;
 }
 
-// ─── Utility: resolve product from legacy data ────────────────────────────────
+// ─── Utility ──────────────────────────────────────────────────────────────────
 
-/**
- * Infers the product type from legacy registration rows that pre-date the
- * product_type column. Checks product_name / school_name heuristics.
- */
 function inferProductFromData(data: Record<string, unknown>): ProductType {
-  const name = (
-    String(data.product_name || data.school_name || data.business_name || '')
-  ).toLowerCase();
-
+  const productApp = String(data.product_app || '');
+  if (productApp === 'siput') return 'siput';
+  if (productApp === 'lms') return 'lms';
+  if (productApp === 'scanbite') return 'scanbite';
+  if (productApp === 'instafood') return 'instafood';
+  if (productApp === 'restoran_asli') return 'resto';
+  
+  const name = (String(data.school_name || data.tenant_name || '')).toLowerCase();
   if (name.includes('siput') || name.includes('paud') || name.includes('tk')) return 'siput';
   if (name.includes('scanbite')) return 'scanbite';
-  if (name.includes('instafood') || name.includes('katering')) return 'instafood';
+  if (name.includes('instafood')) return 'instafood';
   if (name.includes('resto') || name.includes('pos')) return 'resto';
-  return 'lms'; // default for PKBM/LMS tenants
+  return 'lms';
 }
 
-// ─── Route guard component ────────────────────────────────────────────────────
+// ─── Route guard ──────────────────────────────────────────────────────────────
 
 interface ProductRouteProps {
-  /** Render when the detected product matches one of these types */
   for: ProductType | ProductType[];
   children: ReactNode;
   fallback?: ReactNode;
 }
 
-/**
- * Conditionally renders children only when the current subdomain belongs
- * to the specified product type(s).
- *
- * Usage:
- *   <ProductRoute for="lms">
- *     <TenantDashboard />
- *   </ProductRoute>
- */
 export function ProductRoute({ for: products, children, fallback = null }: ProductRouteProps) {
   const { productType, loading } = useSubdomainRouter();
   if (loading) return null;
