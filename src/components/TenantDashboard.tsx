@@ -93,7 +93,7 @@ export default function TenantDashboard() {
       return;
     }
     const { data, error } = await supabase
-      .from('registrations')
+      .from('tenant_master')
       .select('*')
       .eq('admin_email', email)
       .single();
