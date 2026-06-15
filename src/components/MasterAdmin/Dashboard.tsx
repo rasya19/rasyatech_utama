@@ -175,7 +175,7 @@ export default function Admin() {
     setLoadingRegistrations(true);
     setRegistrationsError(null);
     try {
-      const { data: regs, error } = await supabase.from('registrations').select('*');
+      const { data: regs, error } = await supabase.from('tenant_master').select('*');
       if (error) {
         console.error("Error fetching registrations:", error);
         setRegistrationsError(error.message);
@@ -415,7 +415,7 @@ export default function Admin() {
     try {
       // 1. Validasi: Keunikan (Cek apakah subdomain sudah dipakai sekolah lain)
       const { data: existing, error: checkError } = await supabase
-        .from('registrations')
+        .from('tenant_master')
         .select('id, school_name')
         .eq('subdomain', autoSubdomain)
         .eq('status', 'verified')
@@ -489,7 +489,7 @@ export default function Admin() {
   const handleUpdateRegStatus = async (id: string, status: string) => {
     try {
       console.log(`Updating ${id} to ${status}...`);
-      const { error } = await supabase.from('registrations').update({ status }).eq('id', id);
+      const { error } = await supabase.from('tenant_master').update({ status }).eq('id', id);
       if (error) throw error;
       console.log("Update successful");
       setSaveStatus({ type: 'success', message: 'Status berhasil diperbarui!' });
@@ -541,7 +541,7 @@ export default function Admin() {
 
       // 2. Also update registrations table just in case they added the column there
       const { error: regError } = await supabase
-        .from('registrations')
+        .from('tenant_master')
         .update({ paket_langganan: newPackage })
         .eq('subdomain', subdomain);
 
@@ -624,10 +624,10 @@ export default function Admin() {
     
     try {
         if (editingRegistration.id) {
-            const { error } = await supabase.from('registrations').update(payload).eq('id', editingRegistration.id);
+            const { error } = await supabase.from('tenant_master').update(payload).eq('id', editingRegistration.id);
             if (error) throw error;
         } else {
-             const { error } = await supabase.from('registrations').insert([payload]);
+             const { error } = await supabase.from('tenant_master').insert([payload]);
              if (error) throw error;
         }
         setEditingRegistration(null);
