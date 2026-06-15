@@ -23,22 +23,8 @@ export default function SchoolLogin() {
       return;
     }
 
-    // Ambil subdomain tenant dari database
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenant_master')
-      .select('subdomain, product_app')
-      .eq('admin_email', email)
-      .single();
-
-    if (tenantError || !tenant) {
-      setError('Akun tidak terdaftar sebagai admin sekolah.');
-      await supabase.auth.signOut();
-      setLoading(false);
-      return;
-    }
-
-    // Redirect ke dashboard admin tenant di subdomain yang SAMA
-    window.location.href = `https://${tenant.subdomain}.${tenant.product_app}.rsch.my.id/admin`;
+    // Redirect ke /admin (dashboard tenant)
+    window.location.href = '/admin';
   };
 
   return (
