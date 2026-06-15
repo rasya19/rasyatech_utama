@@ -133,8 +133,44 @@ const fetchData = async () => {
 
       if (updateError) throw updateError;
       
+      if (isApprovedValue) {
+      // Ambil data pendaftar
+      const { data: tenantData, error: fetchError } = await supabase
+        .from('tenant_master')
+        .select('admin_email, tenant_name, subdomain, product_app')
+        .eq('id', id)
+        .single();
+      
+      if (!fetchError && tenantData) {
+        // Generate password random
+        const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+        
+        // Simpan password ke database (opsional)
+        await supabase
+          .from('tenant_master')
+          .update({ password: generatedPassword })
+          .eq('id', id);
+        
+        // Panggil API send-credentials
+        await fetch('/api/send-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: tenantData.admin_email,
+            password: generatedPassword,
+            school_name: tenantData.tenant_name,
+            subdomain: tenantData.subdomain,
+            product: tenantData.product_app,
+          }),
+        });
+        
+        alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
+      } else {
+        alert('Status pendaftar berhasil diperbarui! (Gagal ambil data email)');
+      }
+    } else {
       alert('Status pendaftar berhasil diperbarui!');
-      if (refreshContext) await refreshContext(); // Paksa context mengambil data terbaru dari database
+    }
       
     } catch (err: any) {
       console.error('Update operation error:', err);
