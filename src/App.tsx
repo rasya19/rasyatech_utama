@@ -24,7 +24,6 @@ function AppRoutes() {
     }
 
     // Also handle PASSWORD_RECOVERY event triggers
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
 
       if (event === 'PASSWORD_RECOVERY') {
@@ -78,7 +77,6 @@ function AppRoutes() {
       {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
-
   );
 }
 

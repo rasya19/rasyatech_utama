@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
-<<<<<<< HEAD
-import { supabaseKuliner } from '../../lib/supabase-kuliner';
-=======
 import { useLandingData } from '../../lib/LandingDataContext'
->>>>>>> origin/main
 import { 
   Users, 
   MessageCircle, 
@@ -19,12 +15,8 @@ import {
   LayoutGrid,
   Clock,
   RefreshCcw,
-<<<<<<< HEAD
-  AlertCircle
-=======
   AlertCircle,
   Trash2 // <-- Ditambahkan ikon Trash2
->>>>>>> origin/main
 } from 'lucide-react';
 
 type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
@@ -57,80 +49,13 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-<<<<<<< HEAD
-=======
   // Ambil data mentah registrations dari LandingDataContext dengan safe defaults
   const { registrations: contextRegs = [], fetchData: refreshContext = async () => {} } = useLandingData() || {};
   const regs: any[] = Array.isArray(contextRegs) ? contextRegs : [];
->>>>>>> origin/main
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-<<<<<<< HEAD
-      if (activeTab === 'lms') {
-        // Fetch from registrations table for schools
-        const { data: regs, error: fetchError } = await supabase
-          .from('registrations')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (fetchError) throw fetchError;
-        
-        // Map registrations to Pendaftar format
-        const mappedData: Pendaftar[] = (regs || []).map(r => ({
-          id: r.id,
-          full_name: r.admin_name || r.name || '-',
-          email: r.admin_email || r.email || '-',
-          whatsapp: r.whatsapp || r.WA || '-',
-          business_name: r.school_name || '-',
-          product_type: 'lms',
-          package: r.paket_langganan || 'silver',
-          status: (r.status === 'verified' || r.status === 'active') ? 'active' : 'pending',
-          meta_data: { npsn: r.npsn },
-          created_at: r.created_at
-        }));
-        
-        // Also fetch from pendaftar table where product_type = 'lms' just in case
-        const { data: saasLms } = await supabase
-          .from('pendaftar')
-          .select('*')
-          .eq('product_type', 'lms');
-        
-        const unified = [...mappedData, ...(saasLms || [])];
-        // Sort by created_at
-        unified.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        
-        setData(unified);
-      } else {
-        // Fetch from culinary supabase registrations table
-        const { data: pendaftar, error: fetchError } = await supabaseKuliner
-          .from('registrations')
-          .select('*')
-          .eq('business_type', activeTab)
-          .order('created_at', { ascending: false });
-
-        if (fetchError) throw fetchError;
-        
-        const mappedData: Pendaftar[] = (pendaftar || []).map((r: any) => ({
-          id: r.id,
-          full_name: r.full_name || '-',
-          email: r.email || '-',
-          whatsapp: r.whatsapp_number || '-',
-          business_name: r.business_name || '-',
-          product_type: activeTab,
-          package: r.selected_package || 'standard',
-          status: r.status as any,
-          meta_data: { 
-            tables_count: r.table_count,
-            outlet_count: r.table_count
-          },
-          created_at: r.created_at
-        }));
-
-        setData(mappedData);
-      }
-=======
       // Amankan jika data dari context belum siap / kosong
       if (!regs || regs.length === 0) {
         setData([]);
@@ -179,7 +104,6 @@ export default function ManajemenPendaftarSaaS() {
       mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
       setData(mappedData);
->>>>>>> origin/main
     } catch (err: any) {
       setError(err.message || 'Gagal memuat data pendaftar');
     } finally {
@@ -189,35 +113,11 @@ export default function ManajemenPendaftarSaaS() {
 
   useEffect(() => {
     fetchData();
-<<<<<<< HEAD
-  }, [activeTab]);
-=======
   }, [activeTab, regs]); // <-- Tambahkan regs di dependency array
->>>>>>> origin/main
 
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
     setUpdatingId(id);
     try {
-<<<<<<< HEAD
-      const isLms = activeTab === 'lms';
-      const client = isLms ? supabase : supabaseKuliner;
-      const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-      const table = 'registrations';
-      
-      // HUKUM #4: LMS WAJIB update status ke 'active'
-      const statusValue = isLms 
-        ? (nextStatus === 'active' ? 'active' : 'pending')
-        : nextStatus;
-
-      const updatePayload: any = { status: statusValue };
-      if (isLms) {
-        updatePayload.is_approved = (statusValue === 'active');
-      }
-
-      const { error: updateError } = await client
-        .from(table)
-        .update(updatePayload)
-=======
       const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
       const isApprovedValue = (nextStatus === 'active');
 
@@ -228,33 +128,21 @@ export default function ManajemenPendaftarSaaS() {
           status: nextStatus,
           is_approved: isApprovedValue
         })
->>>>>>> origin/main
         .eq('id', id);
 
       if (updateError) throw updateError;
       
-<<<<<<< HEAD
-      // Update local state (Kalo sukses → baru UI berubah jadi AKTIF)
-      setData(prev => prev.map(item => item.id === id ? { ...item, status: nextStatus as any } : item));
-    } catch (err: any) {
-      console.error('Update operation error:', err);
-      // HUKUM #4: Kalo gagal → kasih alert "Gagal update database bang"
-      alert('Gagal update database bang');
-=======
       alert('Status pendaftar berhasil diperbarui!');
       if (refreshContext) await refreshContext(); // Paksa context mengambil data terbaru dari database
       
     } catch (err: any) {
       console.error('Update operation error:', err);
       alert('Gagal memperbarui status pendaftar.');
->>>>>>> origin/main
     } finally {
       setUpdatingId(null);
     }
   };
 
-<<<<<<< HEAD
-=======
   const handleDelete = async (id: string) => {
   if (!window.confirm("Yakin ingin menghapus data ini?")) return;
 
@@ -275,7 +163,6 @@ export default function ManajemenPendaftarSaaS() {
   }
 };
 
->>>>>>> origin/main
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
     if (activeTab === 'instafoto') return 'Jml Outlet';
@@ -433,11 +320,7 @@ export default function ManajemenPendaftarSaaS() {
                         )}
                       </td>
                       <td className="py-6 px-4 text-right">
-<<<<<<< HEAD
-                        <div className="flex items-center justify-end gap-3">
-=======
                         <div className="flex items-center justify-end gap-2">
->>>>>>> origin/main
                           <a 
                             href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`} 
                             target="_blank" 
@@ -453,11 +336,7 @@ export default function ManajemenPendaftarSaaS() {
                             disabled={updatingId === item.id}
                             className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
                               item.status === 'active'
-<<<<<<< HEAD
-                                ? 'bg-slate-800 text-slate-500 border border-slate-700'
-=======
                                 ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
->>>>>>> origin/main
                                 : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
                             }`}
                           >
@@ -469,8 +348,6 @@ export default function ManajemenPendaftarSaaS() {
                               'Setujui'
                             )}
                           </button>
-<<<<<<< HEAD
-=======
 
                           {/* Tombol Hapus Ditambahkan Di Sini */}
                           <button
@@ -480,7 +357,6 @@ export default function ManajemenPendaftarSaaS() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
->>>>>>> origin/main
                         </div>
                       </td>
                     </tr>
@@ -508,8 +384,4 @@ export default function ManajemenPendaftarSaaS() {
       </div>
     </div>
   );
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> origin/main
