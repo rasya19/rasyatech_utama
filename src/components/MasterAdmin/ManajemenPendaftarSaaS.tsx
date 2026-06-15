@@ -93,7 +93,7 @@ const fetchData = async () => {
         business_name: r.school_name || r.business_name || '-',
         product_type: activeTab,
         package: r.paket_langganan || r.selected_package || 'silver',
-        status: (r.status === 'verified' || r.status === 'active' || r.approved === true || r.is_approved === true || r.is_approved === 'true') ? 'active' : 'pending',
+        status: r.is_approved ? 'active' : 'pending',
         meta_data: { 
           npsn: r.npsn || null,
           tables_count: r.table_count || r.outlet_count || 0,
@@ -123,14 +123,12 @@ const fetchData = async () => {
       const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
       const isApprovedValue = (nextStatus === 'active');
 
-      // Update status di tabel tunggal tenant_master
       const { error: updateError } = await supabase
-        .from('tenant_master')
-        .update({ 
-          status: nextStatus,
-          is_approved: isApprovedValue
-        })
-        .eq('id', id);
+      .from('tenant_master')
+      .update({ 
+      is_approved: isApprovedValue   // ← hanya is_approved
+      })
+      .eq('id', id);
 
       if (updateError) throw updateError;
       
