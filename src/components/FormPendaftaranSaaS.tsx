@@ -153,6 +153,7 @@ export default function FormPendaftaranSaaS() {
 
       // Base data untuk LMS dan SIPUT (sesuai struktur tabel)
 const schoolInsertData: any = {
+  tenant_name: formData.business_name,
   product_app: formData.product_type,
   subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
   admin_name: formData.full_name,
