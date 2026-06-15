@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // 5a. Ambil data pendaftaran dulu untuk mendapatkan subdomain jika diperlukan
     const { data: reg, error: fetchError } = await adminSupabase
-      .from('registrations')
+      .from('tenant_master')
       .select('subdomain')
       .eq('id', registrationId)
       .single();
@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 5b. UPDATE STATUS DI DATABASE (Reset status dan auth_uid)
     const { error: dbError } = await adminSupabase
-      .from('registrations')
+      .from('tenant_master')
       .update({ 
         status: 'pending',
         auth_uid: null
