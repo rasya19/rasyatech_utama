@@ -95,6 +95,7 @@ export default function FormPendaftaranSaaS() {
   }, [currentProduct]);
 
   const isCulinary = ['scanbite', 'restoran_asli', 'Instafood'].includes(formData.product_type);
+  const showPackageOptions = ['restoran_asli', 'Instafood'].includes(formData.product_type);
 
   const getProductLabel = (type: string = formData.product_type) => {
     switch (type) {
@@ -443,9 +444,10 @@ export default function FormPendaftaranSaaS() {
               </div>
             </div>
 
-            {/* Dynamic Package Section (Culinary only) */}
+            {/* --- TEMPEL DI SINI --- */}
+            {/* Dynamic Package Section */}
             <AnimatePresence mode="wait">
-              {isCulinary && (
+              {showPackageOptions && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -470,7 +472,9 @@ export default function FormPendaftaranSaaS() {
                 </motion.div>
               )}
             </AnimatePresence>
+            {/* ----------------------- */}
 
+            
             {/* Dynamic Fields Section */}
             <AnimatePresence mode="wait">
               {(formData.product_type === 'scanbite' || formData.product_type === 'restoran_asli') && (
