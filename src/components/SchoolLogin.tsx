@@ -11,10 +11,26 @@ export default function SchoolLogin() {
     setLoading(true);
     setMessage('');
 
+    // Cari tenant berdasarkan email
+    const { data: tenant, error: tenantError } = await supabase
+      .from('tenant_master')
+      .select('subdomain, product_app')
+      .eq('admin_email', email)
+      .single();
+
+    if (tenantError || !tenant) {
+      setMessage('Email tidak terdaftar sebagai admin sekolah.');
+      setLoading(false);
+      return;
+    }
+
+    // Kirim magic link ke subdomain tenant
+    const redirectUrl = `https://${tenant.subdomain}.${tenant.product_app}.rsch.my.id/dashboard-sekolah`;
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard-sekolah`,
+        emailRedirectTo: redirectUrl,
       },
     });
 
@@ -48,7 +64,7 @@ export default function SchoolLogin() {
           </button>
         </form>
         {message && <p className="mt-4 text-center">{message}</p>}
-
+        {/* Tombol demo tetap ada */}
         <div className="mt-6 border-t border-gray-200 pt-6 space-y-3">
           <p className="text-[10px] text-gray-400 font-extrabold text-center uppercase tracking-wider">Mode Akses Uji Coba</p>
           <div className="grid grid-cols-2 gap-3">
