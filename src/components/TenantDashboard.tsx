@@ -77,13 +77,12 @@ export default function TenantDashboard() {
       }
     });
 
-    // Guard: Prevent main domain from accessing tenant admin
-// const hostname = window.location.hostname;
-// const isMainDomain = hostname.split('.').length < 3 || hostname.startsWith('rasyatech') || hostname.startsWith('www');
-// if (isMainDomain) {
-//   window.location.href = '/master-admin';
-// }
-
+        // Guard: Prevent main domain from accessing tenant admin
+    // const hostname = window.location.hostname;
+    // const isMainDomain = hostname.split('.').length < 3 || hostname.startsWith('rasyatech') || hostname.startsWith('www');
+    // if (isMainDomain) {
+    //   window.location.href = '/master-admin';
+    // }
     return () => subscription.unsubscribe();
   }, []);
 
