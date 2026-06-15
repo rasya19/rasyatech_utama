@@ -17,65 +17,48 @@ import DashboardSekolahCallback from './components/DashboardSekolahCallback';
 function AppRoutes() {
   const subdomain = useSubdomain();
   const navigate = useNavigate();
-  console.log('AppRoutes - subdomain detected:', subdomain); // ← TAMBAHKAN INI
 
   useEffect(() => {
-    console.log('Current hostname:', window.location.hostname); // ← TAMBAHKAN INI
-    // Capture recovery URL hash from Supabase and redirect to password reset route
     if (window.location.hash && window.location.hash.includes('type=recovery')) {
       navigate('/reset-password');
     }
 
-    // Also handle PASSWORD_RECOVERY event triggers
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-
       if (event === 'PASSWORD_RECOVERY') {
         navigate('/reset-password');
       }
     });
 
-    return () => {
-      subscription?.unsubscribe();
-    };
+    return () => subscription?.unsubscribe();
   }, [navigate]);
 
   return (
     <Routes>
-      {/* Landing Page only on main domain */}
+      {/* Landing Page */}
       <Route path="/" element={!subdomain ? <RasyatechLanding /> : <Navigate to="/admin" />} />
       
-      {/* SuperAdmin/MasterAdmin only on main domain */}
-      <Route 
-        path="/master-admin" 
-        element={!subdomain ? <MasterAdmin /> : <Navigate to="/admin" />} 
-      />
+      {/* SuperAdmin/MasterAdmin */}
+      <Route path="/master-admin" element={<MasterAdmin />} />
       
-      {/* Password Reset Page */}
-      <Route 
-        path="/reset-password" 
-        element={<ResetPassword />} 
-      />
+      {/* Password Reset */}
+      <Route path="/reset-password" element={<ResetPassword />} />
+      
+      {/* Callback untuk magic link */}
       <Route path="/dashboard-sekolah" element={<DashboardSekolahCallback />} />
       
-      {/* Tenant Admin only on subdomains */}
-      <Route 
-        path="/admin" 
-        element={subdomain ? <TenantDashboard /> : <Navigate to="/master-admin" />} 
-      />
+      {/* Tenant Admin - SELALU tampilkan TenantDashboard */}
+      <Route path="/admin" element={<TenantDashboard />} />
       
-      <Route 
-        path="/affiliate/portal" 
-        element={!subdomain ? <AffiliatePortal /> : <Navigate to="/admin" />} 
-      />
-      <Route 
-        path="/login-sekolah" 
-        element={subdomain ? <SchoolLogin /> : <Navigate to="/" />} 
-      />
+      {/* Affiliate Portal */}
+      <Route path="/affiliate/portal" element={<AffiliatePortal />} />
       
-      {/* Centralized Complaint Monitoring Portfolios for Dinas Pendidikan and Internal Command */}
+      {/* Login Sekolah */}
+      <Route path="/login-sekolah" element={<SchoolLogin />} />
+      
+      {/* Monitoring */}
       <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
-            
-      {/* Global SaaS Registration Form */}
+      
+      {/* Global SaaS Registration */}
       <Route path="/daftar" element={<FormPendaftaranSaaS />} />
       
       {/* Catch-all */}
