@@ -3,15 +3,52 @@ import { supabase } from '../lib/supabase';
 
 export default function SchoolLogin() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [useMagicLink, setUseMagicLink] = useState(false); // toggle magic link
 
+  // Login dengan email + password
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage('');
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setMessage(`Error: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    // Setelah login sukses, ambil data tenant
+    const { data: tenant, error: tenantError } = await supabase
+      .from('tenant_master')
+      .select('subdomain, product_app')
+      .eq('admin_email', email)
+      .single();
+
+    if (tenantError || !tenant) {
+      setMessage('Akun tidak terdaftar sebagai admin sekolah.');
+      await supabase.auth.signOut();
+      setLoading(false);
+      return;
+    }
+
+    // Redirect ke dashboard tenant di subdomain yang sama
+    window.location.href = `https://${tenant.subdomain}.${tenant.product_app}.rsch.my.id/admin`;
+  };
+
+  // Magic link (OTP) - tetap tersedia
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
-    // Cari tenant berdasarkan email
     const { data: tenant, error: tenantError } = await supabase
       .from('tenant_master')
       .select('subdomain, product_app')
@@ -24,14 +61,11 @@ export default function SchoolLogin() {
       return;
     }
 
-    // Kirim magic link ke subdomain tenant
     const redirectUrl = `https://${tenant.subdomain}.${tenant.product_app}.rsch.my.id/dashboard-sekolah`;
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
+      options: { emailRedirectTo: redirectUrl },
     });
 
     if (error) {
@@ -42,11 +76,13 @@ export default function SchoolLogin() {
     setLoading(false);
   };
 
+  const handleSubmit = useMagicLink ? handleMagicLink : handlePasswordLogin;
+
   return (
     <div className="flex justify-center items-center h-screen bg-gray-100">
       <div className="p-8 bg-white rounded shadow-md w-96">
         <h2 className="text-2xl font-bold mb-4">Login Sekolah</h2>
-        <form onSubmit={handleMagicLink} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="email"
             value={email}
@@ -55,16 +91,35 @@ export default function SchoolLogin() {
             className="w-full p-2 border rounded"
             required
           />
+          {!useMagicLink && (
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              className="w-full p-2 border rounded"
+              required
+            />
+          )}
           <button
             type="submit"
             className="w-full p-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             disabled={loading}
           >
-            {loading ? 'Mengirim...' : 'Kirim Magic Link'}
+            {loading ? 'Memproses...' : useMagicLink ? 'Kirim Magic Link' : 'Login'}
           </button>
         </form>
-        {message && <p className="mt-4 text-center">{message}</p>}
-        {/* Tombol demo tetap ada */}
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => setUseMagicLink(!useMagicLink)}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            {useMagicLink ? 'Gunakan Password' : 'Gunakan Magic Link (Email)'}
+          </button>
+        </div>
+        {message && <p className="mt-4 text-center text-sm text-red-600">{message}</p>}
+
+        {/* Tombol demo (tetap) */}
         <div className="mt-6 border-t border-gray-200 pt-6 space-y-3">
           <p className="text-[10px] text-gray-400 font-extrabold text-center uppercase tracking-wider">Mode Akses Uji Coba</p>
           <div className="grid grid-cols-2 gap-3">
