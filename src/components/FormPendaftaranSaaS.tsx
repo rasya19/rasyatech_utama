@@ -151,46 +151,48 @@ export default function FormPendaftaranSaaS() {
         console.error('Webhook gagal:', webhookErr);
       }
 
-      const schoolInsertData: any = {
-      product_app: formData.product_type,  // 'lms' atau 'siput'
-      subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
-      subdomainhost: `${formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.${formData.product_type}.rsch.my.id`,
-      admin_name: formData.full_name,
-      admin_email: formData.email,
-      whatsapp: formData.whatsapp,
-      npsn: formData.npsn || '-',
-      is_approved: false,
-      paket_langganan: 'free',  // default untuk SIPUT
-        };
+      // Base data untuk LMS dan SIPUT (sesuai struktur tabel)
+const schoolInsertData: any = {
+  product_app: formData.product_type,
+  subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
+  subdomainhost: `${formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.${formData.product_type}.rsch.my.id`,
+  admin_name: formData.full_name,
+  admin_email: formData.email,
+  whatsapp: formData.whatsapp,
+  npsn: formData.npsn || '-',
+  is_approved: false,
+  paket_langganan: 'free',
+};
 
 // Hanya LMS yang bisa ganti paket_langganan
 if (formData.product_type === 'lms' && formData.package) {
   schoolInsertData.paket_langganan = formData.package;
 }
-      // Cek apakah produk SEKOLAH (lms ATAU siput)
-      const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
 
-      if (isSchoolProduct) {
-        // LMS dan SIPUT masuk ke tenant_master
-        const { error: schoolError } = await supabase.from('tenant_master').insert([lmsInsertData]);
-        if (schoolError) throw schoolError;
-      } else {
-        // ScanBite, Restoran, Instafood masuk ke database kuliner
-        const culinaryInsertData = {
-          full_name: formData.full_name,
-          email: formData.email,
-          whatsapp_number: formData.whatsapp,
-          business_type: formData.product_type,
-          business_name: formData.business_name,
-          selected_package: formData.package || 'standard',
-          table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-          status: 'pending'
-        };
-        const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
-        if (culinaryError) throw culinaryError;
-      }
+// Cek apakah produk SEKOLAH (lms ATAU siput)
+const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
 
-      setSubmitted(true);  // ← HARUS ADA
+if (isSchoolProduct) {
+  // LMS dan SIPUT masuk ke tenant_master
+  const { error: schoolError } = await supabase.from('tenant_master').insert([schoolInsertData]);
+  if (schoolError) throw schoolError;
+} else {
+  // ScanBite, Restoran, Instafood masuk ke database kuliner
+  const culinaryInsertData = {
+    full_name: formData.full_name,
+    email: formData.email,
+    whatsapp_number: formData.whatsapp,
+    business_type: formData.product_type,
+    business_name: formData.business_name,
+    selected_package: formData.package || 'standard',
+    table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+    status: 'pending'
+  };
+  const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
+  if (culinaryError) throw culinaryError;
+}
+
+setSubmitted(true);
     } catch (err: any) {
       console.error('Submission error:', err);
       setError(err.message || 'Gagal mengirim pendaftaran. Silakan coba lagi.');
