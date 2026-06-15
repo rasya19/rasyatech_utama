@@ -12,7 +12,6 @@ export default function SchoolLogin() {
     setLoading(true);
     setError('');
 
-    // Login dengan password
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -24,10 +23,10 @@ export default function SchoolLogin() {
       return;
     }
 
-    // Ambil data tenant untuk mendapatkan subdomain
+    // Ambil subdomain tenant dari database
     const { data: tenant, error: tenantError } = await supabase
       .from('tenant_master')
-      .select('subdomain')
+      .select('subdomain, product_app')
       .eq('admin_email', email)
       .single();
 
@@ -38,8 +37,8 @@ export default function SchoolLogin() {
       return;
     }
 
-    // Redirect ke halaman admin dengan parameter tenant
-    window.location.href = `https://siput.rsch.my.id/admin?tenant=${tenant.subdomain}`;
+    // Redirect ke dashboard admin tenant di subdomain yang SAMA
+    window.location.href = `https://${tenant.subdomain}.${tenant.product_app}.rsch.my.id/admin`;
   };
 
   return (
