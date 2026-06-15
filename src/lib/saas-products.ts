@@ -26,36 +26,36 @@ export interface SaasProduct {
 /** Lima pilar utama + alias Armilla untuk LMS PKBM */
 export const SAAS_PRODUCTS: SaasProduct[] = [
   {
-    id: 'lms',
-    label: 'Rasya LMS Kesetaraan / PKBM',
-    shortName: 'Rasya LMS',
-    description: 'Learning Management System untuk PKBM, LKP, dan pendidikan non-formal.',
-    portalUrl: 'https://kesetaraan.rasyatech.com',
-    tenantType: 'sekolah',
-  },
-  {
-    id: 'armilla',
-    label: 'Rasya LMS Armilla Nusa',
-    shortName: 'LMS Armilla',
-    description: 'LMS khusus satuan pendidikan seperti PKBM Armilla Nusa.',
-    portalUrl: 'https://kesetaraan.rasyatech.com',
-    tenantType: 'sekolah',
-  },
-  {
-    id: 'siput',
-    label: 'SIPUT — Sistem Informasi PAUD Terpadu',
-    shortName: 'SIPUT',
-    description: 'Manajemen data murid, guru, dan kelas untuk PAUD/TK.',
-    portalUrl: 'https://siput.rasyatech.com',
-    tenantType: 'sekolah',
-    kulinerBusinessType: 'siput',
-  },
+  id: 'lms',
+  label: 'Rasya LMS Kesetaraan / PKBM',
+  shortName: 'Rasya LMS',
+  description: 'Learning Management System untuk PKBM, LKP, dan pendidikan non-formal.',
+  portalUrl: 'https://lms.rsch.my.id',  // ✅ GANTI
+  tenantType: 'sekolah',
+},
+{
+  id: 'armilla',
+  label: 'Rasya LMS Armilla Nusa',
+  shortName: 'LMS Armilla',
+  description: 'LMS khusus satuan pendidikan seperti PKBM Armilla Nusa.',
+  portalUrl: 'https://lms.rsch.my.id',  // ✅ GANTI (sama dengan lms)
+  tenantType: 'sekolah',
+},
+{
+  id: 'siput',
+  label: 'SIPUT — Sistem Informasi PAUD Terpadu',
+  shortName: 'SIPUT',
+  description: 'Manajemen data murid, guru, dan kelas untuk PAUD/TK.',
+  portalUrl: 'https://siput.rsch.my.id',  // ✅ GANTI
+  tenantType: 'sekolah',
+  kulinerBusinessType: 'siput',
+},
   {
     id: 'scanbite',
     label: 'ScanBite (Cafe & Barista)',
     shortName: 'ScanBite',
     description: 'Pemindaian menu makanan cerdas untuk efisiensi operasional cafe.',
-    portalUrl: 'https://scanbite.rasyatech.com',
+    portalUrl: 'https://sb.rsch.web.id',
     tenantType: 'kuliner',
   },
   {
@@ -63,7 +63,7 @@ export const SAAS_PRODUCTS: SaasProduct[] = [
     label: 'Restoran Asli (POS & Kasir)',
     shortName: 'Restoran Asli',
     description: 'Point of Sales dengan manajemen stok dan pelaporan komprehensif.',
-    portalUrl: 'https://restoran.rasyatech.com',
+    portalUrl: 'https://ra.rsch.web.id',
     tenantType: 'kuliner',
   },
   {
@@ -71,7 +71,7 @@ export const SAAS_PRODUCTS: SaasProduct[] = [
     label: 'Instafood (E-Menu & Delivery)',
     shortName: 'Instafood',
     description: 'Manajemen menu digital dan integrasi kurir internal.',
-    portalUrl: 'https://Instafood.rasyatech.com',
+    portalUrl: 'https://if.rsch.web.id',
     tenantType: 'kuliner',
   },
 ];
