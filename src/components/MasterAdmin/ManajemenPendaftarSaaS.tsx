@@ -49,8 +49,8 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Ambil data mentah registrations dari LandingDataContext dengan safe defaults
-  const { registrations: contextRegs = [], fetchData: refreshContext = async () => {} } = useLandingData() || {};
+  // Ambil data mentah tenant_master dari LandingDataContext dengan safe defaults
+  const { tenant_master: contextRegs = [], fetchData: refreshContext = async () => {} } = useLandingData() || {};
   const regs: any[] = Array.isArray(contextRegs) ? contextRegs : [];
   const fetchData = async () => {
     setLoading(true);
@@ -121,9 +121,9 @@ export default function ManajemenPendaftarSaaS() {
       const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
       const isApprovedValue = (nextStatus === 'active');
 
-      // Update status di tabel tunggal registrations
+      // Update status di tabel tunggal tenant_master
       const { error: updateError } = await supabase
-        .from('registrations')
+        .from('tenant_master')
         .update({ 
           status: nextStatus,
           is_approved: isApprovedValue
@@ -149,7 +149,7 @@ export default function ManajemenPendaftarSaaS() {
   try {
     // Karena cuma ada 1 tabel, pakai supabase utama saja
     const { error } = await supabase
-      .from('registrations') // Targetkan tabel tunggal ini
+      .from('tenant_master') // Targetkan tabel tunggal ini
       .delete()
       .eq('id', id);
 
