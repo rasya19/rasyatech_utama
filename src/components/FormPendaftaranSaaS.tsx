@@ -165,7 +165,7 @@ export default function FormPendaftaranSaaS() {
         paket_langganan: formData.product_type === 'lms' ? (formData.package || 'silver') : (formData.package || 'standard')
       };
 
-      const { error: lmsError } = await supabase.from('registrations').insert([lmsInsertData]);
+      const { error: lmsError } = await supabase.from('tenant_master').insert([lmsInsertData]);
       if (lmsError && isLms) throw lmsError;
 
       if (!isLms) {
@@ -179,7 +179,7 @@ export default function FormPendaftaranSaaS() {
           table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
           status: 'pending'
         };
-        const { error: culinaryError } = await supabaseKuliner.from('registrations').insert([culinaryInsertData]);
+        const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
         if (culinaryError) throw culinaryError;
       }
 
