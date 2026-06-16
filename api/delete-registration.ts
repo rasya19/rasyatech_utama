@@ -13,15 +13,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  // We allow both DELETE and GET for easier testing, though DELETE is better
   if (req.method !== 'DELETE' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { id } = req.query;
+  const { id, tenant } = req.query;
   
   if (!id) {
     return res.status(400).json({ error: "ID is required" });
+  }
+  if (!tenant) {
+    return res.status(400).json({ error: "tenant is required" });
   }
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
@@ -34,34 +36,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // 1. Ambil data pendaftaran
+    // 1. Ambil data pendaftaran dari tabel tenant (bukan tenant_master)
     const { data: reg, error: fetchError } = await adminSupabase
-      .from('tenant_master')
+      .from('tenant')
       .select('id, subdomain, auth_uid')
       .eq('id', id)
+      .eq('tenant', tenant)   // <-- filter tenant
       .single();
 
     if (fetchError) {
        console.error(`Error fetching registration ${id}:`, fetchError.message);
-       return res.status(404).json({ error: "Pendaftaran tidak ditemukan" });
+       return res.status(404).json({ error: "Pendaftaran tidak ditemukan untuk tenant ini" });
     }
 
-    // 2. Hapus data di tabel schools
+    // 2. Hapus data di tabel schools (filter tenant)
     if (reg?.subdomain && reg.subdomain !== '-') {
-      await adminSupabase.from('schools').delete().eq('id', reg.subdomain);
+      await adminSupabase
+        .from('schools')
+        .delete()
+        .eq('id', reg.subdomain)
+        .eq('tenant', tenant);   // <-- filter tenant
     }
-    await adminSupabase.from('schools').delete().eq('registration_id', id);
+    await adminSupabase
+      .from('schools')
+      .delete()
+      .eq('registration_id', id)
+      .eq('tenant', tenant);   // <-- filter tenant
 
-    // 3. Hapus User Auth jika ada
+    // 3. Hapus User Auth jika ada (tidak perlu filter tenant, karena auth terpisah)
     if (reg?.auth_uid) {
       await adminSupabase.auth.admin.deleteUser(reg.auth_uid);
     }
 
-    // 4. Hapus pendaftaran utama
+    // 4. Hapus pendaftaran utama dari tabel tenant (dengan filter tenant)
     const { error: deleteError } = await adminSupabase
-      .from('tenant_master')
+      .from('tenant')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant', tenant);   // <-- filter tenant
 
     if (deleteError) throw deleteError;
 
