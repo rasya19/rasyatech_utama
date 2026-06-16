@@ -300,7 +300,7 @@ app.delete("/api/delete-registration", async (req, res) => {
   // ... koneksi supabase
 
   try {
-    // 1. Ambil data tenant
+    // 1. Ambil data dari tabel tenant (bukan tenant_master)
     const { data: reg, error: fetchError } = await adminSupabase
       .from('tenant')
       .select('id, subdomain, auth_uid')
@@ -312,7 +312,7 @@ app.delete("/api/delete-registration", async (req, res) => {
       return res.status(404).json({ error: "Pendaftaran tidak ditemukan untuk tenant ini" });
     }
 
-    // 2. Hapus schools
+    // 2. Hapus data di schools (filter tenant)
     if (reg?.subdomain && reg.subdomain !== '-') {
       await adminSupabase
         .from('schools')
@@ -326,12 +326,12 @@ app.delete("/api/delete-registration", async (req, res) => {
       .eq('registration_id', id)
       .eq('tenant', tenant);
 
-    // 3. Hapus auth user jika ada
+    // 3. Hapus auth user jika ada (tidak perlu filter tenant)
     if (reg?.auth_uid) {
       await adminSupabase.auth.admin.deleteUser(reg.auth_uid);
     }
 
-    // 4. Hapus dari tenant
+    // 4. Hapus dari tabel tenant (filter tenant)
     const { error: deleteError } = await adminSupabase
       .from('tenant')
       .delete()
