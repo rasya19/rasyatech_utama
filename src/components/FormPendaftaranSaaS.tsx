@@ -159,7 +159,6 @@ const handleSubmit = async (e: React.FormEvent) => {
   };
   const { error: culinaryError } = await supabaseKuliner.from('registrations').insert([culinaryInsertData]);
 }
-typescript
 // 2. Insert ke Database (pilih berdasarkan product_type)
 if (isSchoolProduct) {
   // Untuk School/LMS/SIPUT
