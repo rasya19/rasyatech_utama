@@ -1,56 +1,74 @@
-import { createClient } from '@supabase/supabase-js';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from "@supabase/supabase-js";
+import bcrypt from 'bcrypt';
 
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!, // ganti dari SUPABASE_URL
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // ganti dari SUPABASE_SERVICE_KEY
-);
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end();
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS
+  const origin = req.headers.origin || 'https://rasyatech.rsch.my.id';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-  const { subdomain, email, password } = req.body;
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  // 1. Cek user di registrasi
-  const { data: user } = await supabase
-    .from('registrasi')
-    .select('*')
-    .eq('subdomain', subdomain)
-    .eq('admin_email', email)
-    .single();
+  const { email, password, tenant } = req.body;
 
-  if (!user || user.password !== password) {
-    return res.status(401).json({ error: 'Email/password salah' });
+  if (!email || !password) {
+    return res.status(400).json({ error: "email and password are required" });
   }
-
-  // 2. CEK POS SATPAM: ambil dari rasyatenant
-  const { data: tenant } = await supabase
-    .from('rasyatenant')
-    .select('account_status, db_host, school_name')
-    .eq('slug', subdomain)
-    .single();
-
   if (!tenant) {
-    return res.status(404).json({ error: 'Tenant tidak ditemukan' });
+    return res.status(400).json({ error: "tenant is required" });
   }
 
-  // 3. SIKAT KALO STATUS GA BENER
-  if (tenant.account_status === 'suspend') {
-    return res.status(403).json({ error: 'Akun ditangguhkan karena tagihan macet' });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.SUPABASE_URL) {
+    return res.status(500).json({ error: "Server configuration missing" });
   }
-  if (tenant.account_status === 'expired') {
-    return res.status(403).json({ error: 'Masa kontrak habis. Silakan perpanjang' });
-  }
-  if (tenant.account_status === 'trial') {
-    return res.status(200).json({ 
-      warning: 'Masa trial aktif', 
-      school_name: tenant.school_name,
-      db_host: tenant.db_host 
+
+  const adminSupabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
+  try {
+    // 1. Cari user di school_admins dengan filter tenant
+    const { data: user, error: userError } = await adminSupabase
+      .from('school_admins')
+      .select('*')
+      .eq('email', email)
+      .eq('tenant', tenant)   // <-- filter tenant
+      .single();
+
+    if (userError || !user) {
+      return res.status(401).json({ error: "Email atau password salah" });
+    }
+
+    // 2. Verifikasi password
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Email atau password salah" });
+    }
+
+    // 3. Jika login berhasil, generate token atau session (sesuai kebutuhan)
+    // Misal buat JWT atau sesi
+    // ...
+
+    return res.status(200).json({
+      success: true,
+      message: "Login berhasil",
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        school_id: user.school_id,
+        tenant: user.tenant,
+      },
+      // token: tokenJWT,
     });
-  }
 
-  // 4. Lolos satpam
-  return res.status(200).json({ 
-    success: true, 
-    school_name: tenant.school_name,
-    db_host: tenant.db_host 
-  });
+  } catch (error: any) {
+    console.error("Login error:", error);
+    return res.status(500).json({ error: error.message || "Internal Server Error" });
+  }
 }
