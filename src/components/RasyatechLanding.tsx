@@ -185,7 +185,7 @@ export default function RasyatechLanding() {
     subdomain: (formData.get('subdomain') as string) || '',
     password: pass || '',
     status: 'pending',
-    is_approved: false
+    is_approved: false,
     kode_tenant: 'scanbite_live'   // <--- TAMBAHKAN INI
 };
 
