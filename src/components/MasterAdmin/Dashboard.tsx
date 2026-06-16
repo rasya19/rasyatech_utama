@@ -465,13 +465,14 @@ export default function Admin() {
     
     try {
         const response = await fetch('/api/unverify-school', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                registrationId: reg.id,
-                subdomain: reg.subdomain
-            })
-        });
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    registrationId: reg.id,
+    subdomain: reg.subdomain,
+    tenant: 'scanbite_live' // atau dari context
+  })
+});
 
         if (!response.ok) {
            const errorBody = await response.text();
