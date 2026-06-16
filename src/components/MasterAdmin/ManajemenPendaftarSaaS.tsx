@@ -152,16 +152,15 @@ const fetchData = async () => {
         
         // Panggil API send-credentials
         await fetch('/api/send-credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: tenantData.admin_email,
-            password: generatedPassword,
-            school_name: tenantData.tenant_name,
-            subdomain: tenantData.subdomain,
-            product: tenantData.product_app,
-          }),
-        });
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: tenantData.admin_email,
+    password: generatedPassword,
+    school_name: tenantData.tenant_name,
+    tenant: 'scanbite_live', // atau dari context
+  })
+});
         
         alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
       } else {
