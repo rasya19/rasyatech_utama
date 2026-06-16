@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 export default function SchoolLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [tenant, setTenant] = useState(process.env.NEXT_PUBLIC_TENANT || 'scanbite_live');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -12,19 +13,35 @@ export default function SchoolLogin() {
     setLoading(true);
     setError('');
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      // 1. Login ke Supabase Auth
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (signInError) {
-      setError(signInError.message);
+      if (signInError) throw signInError;
+
+      // 2. Setelah login, update metadata user dengan tenant
+      if (data.user) {
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: { tenant: tenant }
+        });
+        if (updateError) {
+          console.warn('Gagal update metadata tenant:', updateError);
+          // tetap lanjutkan meskipun metadata gagal
+        }
+      }
+
+      // 3. Simpan tenant di localStorage atau sessionStorage untuk digunakan di komponen lain
+      localStorage.setItem('tenant', tenant);
+
+      // 4. Redirect ke /admin
+      window.location.href = '/admin';
+    } catch (err: any) {
+      setError(err.message || 'Login gagal');
       setLoading(false);
-      return;
     }
-
-    // Redirect ke /admin (dashboard tenant)
-    window.location.href = '/admin';
   };
 
   return (
@@ -48,6 +65,19 @@ export default function SchoolLogin() {
             className="w-full p-2 border rounded"
             required
           />
+          {/* Pilihan Tenant */}
+          <select
+            value={tenant}
+            onChange={(e) => setTenant(e.target.value)}
+            className="w-full p-2 border rounded"
+            required
+          >
+            <option value="scanbite_live">Scanbite</option>
+            <option value="lms_kesetaraan">LMS Kesetaraan</option>
+            <option value="siput">SIPUT</option>
+            <option value="resto">Resto</option>
+            <option value="instafood">Instafood</option>
+          </select>
           <button
             type="submit"
             disabled={loading}
