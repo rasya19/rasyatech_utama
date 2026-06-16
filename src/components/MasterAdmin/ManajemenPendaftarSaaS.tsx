@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
-import { useLandingData } from '../../lib/LandingDataContext'
+import { supabaseKuliner } from '../../lib/supabase-kuliner';
 import { 
   Users, 
   MessageCircle, 
@@ -50,117 +50,122 @@ export default function ManajemenPendaftarSaaS() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Ambil data mentah dari LandingDataContext (sekarang isinya dari )
-const { registrations: contextRegs = [], fetchData: refreshContext = async () => {} } = useLandingData() || {};
-const regs: any[] = Array.isArray(contextRegs) ? contextRegs : [];
-
 const fetchData = async () => {
   setLoading(true);
   setError(null);
   try {
-    // Amankan jika data dari context belum siap / kosong
-    if (!regs || regs.length === 0) {
-      setData([]);
-      return;
-    }
+    // Ambil tenant dari localStorage
+    const tenant = localStorage.getItem('tenant') || 'scanbite_live';
 
-      
-  const filteredRegs = regs.filter((r: any) => {
-  // Pakai kolom product_app (bukan product_name)
-  const productApp = (r.product_app || r.product_name || '').toLowerCase();
-  
-  switch (activeTab) {
-    case 'lms':
-      return productApp === 'lms' || productApp === 'armilla';
-    case 'siput':
-      return productApp === 'siput';
-    case 'scanbite':
-      return productApp === 'scanbite';
-    case 'instafoto':
-      return productApp === 'instafood';
-    case 'restoran_asli':
-      return productApp === 'restoran_asli';
-    default:
-      return false;
-  }
-});
+    // 1. Ambil dari database pendidikan (supabase)
+    const { data: eduData, error: eduError } = await supabase
+      .from('registrations')
+      .select('*')
+      .eq('tenant', tenant);
+
+    if (eduError) console.error('Error pendidikan:', eduError);
+
+    // 2. Ambil dari database kuliner (supabaseKuliner)
+    const { data: kulData, error: kulError } = await supabaseKuliner
+      .from('registrations')
+      .select('*')
+      .eq('tenant', tenant);
+
+    if (kulError) console.error('Error kuliner:', kulError);
+
+    // 3. Gabungkan data dari kedua database
+    const allData = [...(eduData || []), ...(kulData || [])];
+
+    // 4. Filter berdasarkan activeTab (product_type)
+    const filteredRegs = allData.filter((r: any) => {
+      const productType = (r.product_type || r.business_type || '').toLowerCase();
+      switch (activeTab) {
+        case 'lms':
+          return productType === 'lms' || productType === 'armilla';
+        case 'siput':
+          return productType === 'siput';
+        case 'scanbite':
+          return productType === 'scanbite';
+        case 'instafoto':
+          return productType === 'instafood' || productType === 'instafoto';
+        case 'restoran_asli':
+          return productType === 'restoran_asli';
+        default:
+          return false;
+      }
+    });
 
       // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
       const mappedData: Pendaftar[] = (filteredRegs || []).map((r: any) => ({
-        id: r.id,
-        full_name: r.admin_name || r.full_name || r.name || '-',
-        email: r.admin_email || r.email || '-',
-        whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
-        business_name: r.school_name || r.business_name || '-',
-        product_type: activeTab,
-        package: r.paket_langganan || r.selected_package || 'silver',
-        status: r.is_approved ? 'active' : 'pending',
-        meta_data: { 
-          npsn: r.npsn || null,
-          tables_count: r.table_count || r.outlet_count || 0,
-          outlet_count: r.outlet_count || r.table_count || 0
-        },
-        created_at: r.created_at
-      }));
+      id: r.id,
+      full_name: r.admin_name || r.full_name || r.name || '-',
+      email: r.admin_email || r.email || '-',
+      whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
+      business_name: r.school_name || r.business_name || '-',
+      product_type: activeTab,
+      package: r.paket_langganan || r.selected_package || 'silver',
+      status: r.is_approved ? 'active' : 'pending',
+      meta_data: { 
+        npsn: r.npsn || null,
+        tables_count: r.table_count || r.outlet_count || 0,
+        outlet_count: r.outlet_count || r.table_count || 0
+      },
+      created_at: r.created_at
+    }));
 
-      // 3. Urutkan dari data pendaftaran yang paling baru
-      mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      
-      setData(mappedData);
-    } catch (err: any) {
-      setError(err.message || 'Gagal memuat data pendaftar');
-    } finally {
-      setLoading(false);
-    }
-  };
+    mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    setData(mappedData);
+  } catch (err: any) {
+    console.error('Gagal load data:', err);
+    setError(err.message || 'Gagal memuat data pendaftar');
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchData();
-  }, [activeTab, regs]); // <-- Tambahkan regs di dependency array
+  }, [activeTab,]); // <-- Tambahkan regs di dependency array
 
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
-    setUpdatingId(id);
-    try {
-      const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-      const isApprovedValue = (nextStatus === 'active');
+  setUpdatingId(id);
+  try {
+    const tenant = localStorage.getItem('tenant') || 'scanbite_live'; // <-- DEKLARASIKAN DI SINI
+    const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
+    const isApprovedValue = (nextStatus === 'active');
 
-      const { error: updateError } = await supabase
-      .from('')
-      .update({ 
-      is_approved: isApprovedValue   // ← hanya is_approved
-      })
-      .eq('id', id);
+    const { error: updateError } = await supabase
+      .from('registrations')
+      .update({ is_approved: isApprovedValue })
+      .eq('id', id)
+      .eq('tenant', tenant);
 
-      if (updateError) throw updateError;
-      
-      if (isApprovedValue) {
+    if (updateError) throw updateError;
+    
+    if (isApprovedValue) {
       // Ambil data pendaftar
       const { data: tenantData, error: fetchError } = await supabase
-        .from('')
+        .from('registrations')
         .select('admin_email, tenant_name, subdomain, product_app')
         .eq('id', id)
+        .eq('tenant', tenant)
         .single();
       
       if (!fetchError && tenantData) {
-        // Generate password random
         const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
         
-        // Simpan password ke database (opsional)
-        await supabase
-          .from('')
-          .update({ password: generatedPassword })
-          .eq('id', id);
-        
-        // Panggil API send-credentials
+        // Hapus bagian .from('') yang kosong – tidak perlu simpan password ke database
+        // Langsung panggil API send-credentials
         await fetch('/api/send-credentials', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    email: tenantData.admin_email,
-    password: generatedPassword,
-    school_name: tenantData.tenant_name,
-    tenant: 'scanbite_live', // atau dari context
-  })
-});
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: tenantData.admin_email,
+            password: generatedPassword,
+            school_name: tenantData.tenant_name,
+            tenant: tenant, // <-- pakai tenant yang sudah dideklarasi
+          })
+        });
         
         alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
       } else {
@@ -169,29 +174,44 @@ const fetchData = async () => {
     } else {
       alert('Status pendaftar berhasil diperbarui!');
     }
-      
-    } catch (err: any) {
-      console.error('Update operation error:', err);
-      alert('Gagal memperbarui status pendaftar.');
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+    
+  } catch (err: any) {
+    console.error('Update operation error:', err);
+    alert('Gagal memperbarui status pendaftar.');
+  } finally {
+    setUpdatingId(null);
+  }
+};
 
   const handleDelete = async (id: string) => {
   if (!window.confirm("Yakin ingin menghapus data ini?")) return;
 
   try {
-    // Karena cuma ada 1 tabel, pakai supabase utama saja
-    const { error } = await supabase
-      .from('tenant') // Targetkan tabel tunggal ini
-      .delete()
-      .eq('id', id);
+    const tenant = localStorage.getItem('tenant') || 'scanbite_live';
 
-    if (error) throw error;
+    // Hapus dari database pendidikan
+    const { error: eduError } = await supabase
+      .from('registrations')
+      .delete()
+      .eq('id', id)
+      .eq('tenant', tenant);
+
+    if (eduError) console.error('Error hapus dari pendidikan:', eduError);
+
+    // Hapus dari database kuliner
+    const { error: kulError } = await supabaseKuliner
+      .from('registrations')
+      .delete()
+      .eq('id', id)
+      .eq('tenant', tenant);
+
+    if (kulError) console.error('Error hapus dari kuliner:', kulError);
+
+    // Jika keduanya gagal, lempar error
+    if (eduError && kulError) throw new Error('Gagal menghapus dari kedua database');
 
     alert('Data berhasil dihapus.');
-    await fetchData(); // Refresh data setelah hapus
+    await fetchData(); // Refresh data
   } catch (err: any) {
     console.error('Error saat menghapus:', err);
     alert('Gagal menghapus data.');
