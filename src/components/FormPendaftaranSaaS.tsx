@@ -142,24 +142,47 @@ const handleSubmit = async (e: React.FormEvent) => {
 
     // 2. Insert ke Database (pilih berdasarkan product_type)
     if (isSchoolProduct) {
-      // Untuk School/LMS/SIPUT
-      const { error: schoolError } = await supabase.from('tenant_master').insert([schoolInsertData]);
-      if (schoolError) throw schoolError;
-    } else {
-      // Untuk Kuliner
-      const culinaryInsertData = {
-        full_name: formData.full_name,
-        email: formData.email,
-        whatsapp_number: formData.whatsapp,
-        business_type: formData.product_type,
-        business_name: formData.business_name,
-        selected_package: formData.package || 'standard',
-        table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-        status: 'pending'
-      };
-      const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
-      if (culinaryError) throw culinaryError;
-    }
+  // Untuk School/LMS/SIPUT
+  const { error: schoolError } = await supabase.from('tenant_master').insert([schoolInsertData]);
+  if (schoolError) throw schoolError;
+} else {
+  // Untuk Kuliner
+  const culinaryInsertData = {
+    full_name: formData.full_name,
+    email: formData.email,
+    whatsapp_number: formData.whatsapp,
+    business_type: formData.product_type,
+    business_name: formData.business_name,
+    selected_package: formData.package || 'standard',
+    table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+    status: 'pending'
+  };
+  const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
+  if (culinaryError) throw culinaryError;
+}
+Ganti semua 'tenant_master' menjadi 'registrations':
+
+typescript
+// 2. Insert ke Database (pilih berdasarkan product_type)
+if (isSchoolProduct) {
+  // Untuk School/LMS/SIPUT
+  const { error: schoolError } = await supabase.from('registrations').insert([schoolInsertData]);
+  if (schoolError) throw schoolError;
+} else {
+  // Untuk Kuliner
+  const culinaryInsertData = {
+    full_name: formData.full_name,
+    email: formData.email,
+    whatsapp_number: formData.whatsapp,
+    business_type: formData.product_type,
+    business_name: formData.business_name,
+    selected_package: formData.package || 'standard',
+    table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+    status: 'pending'
+  };
+  const { error: culinaryError } = await supabaseKuliner.from('registrations').insert([culinaryInsertData]);
+  if (culinaryError) throw culinaryError;
+}
 
     // 3. Kirim Notifikasi WhatsApp
     try {
