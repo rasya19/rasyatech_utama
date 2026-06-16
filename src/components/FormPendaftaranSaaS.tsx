@@ -125,84 +125,61 @@ const handleSubmit = async (e: React.FormEvent) => {
   setError(null);
 
   try {
-    // 1. Siapkan data yang akan masuk ke tabel 'tenants'
-    const tenantData = {
-      name: formData.business_name,
-      owner_email: formData.email,
-      slug: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-      whatsapp: formData.whatsapp, // Menggunakan kolom baru
-      product_type: formData.product_type, // Menggunakan kolom baru
-      package_type: showPackageOptions ? (formData.package || 'standard') : 'free', // Gunakan logika showPackageOptions
-      status: 'pending',
-      // Tambahkan meta_data sebagai JSON jika tabel Anda mendukung, 
-      // atau simpan di kolom terpisah jika perlu.
+    // 1. Siapkan data untuk school/culinary
+    const schoolInsertData = {
+      full_name: formData.full_name,
+      email: formData.email,
+      whatsapp_number: formData.whatsapp,
+      business_name: formData.business_name,
+      product_type: formData.product_type,
+      // Tambahan untuk LMS
+      ...(formData.product_type === 'lms' && formData.package && {
+        paket_langganan: formData.package
+      })
     };
 
-    // 2. Tembak ke Supabase (Tabel tenants)
-    const { error: dbError } = await supabase.from('tenants').insert([tenantData]);
-    if (dbError) throw dbError;
+    const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
 
-    // 3. Webhook (opsional, jika masih diperlukan)
-    // Pastikan payload di sini sesuai dengan kebutuhan API Anda
-    try {
-      await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tenantData),
-      });
-    } catch (webhookErr) {
-      console.error('Webhook gagal, tapi data di DB sudah tersimpan:', webhookErr);
+    // 2. Insert ke Database (pilih berdasarkan product_type)
+    if (isSchoolProduct) {
+      // Untuk School/LMS/SIPUT
+      const { error: schoolError } = await supabase.from('tenant_master').insert([schoolInsertData]);
+      if (schoolError) throw schoolError;
+    } else {
+      // Untuk Kuliner
+      const culinaryInsertData = {
+        full_name: formData.full_name,
+        email: formData.email,
+        whatsapp_number: formData.whatsapp,
+        business_type: formData.product_type,
+        business_name: formData.business_name,
+        selected_package: formData.package || 'standard',
+        table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+        status: 'pending'
+      };
+      const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
+      if (culinaryError) throw culinaryError;
     }
 
+    // 3. Kirim Notifikasi WhatsApp
+    try {
+      await sendWhatsAppNotification(formData);
+    } catch (waErr) {
+      console.error('Gagal kirim WA:', waErr);
+      // Jangan throw, biarkan proses tetap jalan
+    }
+
+    // 4. Sukses
+    setSubmitted(true);
     alert('Pendaftaran berhasil!');
-    // Redirect atau reset form di sini
+    
   } catch (err: any) {
-    console.error('Detail Error:', err);
-    setError(err.message || 'Gagal mengirim pendaftaran.');
+    console.error('Submission error:', err);
+    setError(err.message || 'Gagal mengirim pendaftaran. Silakan coba lagi.');
   } finally {
     setLoading(false);
   }
 };
-      if (formData.product_type === 'lms' && formData.package) {
-        schoolInsertData.paket_langganan = formData.package;
-      }
-
-      const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
-
-      // 4. Insert ke Database
-      if (isSchoolProduct) {
-        const { error: schoolError } = await supabase.from('tenant_master').insert([schoolInsertData]);
-        if (schoolError) throw schoolError;
-      } else {
-        const culinaryInsertData = {
-          full_name: formData.full_name,
-          email: formData.email,
-          whatsapp_number: formData.whatsapp,
-          business_type: formData.product_type,
-          business_name: formData.business_name,
-          selected_package: formData.package || 'standard',
-          table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-          status: 'pending'
-        };
-        const { error: culinaryError } = await supabaseKuliner.from('tenant_master').insert([culinaryInsertData]);
-        if (culinaryError) throw culinaryError;
-      }
-
-      // 5. Kirim Notifikasi WhatsApp (Integrasi Baru)
-      try {
-        await sendWhatsAppNotification(formData);
-      } catch (waErr) {
-        console.error('Gagal kirim WA:', waErr);
-      }
-
-      setSubmitted(true);
-    } catch (err: any) {
-      console.error('Submission error:', err);
-      setError(err.message || 'Gagal mengirim pendaftaran. Silakan coba lagi.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // --- EARLY RETURN UNTUK TAMPILAN SUKSES ---
   if (submitted) {
