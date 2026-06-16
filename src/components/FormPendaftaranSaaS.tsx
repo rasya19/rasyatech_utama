@@ -119,51 +119,50 @@ export default function FormPendaftaranSaaS() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
 
+  try {
+    // 1. Siapkan data yang akan masuk ke tabel 'tenants'
+    const tenantData = {
+      name: formData.business_name,
+      owner_email: formData.email,
+      slug: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+      whatsapp: formData.whatsapp, // Menggunakan kolom baru
+      product_type: formData.product_type, // Menggunakan kolom baru
+      package_type: showPackageOptions ? (formData.package || 'standard') : 'free', // Gunakan logika showPackageOptions
+      status: 'pending',
+      // Tambahkan meta_data sebagai JSON jika tabel Anda mendukung, 
+      // atau simpan di kolom terpisah jika perlu.
+    };
+
+    // 2. Tembak ke Supabase (Tabel tenants)
+    const { error: dbError } = await supabase.from('tenants').insert([tenantData]);
+    if (dbError) throw dbError;
+
+    // 3. Webhook (opsional, jika masih diperlukan)
+    // Pastikan payload di sini sesuai dengan kebutuhan API Anda
     try {
-      // 1. Logic meta_data
-      const meta_data: Record<string, string> = {};
-      if (formData.product_type === 'scanbite' || formData.product_type === 'restoran_asli') {
-        meta_data.tables_count = formData.tables_count;
-      } else if (formData.product_type === 'Instafood') {
-        meta_data.outlet_count = formData.outlet_count;
-      } else if (formData.product_type === 'lms' || formData.product_type === 'siput') {
-        meta_data.npsn = formData.npsn;
-      }
+      await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tenantData),
+      });
+    } catch (webhookErr) {
+      console.error('Webhook gagal, tapi data di DB sudah tersimpan:', webhookErr);
+    }
 
-      // 2. Webhook
-      try {
-        await fetch('/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            school_name: formData.school_name,
-            subdomain: formData.subdomain,
-            admin_email: formData.admin_email,
-            password: formData.password
-          }),
-        });
-      } catch (webhookErr) {
-        console.error('Webhook gagal:', webhookErr);
-      }
-
-      // 3. Base data untuk LMS dan SIPUT
-      const schoolInsertData: any = {
-        tenant_name: formData.business_name,
-        product_app: formData.product_type,
-        subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
-        admin_name: formData.full_name,
-        admin_email: formData.email,
-        whatsapp: formData.whatsapp,
-        npsn: formData.npsn || '-',
-        is_approved: false,
-        paket_langganan: 'free',
-      };
-
+    alert('Pendaftaran berhasil!');
+    // Redirect atau reset form di sini
+  } catch (err: any) {
+    console.error('Detail Error:', err);
+    setError(err.message || 'Gagal mengirim pendaftaran.');
+  } finally {
+    setLoading(false);
+  }
+};
       if (formData.product_type === 'lms' && formData.package) {
         schoolInsertData.paket_langganan = formData.package;
       }
