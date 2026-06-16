@@ -125,62 +125,52 @@ const handleSubmit = async (e: React.FormEvent) => {
   setError(null);
 
   try {
-    // 1. Siapkan data untuk school/culinary
-    const schoolInsertData = {
+    const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
+
+    // Data dasar yang selalu dikirim ke kedua database
+    const baseData = {
       full_name: formData.full_name,
       email: formData.email,
       whatsapp_number: formData.whatsapp,
       business_name: formData.business_name,
-      product_type: formData.product_type,
-      // Tambahan untuk LMS
-      ...(formData.product_type === 'lms' && formData.package && {
-        paket_langganan: formData.package
-      })
+      product_type: formData.product_type,  // <-- selalu diisi
+      tenant: formData.product_type,        // <-- tambahkan tenant
     };
 
-    const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
-
-    // 2. Insert ke Database (pilih berdasarkan product_type)
     if (isSchoolProduct) {
-  // Untuk School/LMS/SIPUT
-  const { error: schoolError } = await supabase.from('registrations').insert([schoolInsertData]);
-  if (schoolError) throw schoolError;
-} else {
-  // Untuk Kuliner
-  const culinaryInsertData = {
-    full_name: formData.full_name,
-    email: formData.email,
-    whatsapp_number: formData.whatsapp,
-    business_type: formData.product_type,
-    business_name: formData.business_name,
-    selected_package: formData.package || 'standard',
-    table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-    status: 'pending'
-  };
-  const { error: culinaryError } = await supabaseKuliner.from('registrations').insert([culinaryInsertData]);
-}
-// 2. Insert ke Database (pilih berdasarkan product_type)
-if (isSchoolProduct) {
-  // Untuk School/LMS/SIPUT
-  const { error: schoolError } = await supabase.from('registrations').insert([schoolInsertData]);
-  if (schoolError) throw schoolError;
-} else {
-  // Untuk Kuliner
-  const culinaryInsertData = {
-    full_name: formData.full_name,
-    email: formData.email,
-    whatsapp_number: formData.whatsapp,
-    business_type: formData.product_type,
-    business_name: formData.business_name,
-    selected_package: formData.package || 'standard',
-    table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-    status: 'pending'
-  };
-  const { error: culinaryError } = await supabaseKuliner.from('registrations').insert([culinaryInsertData]);
-  if (culinaryError) throw culinaryError;
-}
+      // Insert ke database pendidikan (supabase)
+      const schoolInsertData = {
+        ...baseData,
+        // Tambahan khusus LMS
+        ...(formData.product_type === 'lms' && formData.package && {
+          paket_langganan: formData.package,
+        }),
+        // bisa tambah field lain jika diperlukan
+      };
 
-    // 3. Kirim Notifikasi WhatsApp
+      const { error: schoolError } = await supabase
+        .from('registrations')
+        .insert([schoolInsertData]);
+      if (schoolError) throw schoolError;
+
+    } else {
+      // Insert ke database kuliner (supabaseKuliner)
+      const culinaryInsertData = {
+        ...baseData,
+        business_type: formData.product_type,   // tetap dipertahankan
+        selected_package: formData.package || 'standard',
+        table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+        status: 'pending',
+        // product_type dan tenant sudah ada dari baseData
+      };
+
+      const { error: culinaryError } = await supabaseKuliner
+        .from('registrations')
+        .insert([culinaryInsertData]);
+      if (culinaryError) throw culinaryError;
+    }
+
+    // 3. Kirim Notifikasi WhatsApp (opsional)
     try {
       await sendWhatsAppNotification(formData);
     } catch (waErr) {
@@ -191,7 +181,7 @@ if (isSchoolProduct) {
     // 4. Sukses
     setSubmitted(true);
     alert('Pendaftaran berhasil!');
-    
+
   } catch (err: any) {
     console.error('Submission error:', err);
     setError(err.message || 'Gagal mengirim pendaftaran. Silakan coba lagi.');
