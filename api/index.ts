@@ -288,43 +288,62 @@ app.post("/api/verify-school", async (req, res) => {
 
 app.delete("/api/delete-registration", async (req, res) => {
   const id = (req.query.id as string) || (req.params as { id?: string }).id;
+  const tenant = req.query.tenant as string; // ambil tenant dari query
 
   if (!id) {
     return res.status(400).json({ error: "ID is required" });
   }
+  if (!tenant) {
+    return res.status(400).json({ error: "tenant is required" });
+  }
+
+  // ... koneksi supabase
 
   try {
-    const adminSupabase = getAdminSupabase();
-
+    // 1. Ambil data tenant
     const { data: reg, error: fetchError } = await adminSupabase
-      .from("registrations")
-      .select("subdomain, auth_uid")
-      .eq("id", id)
+      .from('tenant')
+      .select('id, subdomain, auth_uid')
+      .eq('id', id)
+      .eq('tenant', tenant) // filter tenant
       .single();
 
     if (fetchError) {
-      return res.status(404).json({ error: "Pendaftaran tidak ditemukan" });
+      return res.status(404).json({ error: "Pendaftaran tidak ditemukan untuk tenant ini" });
     }
 
-    if (reg?.subdomain && reg.subdomain !== "-") {
-      await adminSupabase.from("schools").delete().eq("id", reg.subdomain);
+    // 2. Hapus schools
+    if (reg?.subdomain && reg.subdomain !== '-') {
+      await adminSupabase
+        .from('schools')
+        .delete()
+        .eq('id', reg.subdomain)
+        .eq('tenant', tenant);
     }
-    await adminSupabase.from("schools").delete().eq("registration_id", id);
+    await adminSupabase
+      .from('schools')
+      .delete()
+      .eq('registration_id', id)
+      .eq('tenant', tenant);
 
+    // 3. Hapus auth user jika ada
     if (reg?.auth_uid) {
       await adminSupabase.auth.admin.deleteUser(reg.auth_uid);
     }
 
+    // 4. Hapus dari tenant
     const { error: deleteError } = await adminSupabase
-      .from("registrations")
+      .from('tenant')
       .delete()
-      .eq("id", id);
+      .eq('id', id)
+      .eq('tenant', tenant);
 
     if (deleteError) throw deleteError;
 
-    res.json({ success: true, message: "Pendaftar dan data terkait berhasil dihapus permanen!" });
+    return res.status(200).json({ success: true, message: "Pendaftar berhasil dihapus permanen!" });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error("Delete registration error:", error);
+    return res.status(500).json({ error: error.message || "Internal Server Error" });
   }
 });
 
