@@ -24,7 +24,7 @@ export const sendWhatsAppNotification = async (formData: any) => {
       method: 'POST',
       headers: { Authorization: FONNTE_TOKEN },
       body: new URLSearchParams({
-        target: 'NOMOR_WA_ANDA', // Isi dengan nomor Anda
+        target: '081918226387', // Isi dengan nomor Anda
         message: getWaMessage(formData),
       }),
     });
