@@ -186,7 +186,8 @@ export default function RasyatechLanding() {
     password: pass || '',
     status: 'pending',
     is_approved: false
-  };
+    kode_tenant: 'scanbite_live'   // <--- TAMBAHKAN INI
+};
 
   // Webhook Notification to Pipedream
   try {
