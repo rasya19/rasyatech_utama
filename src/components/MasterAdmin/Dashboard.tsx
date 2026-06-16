@@ -382,14 +382,24 @@ export default function Admin() {
   const handleDeleteRegistration = async (id: string) => {
   if (!window.confirm("Apakah Mas Ismanto yakin ingin menghapus permanen pendaftar ini?")) return;
   try {
-    // Ambil tenant dari context atau environment
-    const tenant = 'scanbite_live'; // atau dari context
+    // Ambil tenant dari context atau environment (jangan hardcode!)
+    const tenant = 'scanbite_live'; // atau dari context: const { tenant } = useTenant();
+    
     const response = await fetch(`/api/delete-registration?id=${id}&tenant=${tenant}`, {
       method: 'DELETE'
     });
-    // ... handle response
+    
+    if (response.ok) {
+      // Refresh data atau tampilkan notifikasi sukses
+      alert('Pendaftar berhasil dihapus!');
+      // reload data pendaftaran
+    } else {
+      const error = await response.json();
+      alert('Gagal menghapus: ' + error.error);
+    }
   } catch (error) {
-    console.error(error);
+    console.error('Error deleting registration:', error);
+    alert('Terjadi kesalahan saat menghapus data.');
   }
 };
 
