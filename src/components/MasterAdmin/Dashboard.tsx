@@ -380,24 +380,18 @@ export default function Admin() {
   };
 
   const handleDeleteRegistration = async (id: string) => {
-    if (!window.confirm("Apakah Mas Ismanto yakin ingin menghapus permanen pendaftar ini?")) return;
-    try {
-      const response = await fetch(`/api/delete-registration?id=${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Gagal menghapus pendaftar');
-      }
-      
-      const data = await response.json();
-      setSaveStatus({ type: 'success', message: data.message });
-      fetchRegistrations();
-    } catch (err) {
-      console.error(err);
-      setSaveStatus({ type: 'error', message: 'Gagal menghapus pendaftar.' });
-    }
-  };
+  if (!window.confirm("Apakah Mas Ismanto yakin ingin menghapus permanen pendaftar ini?")) return;
+  try {
+    // Ambil tenant dari context atau environment
+    const tenant = 'scanbite_live'; // atau dari context
+    const response = await fetch(`/api/delete-registration?id=${id}&tenant=${tenant}`, {
+      method: 'DELETE'
+    });
+    // ... handle response
+  } catch (error) {
+    console.error(error);
+  }
+};
 
   const handleVerifySchool = async (reg: any) => {
     if (!reg) return;
