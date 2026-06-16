@@ -320,17 +320,14 @@ async function startServer() {
   });
 
   app.delete("/api/delete-registration", async (req, res) => {
-  const id = (req.query.id as string) || (req.params as { id?: string }).id;
-  const tenant = req.query.tenant as string; // ambil tenant dari query
+  const id = (req.query.id as string) || (req.params as any).id;
+  const tenant = req.query.tenant as string;
+  
+  if (!id) return res.status(400).json({ error: "ID is required" });
+  if (!tenant) return res.status(400).json({ error: "tenant is required" });
 
-  if (!id) {
-    return res.status(400).json({ error: "ID is required" });
-  }
-  if (!tenant) {
-    return res.status(400).json({ error: "tenant is required" });
-  }
-
-  // ... koneksi supabase
+  // ... (lanjutkan dengan logika yang sama seperti di atas)
+});
 
   try {
     // 1. Ambil data tenant
