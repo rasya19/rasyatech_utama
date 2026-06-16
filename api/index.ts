@@ -296,7 +296,12 @@ app.delete("/api/delete-registration", async (req, res) => {
   if (!tenant) {
     return res.status(400).json({ error: "tenant is required" });
   }
-
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseServiceKey || !supabaseUrl) {
+    return res.status(500).json({ error: "Server configuration missing" });
+  }
+  const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
   // ... koneksi supabase
 
   try {
