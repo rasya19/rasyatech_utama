@@ -35,7 +35,7 @@ export default function TenantDashboard() {
 
   const fetchSchoolData = async (email: string) => {
     const { data, error } = await supabase
-      .from('tenant_master')
+      .from('tenant')
       .select('*')
       .eq('admin_email', email)
       .single();

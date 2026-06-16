@@ -71,7 +71,7 @@ export type SubdomainAvailability = {
   message?: string;
 };
 
-/** Cek ketersediaan subdomain via API server (tenant_master + registrations). */
+/** Cek ketersediaan subdomain via API server (tenant + registrations). */
 export async function checkSubdomainAvailability(
   subdomain: string
 ): Promise<SubdomainAvailability> {

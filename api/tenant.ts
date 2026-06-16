@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     );
     
     const { data, error } = await supabase
-      .from('tenant_master')
+      .from('tenant')
       .select('*')
       .order('created_at', { ascending: false });
     

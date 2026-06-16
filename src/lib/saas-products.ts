@@ -1,6 +1,6 @@
 /**
  * Katalog 5 pilar SaaS Rasyatech — Gerbang Pendaftaran (rasyatech_utama).
- * Dipakai form pendaftaran & integrasi Supabase tenant_master.
+ * Dipakai form pendaftaran & integrasi Supabase tenant.
  */
 
 export type SaasProductId =

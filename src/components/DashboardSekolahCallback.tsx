@@ -17,7 +17,7 @@ export default function DashboardSekolahCallback() {
         const userEmail = data.session.user.email;
         // Cari tenant berdasarkan email
         const { data: tenant, error: tenantError } = await supabase
-          .from('tenant_master')
+          .from('tenant')
           .select('subdomain, product_app')
           .eq('admin_email', userEmail)
           .single();

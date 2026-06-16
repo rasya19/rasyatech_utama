@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const activationDate = new Date();
 
-    // UPDATE di tabel tenant (bukan tenant_master)
+    // UPDATE di tabel tenant (bukan )
     const { error: dbError } = await adminSupabase
       .from('tenant')  // <-- pakai tabel tenant
       .update({ 

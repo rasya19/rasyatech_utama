@@ -87,7 +87,7 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
     const resolve = async () => {
       try {
         const { data, error } = await supabaseMaster
-          .from('tenant_master')
+          .from('tenant')
           .select('*')
           .eq('subdomain', subdomain)
           .maybeSingle();

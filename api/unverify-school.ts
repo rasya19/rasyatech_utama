@@ -55,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 2. UPDATE status menjadi pending dan hapus auth_uid
     const { error: dbError } = await adminSupabase
-      .from('tenant') // ganti dari tenant_master ke tenant
+      .from('tenant') // ganti dari  ke tenant
       .update({ 
         status: 'pending',
         auth_uid: null

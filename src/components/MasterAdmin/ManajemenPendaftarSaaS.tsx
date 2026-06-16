@@ -49,7 +49,7 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Ambil data mentah dari LandingDataContext (sekarang isinya dari tenant_master)
+  // Ambil data mentah dari LandingDataContext (sekarang isinya dari )
 const { registrations: contextRegs = [], fetchData: refreshContext = async () => {} } = useLandingData() || {};
 const regs: any[] = Array.isArray(contextRegs) ? contextRegs : [];
 
@@ -124,7 +124,7 @@ const fetchData = async () => {
       const isApprovedValue = (nextStatus === 'active');
 
       const { error: updateError } = await supabase
-      .from('tenant_master')
+      .from('')
       .update({ 
       is_approved: isApprovedValue   // ← hanya is_approved
       })
@@ -135,7 +135,7 @@ const fetchData = async () => {
       if (isApprovedValue) {
       // Ambil data pendaftar
       const { data: tenantData, error: fetchError } = await supabase
-        .from('tenant_master')
+        .from('')
         .select('admin_email, tenant_name, subdomain, product_app')
         .eq('id', id)
         .single();
@@ -146,7 +146,7 @@ const fetchData = async () => {
         
         // Simpan password ke database (opsional)
         await supabase
-          .from('tenant_master')
+          .from('')
           .update({ password: generatedPassword })
           .eq('id', id);
         
@@ -184,7 +184,7 @@ const fetchData = async () => {
   try {
     // Karena cuma ada 1 tabel, pakai supabase utama saja
     const { error } = await supabase
-      .from('tenant_master') // Targetkan tabel tunggal ini
+      .from('tenant') // Targetkan tabel tunggal ini
       .delete()
       .eq('id', id);
 

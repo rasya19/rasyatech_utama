@@ -19,7 +19,7 @@ export interface TenantRegistrationFormData {
 
 export interface TenantRegistrationResponse {
   success: boolean;
-  tenant_master_id?: string;
+  tenant_id?: string;
   registration_id?: string;
   subdomain: string;
   tenant_url: string;

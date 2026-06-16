@@ -53,7 +53,7 @@ async function resolveTenantPillarFromDatabase(
   if (!adminSupabase) return null;
 
   const { data: tenantRow, error: tenantError } = await adminSupabase
-    .from("tenant_master")
+    .from("tenant")
     .select("product_app")
     .eq("subdomain", subdomain)
     .neq("status", "rejected")
@@ -61,7 +61,7 @@ async function resolveTenantPillarFromDatabase(
 
   if (tenantError) {
     const missingTable =
-      tenantError.message.includes("tenant_master") &&
+      tenantError.message.includes("tenant") &&
       tenantError.message.includes("schema cache");
     if (!missingTable) throw tenantError;
   } else {

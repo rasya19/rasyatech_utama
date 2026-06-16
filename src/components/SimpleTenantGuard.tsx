@@ -8,7 +8,7 @@ export default function SimpleTenantGuard({ children }) {
       if (!user?.email) return;
       
       const { data: tenant } = await supabase
-        .from('tenant_master')
+        .from('tenant')
         .select('subdomain, product_app')
         .eq('admin_email', user.email)
         .single();

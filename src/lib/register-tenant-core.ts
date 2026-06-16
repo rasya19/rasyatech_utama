@@ -18,7 +18,7 @@ export interface TenantRegistrationPayload {
 
 export interface TenantRegistrationResult {
   success: boolean;
-  tenant_master_id?: string;
+  tenant_id?: string;
   registration_id?: string;
   subdomain: string;
   tenant_url: string;
@@ -33,8 +33,8 @@ function tenantUrl(subdomain: string): string {
 
 function isMissingTenantMasterTable(message: string): boolean {
   return (
-    message.includes("Could not find the table 'public.tenant_master'") ||
-    message.includes('tenant_master') && message.includes('schema cache')
+    message.includes("Could not find the table 'public.tenant'") ||
+    message.includes('tenant') && message.includes('schema cache')
   );
 }
 
@@ -45,7 +45,7 @@ async function isSubdomainTaken(
   const normalized = subdomain.toLowerCase();
 
   const { data: fromMaster, error: masterError } = await adminSupabase
-    .from('tenant_master')
+    .from('tenant')
     .select('id')
     .eq('subdomain', normalized)
     .maybeSingle();
@@ -101,17 +101,17 @@ export async function registerTenant(
 
   let masterData: { id: string } | null = null;
   const { data: insertedMaster, error: masterError } = await adminSupabase
-    .from('tenant_master')
+    .from('tenant')
     .insert([tenantMasterRow])
     .select('id')
     .single();
 
   if (masterError) {
     if (!isMissingTenantMasterTable(masterError.message)) {
-      throw new Error(`Gagal menyimpan ke tenant_master: ${masterError.message}`);
+      throw new Error(`Gagal menyimpan ke tenant: ${masterError.message}`);
     }
     console.warn(
-      '[register-tenant] tenant_master belum ada — fallback ke tabel registrations saja. Jalankan migration SQL.'
+      '[register-tenant] tenant belum ada — fallback ke tabel registrations saja. Jalankan migration SQL.'
     );
   } else {
     masterData = insertedMaster;
@@ -133,7 +133,7 @@ export async function registerTenant(
 
   const registrationExtended = {
     ...registrationBase,
-    ...(masterData ? { tenant_master_id: masterData.id } : {}),
+    ...(masterData ? { tenant_id: masterData.id } : {}),
   };
 
   let regData: { id: string } | null = null;
@@ -159,7 +159,7 @@ export async function registerTenant(
 
   if (regError || !regData) {
     if (masterData) {
-      await adminSupabase.from('tenant_master').delete().eq('id', masterData.id);
+      await adminSupabase.from('tenant').delete().eq('id', masterData.id);
     }
     throw new Error(`Gagal menyimpan ke registrations: ${regError?.message ?? 'unknown'}`);
   }
@@ -167,31 +167,31 @@ export async function registerTenant(
   // 3. Tautkan registration_id kembali ke tenant_master (jika tabel tersedia)
   if (masterData) {
     await adminSupabase
-      .from('tenant_master')
+      .from('tenant')
       .update({ registration_id: regData.id, updated_at: now })
       .eq('id', masterData.id);
   }
 
   return {
     success: true,
-    tenant_master_id: masterData?.id,
+    tenant_id: masterData?.id,
     registration_id: regData.id,
     subdomain,
     tenant_url: tenantUrl(subdomain),
     message: masterData
       ? 'Pendaftaran tenant berhasil disimpan ke Supabase.'
-      : 'Pendaftaran tersimpan di registrations (tenant_master belum dimigrasi).',
+      : 'Pendaftaran tersimpan di registrations (tenant belum dimigrasi).',
   };
 }
 
 export async function checkSubdomainAvailable(
   adminSupabase: SupabaseClient,
   subdomain: string
-): Promise<{ available: boolean; takenIn?: 'tenant_master' | 'registrations' }> {
+): Promise<{ available: boolean; takenIn?: 'tenant' | 'registrations' }> {
   const normalized = subdomain.trim().toLowerCase();
 
   const { data: fromMaster, error: masterError } = await adminSupabase
-    .from('tenant_master')
+    .from('tenant')
     .select('id')
     .eq('subdomain', normalized)
     .maybeSingle();
@@ -201,7 +201,7 @@ export async function checkSubdomainAvailable(
   }
 
   if (fromMaster) {
-    return { available: false, takenIn: 'tenant_master' };
+    return { available: false, takenIn: 'tenant' };
   }
 
   const { data: fromRegs } = await adminSupabase
