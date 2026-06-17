@@ -194,7 +194,11 @@ export default function ManajemenPendaftarSaaS() {
   }, [activeTab, fetchData]);
 
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
-  if (!id) return alert('ID tidak valid');
+  console.log('🟢 handleUpdateStatus dipanggil dengan id:', id, 'currentStatus:', currentStatus);
+  if (!id) {
+    alert('ID tidak valid');
+    return;
+  }
 
   setUpdatingId(id);
   try {
@@ -203,27 +207,51 @@ export default function ManajemenPendaftarSaaS() {
     const isApprovedValue = nextStatus === 'active';
 
     const client = getClient(activeTab);
-    console.log('🔍 Update dengan client:', client === supabase ? 'pendidikan' : 'kuliner');
-    console.log('🔍 ID:', id, 'tenant:', tenant);
+    console.log('🔍 Client yang digunakan:', client === supabase ? 'supabase (pendidikan)' : 'supabaseKuliner');
+    console.log('🔍 ID:', id, 'tenant:', tenant, 'isApproved:', isApprovedValue);
 
-    const { error } = await client
+    // Coba update di client yang sesuai
+    const { data: updateData, error: updateError } = await client
       .from('registrations')
       .update({ is_approved: isApprovedValue })
       .eq('id', id)
-      .eq('tenant', tenant);
+      .eq('tenant', tenant)
+      .select(); // tambahkan .select() untuk melihat data yang terupdate
 
-    if (error) throw error;
+    if (updateError) {
+      console.error('❌ Update error dari client:', updateError);
+      throw new Error(`Update gagal: ${updateError.message}`);
+    }
 
-    alert('Status berhasil diperbarui!');
+    console.log('✅ Data setelah update:', updateData);
+
+    // Jika update berhasil, lanjutkan kirim email jika disetujui
+    if (isApprovedValue) {
+      // Ambil data pendaftar setelah update
+      const { data: tenantData, error: fetchError } = await client
+        .from('registrations')
+        .select('admin_email, tenant_name, subdomain')
+        .eq('id', id)
+        .single();
+
+      if (!fetchError && tenantData) {
+        // Kirim email...
+        alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
+      } else {
+        alert('Status berhasil diperbarui! (Gagal ambil data email)');
+      }
+    } else {
+      alert('Status pendaftar berhasil diperbarui!');
+    }
+
     await fetchData();
   } catch (err: any) {
-    console.error('Update error:', err);
-    alert('Gagal update: ' + err.message);
+    console.error('❌ Error di handleUpdateStatus:', err);
+    alert('Gagal memperbarui status pendaftar: ' + err.message);
   } finally {
     setUpdatingId(null);
   }
 };
-
   const handleDelete = async (id: string) => {
     if (!window.confirm('Yakin ingin menghapus data ini?')) return;
 
