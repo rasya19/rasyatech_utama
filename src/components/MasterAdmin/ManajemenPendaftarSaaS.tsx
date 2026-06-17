@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getClient, type ProductType } from '../../lib/db-client';
 import { supabase } from '../../lib/supabase';
 import { supabaseKuliner } from '../../lib/supabase-kuliner';
