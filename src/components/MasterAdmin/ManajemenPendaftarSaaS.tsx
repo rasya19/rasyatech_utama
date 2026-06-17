@@ -74,6 +74,9 @@ const fetchData = async () => {
 
     // 3. Gabungkan data dari kedua database
     const allData = [...(eduData || []), ...(kulData || [])];
+    console.log("JUMLAH DATA LMS:", eduData?.length || 0);
+    console.log("JUMLAH DATA KULINER:", kulData?.length || 0);
+    console.log("TOTAL DATA GABUNGAN:", allData.length);
 
     // 4. Filter berdasarkan activeTab (product_type)
 const filteredRegs = allData.filter((r: any) => {
