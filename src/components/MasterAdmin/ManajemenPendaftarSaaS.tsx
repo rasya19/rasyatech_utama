@@ -45,57 +45,85 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // --- FETCH DATA ---
   const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const tenant = localStorage.getItem('tenant') || 'scanbite';
-      const client = getClient(activeTab); // <-- pilih client otomatis
+  setLoading(true);
+  setError(null);
+  try {
+    const tenant = localStorage.getItem('tenant') || 'scanbite';
+    const client = getClient(activeTab);
 
-      const { data: rawData, error: fetchError } = await client
-        .from('registrations')
-        .select('*')
-        .eq('tenant', tenant)
-        .eq('product_type', activeTab);
+    console.log('🔍 activeTab:', activeTab);
+    console.log('🔍 tenant:', tenant);
+    console.log('🔍 client yang dipakai:', client === supabase ? 'supabase (pendidikan)' : 'supabaseKuliner');
 
-      if (fetchError) throw fetchError;
+    const { data: rawData, error: fetchError } = await client
+      .from('registrations')
+      .select('*')
+      .eq('tenant', tenant);
 
-      const safeData = Array.isArray(rawData) ? rawData : [];
+    if (fetchError) throw fetchError;
 
-      const mappedData: Pendaftar[] = safeData.map((r: any) => ({
-        id: r.id,
-        full_name: r.admin_name || r.full_name || r.name || '-',
-        email: r.admin_email || r.email || '-',
-        whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
-        business_name: r.school_name || r.business_name || '-',
-        product_type: activeTab,
-        package: r.paket_langganan || r.selected_package || 'silver',
-        status: r.is_approved ? 'active' : 'pending',
-        meta_data: {
-          npsn: r.npsn || null,
-          tables_count: r.table_count || r.outlet_count || 0,
-          outlet_count: r.outlet_count || r.table_count || 0
-        },
-        created_at: r.created_at || new Date(0).toISOString()
-      }));
+    console.log('📦 rawData dari database:', rawData);
 
-      mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setData(mappedData);
-    } catch (err: unknown) {
-      console.error('Gagal load data:', err);
-      let userMessage = 'Gagal memuat data pendaftar';
-      if (err instanceof Error) {
-        userMessage = err.message;
-        if (err.message.includes('400')) {
-          userMessage = 'Permintaan ke database tidak valid. Periksa filter atau kolom yang digunakan.';
-        }
+    const safeData = Array.isArray(rawData) ? rawData : [];
+    console.log('📦 safeData (array):', safeData);
+
+    // Filter manual
+    const filteredRegs = safeData.filter((r: any) => {
+      const productType = (r.product_type || r.business_type || '').toLowerCase();
+      console.log(`🔎 Memeriksa data: id=${r.id}, product_type asli=${r.product_type}, normalized=${productType}, activeTab=${activeTab}`);
+
+      switch (activeTab) {
+        case 'lms':
+          return productType === 'lms' || productType === 'armilla';
+        case 'siput':
+          return productType === 'siput' || productType === 'siput_lms' || productType === 'armilla';
+        case 'scanbite':
+          return productType === 'scanbite';
+        case 'instafood':
+          return productType === 'instafood' || productType === 'instafoto';
+        case 'restoran_asli':
+          return productType === 'restoran_asli';
+        default:
+          return false;
       }
-      setError(userMessage);
-    } finally {
-      setLoading(false);
+    });
+
+    console.log('✅ filteredRegs setelah filter:', filteredRegs);
+
+    const mappedData: Pendaftar[] = filteredRegs.map((r: any) => ({
+      id: r.id,
+      full_name: r.admin_name || r.full_name || r.name || '-',
+      email: r.admin_email || r.email || '-',
+      whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
+      business_name: r.school_name || r.business_name || '-',
+      product_type: activeTab,
+      package: r.paket_langganan || r.selected_package || 'silver',
+      status: r.is_approved ? 'active' : 'pending',
+      meta_data: {
+        npsn: r.npsn || null,
+        tables_count: r.table_count || r.outlet_count || 0,
+        outlet_count: r.outlet_count || r.table_count || 0
+      },
+      created_at: r.created_at || new Date(0).toISOString()
+    }));
+
+    mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    setData(mappedData);
+  } catch (err: unknown) {
+    console.error('❌ Gagal load data:', err);
+    let userMessage = 'Gagal memuat data pendaftar';
+    if (err instanceof Error) {
+      userMessage = err.message;
+      if (err.message.includes('400')) {
+        userMessage = 'Permintaan ke database tidak valid. Periksa filter atau kolom yang digunakan.';
+      }
     }
-  };
+    setError(userMessage);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchData();
