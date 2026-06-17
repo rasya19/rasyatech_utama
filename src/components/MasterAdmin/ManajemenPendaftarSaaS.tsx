@@ -41,8 +41,6 @@ const TABS = [
   { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
 ] as const;
 
-const KULINER_TABS: ProductType[] = ['scanbite', 'restoran_asli', 'instafoto'];
-
 function isMainDbTab(tab: ProductType): boolean {
   return tab === 'lms' || tab === 'siput';
 }
@@ -133,28 +131,25 @@ export default function ManajemenPendaftarSaaS() {
     setError(null);
 
     try {
-      let rows: Record<string, unknown>[] = [];
+      const client = getDbClient(activeTab);
+      const kulinerMissing =
+        !isMainDbTab(activeTab) &&
+        !(import.meta.env.VITE_SUPABASE_URL_KULINER && import.meta.env.VITE_SUPABASE_ANON_KEY_KULINER);
 
-      if (activeTab === 'lms' || activeTab === 'siput') {
-        const tenant = activeTab === 'lms' ? 'lms_live' : 'siput_live';
-        const { data: lmsRows, error: lmsError } = await supabase
-          .from('registrations')
-          .select('*')
-          .eq('tenant', tenant);
-
-        if (lmsError) throw lmsError;
-        rows = (lmsRows as Record<string, unknown>[]) || [];
-      } else {
-        const tenant = localStorage.getItem('tenant') || 'scanbite_live';
-        const { data: kulinerRows, error: kulinerError } = await supabaseKuliner
-          .from('registrations')
-          .select('*')
-          .eq('tenant', tenant);
-
-        if (kulinerError) throw kulinerError;
-        rows = (kulinerRows as Record<string, unknown>[]) || [];
+      if (kulinerMissing) {
+        throw new Error(
+          'Kredensial Supabase Kuliner belum dikonfigurasi di Vercel (VITE_SUPABASE_URL_KULINER).'
+        );
       }
 
+      const { data: rawRows, error: fetchError } = await client
+        .from('registrations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      const rows = (rawRows as Record<string, unknown>[]) || [];
       const filtered = rows.filter((row) => matchesActiveTab(row, activeTab));
       const mapped = sortByCreatedAtDesc(filtered.map((row) => mapRowToPendaftar(row, activeTab)));
 
@@ -169,9 +164,6 @@ export default function ManajemenPendaftarSaaS() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (KULINER_TABS.includes(activeTab)) {
-      localStorage.setItem('tenant', `${activeTab}_live`);
-    }
     fetchData();
   }, [activeTab, fetchData]);
 
@@ -486,12 +478,7 @@ export default function ManajemenPendaftarSaaS() {
           </span>
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            Tenant:{' '}
-            {isMainDbTab(activeTab)
-              ? activeTab === 'lms'
-                ? 'lms_live'
-                : 'siput_live'
-              : localStorage.getItem('tenant') || 'scanbite_live'}
+            Produk: {activeTab}
           </span>
         </div>
         <div className="font-mono">RASYATECH_ADMIN_V2.1.0</div>
