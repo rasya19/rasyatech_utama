@@ -167,33 +167,43 @@ export default function ManajemenPendaftarSaaS() {
     fetchData();
   }, [activeTab, fetchData]);
 
-  const handleUpdateStatus = async (item: Pendaftar) => {
-    setUpdatingId(item.id);
-    const activating = item.status === 'pending';
-    const client = getDbClient(activeTab);
-    const row = item._raw;
-
+  const handleUpdateStatus = async (id: string, newStatus: 'active' | 'verified') => {
+    setUpdatingId(id);
     try {
-      const payload: Record<string, unknown> = {};
+      const client = activeTab === 'lms' ? supabase : supabaseKuliner;
+      
+      const targetItem = data.find(item => item.id === id);
+      const updatePayload: any = {};
 
-      if (rowHasIsApprovedColumn(row)) {
-        payload.is_approved = activating;
+      // Cek struktur kolom secara dinamis
+      if (targetItem && 'is_approved' in targetItem) {
+        updatePayload.is_approved = true;
       } else {
-        payload.status = activating ? 'verified' : 'pending';
+        updatePayload.status = newStatus;
       }
 
-      const { error: updateError } = await client
+      const { error: err } = await client
         .from('registrations')
-        .update(payload)
-        .eq('id', item.id);
+        .update(updatePayload)
+        .eq('id', id);
 
-      if (updateError) throw updateError;
+      if (err) throw err;
+      
+      // 🔥 KUNCI PERBAIKAN: Paksa state lokal memperbarui kolom 'status' DAN 'is_approved' secara bersamaan
+      setData(prev => prev.map(item => 
+        item.id === id 
+          ? { 
+              ...item, 
+              status: newStatus, // Mengubah status string menjadi 'verified'/'active'
+              is_approved: true  // Mengubah status boolean menjadi true
+            } 
+          : item
+      ));
 
       alert('Status pendaftar berhasil diperbarui!');
-      await fetchData();
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error('Update operation error:', err);
-      alert('Gagal memperbarui status pendaftar.');
+      alert('Gagal memperbarui status: ' + (err.message || 'Terjadi kesalahan'));
     } finally {
       setUpdatingId(null);
     }
