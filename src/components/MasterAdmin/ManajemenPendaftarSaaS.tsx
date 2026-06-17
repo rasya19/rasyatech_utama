@@ -72,20 +72,13 @@ const fetchData = async () => {
 
     if (kulError) console.error('Error kuliner:', kulError);
 
-    // 3. Gabungkan data dari kedua database
-    const allData = [...(eduData || []), ...(kulData || [])];
-    console.log("JUMLAH DATA LMS:", eduData?.length || 0);
-    console.log("JUMLAH DATA KULINER:", kulData?.length || 0);
-    console.log("TOTAL DATA GABUNGAN:", allData.length);
+    // 3. Gabungkan data
+const allData = [...(eduData || []), ...(kulData || [])];
 
-    // 4. Filter berdasarkan activeTab (product_type)
+// 4. Filter berdasarkan activeTab
 const filteredRegs = allData.filter((r: any) => {
-  // Ambil tipe produk, buat huruf kecil, dan hapus spasi di depan/belakang
   const productType = (r.product_type || r.business_type || '').toLowerCase().trim();
   
-  // Debugging log untuk memastikan apa yang sedang difilter
-  console.log(`Checking [${productType}] against tab [${activeTab}]`);
-
   switch (activeTab) {
     case 'lms':
       return productType === 'lms' || productType === 'armilla';
