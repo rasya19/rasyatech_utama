@@ -194,85 +194,31 @@ export default function ManajemenPendaftarSaaS() {
   }, [activeTab, fetchData]);
 
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
+  if (!id) return alert('ID tidak valid');
+
   setUpdatingId(id);
   try {
     const tenant = localStorage.getItem('tenant') || 'scanbite';
     const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
     const isApprovedValue = nextStatus === 'active';
 
-    // Update di kedua database sekaligus
-    const [updateEdu, updateKul] = await Promise.allSettled([
-      supabase
-        .from('registrations')
-        .update({ is_approved: isApprovedValue })
-        .eq('id', id)
-        .eq('tenant', tenant),
-      supabaseKuliner
-        .from('registrations')
-        .update({ is_approved: isApprovedValue })
-        .eq('id', id)
-        .eq('tenant', tenant)
-    ]);
+    const client = getClient(activeTab);
+    console.log('🔍 Update dengan client:', client === supabase ? 'pendidikan' : 'kuliner');
+    console.log('🔍 ID:', id, 'tenant:', tenant);
 
-    // Cek apakah minimal satu berhasil
-    const eduSuccess = updateEdu.status === 'fulfilled' && !updateEdu.value.error;
-    const kulSuccess = updateKul.status === 'fulfilled' && !updateKul.value.error;
+    const { error } = await client
+      .from('registrations')
+      .update({ is_approved: isApprovedValue })
+      .eq('id', id)
+      .eq('tenant', tenant);
 
-    if (!eduSuccess && !kulSuccess) {
-      throw new Error('Gagal update di kedua database');
-    }
+    if (error) throw error;
 
-    // Kirim email jika disetujui
-    if (isApprovedValue) {
-      // Ambil data dari database yang berhasil diupdate (prioritas kuliner dulu, lalu pendidikan)
-      let tenantData = null;
-      let fetchError = null;
-
-      if (kulSuccess) {
-        const { data, error } = await supabaseKuliner
-          .from('registrations')
-          .select('admin_email, tenant_name, subdomain')
-          .eq('id', id)
-          .single();
-        tenantData = data;
-        fetchError = error;
-      }
-
-      if (!tenantData && eduSuccess) {
-        const { data, error } = await supabase
-          .from('registrations')
-          .select('admin_email, tenant_name, subdomain')
-          .eq('id', id)
-          .single();
-        tenantData = data;
-        fetchError = error;
-      }
-
-      if (!fetchError && tenantData) {
-        const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-        await fetch('/api/send-credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: tenantData.admin_email,
-            password: generatedPassword,
-            school_name: tenantData.tenant_name,
-            tenant: tenant,
-          })
-        });
-        alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
-      } else {
-        alert('Status berhasil diperbarui! (Gagal ambil data email)');
-      }
-    } else {
-      alert('Status pendaftar berhasil diperbarui!');
-    }
-
-    // Refresh data
+    alert('Status berhasil diperbarui!');
     await fetchData();
   } catch (err: any) {
-    console.error('Update operation error:', err);
-    alert('Gagal memperbarui status pendaftar: ' + err.message);
+    console.error('Update error:', err);
+    alert('Gagal update: ' + err.message);
   } finally {
     setUpdatingId(null);
   }
