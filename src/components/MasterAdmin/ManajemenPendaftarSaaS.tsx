@@ -68,7 +68,7 @@ const fetchData = async () => {
     const { data: kulData, error: kulError } = await supabaseKuliner
       .from('registrations')
       .select('*')
-      .eq('tenant', tenant);
+      
 
     if (kulError) console.error('Error kuliner:', kulError);
 
