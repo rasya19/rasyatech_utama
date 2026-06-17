@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { getClient, type ProductType } from '../../lib/db-client';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 import { supabaseKuliner } from '../../lib/supabase-kuliner';
 import {
@@ -14,8 +13,10 @@ import {
   Clock,
   RefreshCcw,
   AlertCircle,
-  Trash2
+  Trash2,
 } from 'lucide-react';
+
+type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
 
 interface Pendaftar {
   id: string;
@@ -33,11 +34,11 @@ interface Pendaftar {
 }
 
 const TABS = [
-  { id: 'lms', label: 'LMS Kesetaraan', icon: '📖' },
-  { id: 'scanbite', label: 'Scanbite', icon: '☕' },
-  { id: 'restoran_asli', label: 'Restoran Asli', icon: '🍽️' },
-  { id: 'siput', label: 'SIPUT', icon: '🐌' },
-  { id: 'instafood', label: 'Instafood', icon: '📸' }, // <-- konsisten
+  { id: 'lms', label: 'LMS Kesetaraan', icon: '📖', color: 'text-blue-400' },
+  { id: 'scanbite', label: 'Scanbite', icon: '☕', color: 'text-emerald-400' },
+  { id: 'restoran_asli', label: 'Restoran Asli', icon: '🍽️', color: 'text-rose-400' },
+  { id: 'siput', label: 'SIPUT', icon: '🐌', color: 'text-sky-400' },
+  { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
 ] as const;
 
 function isMainDbTab(tab: ProductType): boolean {
@@ -125,204 +126,124 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-const fetchData = async () => {
-  setLoading(true);
-  setError(null);
-  try {
-    const tenant = localStorage.getItem('tenant') || 'scanbite';
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-    console.log('🔍 activeTab:', activeTab);
-    console.log('🔍 tenant:', tenant);
+    try {
+      const client = getDbClient(activeTab);
+      const kulinerMissing =
+        !isMainDbTab(activeTab) &&
+        !(import.meta.env.VITE_SUPABASE_URL_KULINER && import.meta.env.VITE_SUPABASE_ANON_KEY_KULINER);
 
-    // 1. Ambil dari database pendidikan
-    const { data: eduData, error: eduError } = await supabase
-      .from('registrations')
-      .select('*')
-      .eq('tenant', tenant);
-    if (eduError) console.error('Error pendidikan:', eduError);
-
-    // 2. Ambil dari database kuliner
-    const { data: kulData, error: kulError } = await supabaseKuliner
-      .from('registrations')
-      .select('*')
-      .eq('tenant', tenant);
-    if (kulError) console.error('Error kuliner:', kulError);
-
-    // 3. Gabungkan semua data
-    const allData = [...(eduData || []), ...(kulData || [])];
-    console.log('📦 allData (gabungan):', allData);
-
-    // 4. Filter manual berdasarkan activeTab
-    const filteredRegs = allData.filter((r: any) => {
-      const productType = (r.product_type || r.business_type || '').toLowerCase();
-      console.log(`🔎 Memeriksa: id=${r.id}, product_type=${r.product_type}, normalized=${productType}, activeTab=${activeTab}`);
-
-      switch (activeTab) {
-        case 'lms':
-          return productType === 'lms' || productType === 'armilla';
-        case 'siput':
-          return productType === 'siput' || productType === 'siput_lms' || productType === 'armilla';
-        case 'scanbite':
-          return productType === 'scanbite';
-        case 'instafood':
-          return productType === 'instafood' || productType === 'instafoto';
-        case 'restoran_asli':
-          return productType === 'restoran_asli';
-        default:
-          return false;
+      if (kulinerMissing) {
+        throw new Error(
+          'Kredensial Supabase Kuliner belum dikonfigurasi di Vercel (VITE_SUPABASE_URL_KULINER).'
+        );
       }
-    });
 
-    console.log('✅ filteredRegs setelah filter:', filteredRegs);
+      const { data: rawRows, error: fetchError } = await client
+        .from('registrations')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    const mappedData: Pendaftar[] = filteredRegs.map((r: any) => ({
-      id: r.id,
-      full_name: r.admin_name || r.full_name || r.name || '-',
-      email: r.admin_email || r.email || '-',
-      whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
-      business_name: r.school_name || r.business_name || '-',
-      product_type: activeTab,
-      package: r.paket_langganan || r.selected_package || 'silver',
-      status: r.is_approved ? 'active' : 'pending',
-      meta_data: {
-        npsn: r.npsn || null,
-        tables_count: r.table_count || r.outlet_count || 0,
-        outlet_count: r.outlet_count || r.table_count || 0
-      },
-      created_at: r.created_at || new Date(0).toISOString()
-    }));
+      if (fetchError) throw fetchError;
 
-    mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    setData(mappedData);
-  } catch (err: unknown) {
-    console.error('❌ Gagal load data:', err);
-    let userMessage = 'Gagal memuat data pendaftar';
-    if (err instanceof Error) {
-      userMessage = err.message;
-      if (err.message.includes('400')) {
-        userMessage = 'Permintaan ke database tidak valid. Periksa filter atau kolom yang digunakan.';
-      }
+      const rows = (rawRows as Record<string, unknown>[]) || [];
+      const filtered = rows.filter((row) => matchesActiveTab(row, activeTab));
+      const mapped = sortByCreatedAtDesc(filtered.map((row) => mapRowToPendaftar(row, activeTab)));
+
+      setData(mapped);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal memuat data pendaftar';
+      setError(message);
+      setData([]);
+    } finally {
+      setLoading(false);
     }
-    setError(userMessage);
-  } finally {
-    setLoading(false);
-  }
-};
+  }, [activeTab]);
 
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, fetchData]);
 
-  // --- UPDATE STATUS ---
-  const handleUpdateStatus = async (id: string, currentStatus: string) => {
-    setUpdatingId(id);
+  const handleUpdateStatus = async (item: Pendaftar) => {
+    setUpdatingId(item.id);
+    const activating = item.status === 'pending';
+    const client = getDbClient(activeTab);
+    const row = item._raw;
+
     try {
-      const tenant = localStorage.getItem('tenant') || 'scanbite';
-      const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-      const isApprovedValue = nextStatus === 'active';
+      const payload: Record<string, unknown> = {};
 
-      const client = getClient(activeTab); // <-- pilih client otomatis
+      if (rowHasIsApprovedColumn(row)) {
+        payload.is_approved = activating;
+      } else {
+        payload.status = activating ? 'verified' : 'pending';
+      }
 
       const { error: updateError } = await client
         .from('registrations')
-        .update({ is_approved: isApprovedValue })
-        .eq('id', id)
-        .eq('tenant', tenant);
+        .update(payload)
+        .eq('id', item.id);
 
       if (updateError) throw updateError;
 
-      if (isApprovedValue) {
-        const { data: tenantData, error: fetchError } = await client
-          .from('registrations')
-          .select('admin_email, tenant_name, subdomain')
-          .eq('id', id)
-          .single();
-
-        if (!fetchError && tenantData) {
-          const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-          const response = await fetch('/api/send-credentials', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: tenantData.admin_email,
-              password: generatedPassword,
-              school_name: tenantData.tenant_name,
-              tenant: tenant,
-            })
-          });
-          if (!response.ok) {
-            console.error('Gagal mengirim email, status:', response.status);
-            alert('Status berhasil diubah, tetapi gagal mengirim email kredensial.');
-          } else {
-            alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
-          }
-        } else {
-          alert('Status pendaftar berhasil diperbarui! (Gagal ambil data email)');
-        }
-      } else {
-        alert('Status pendaftar berhasil diperbarui!');
-      }
-
+      alert('Status pendaftar berhasil diperbarui!');
       await fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Update operation error:', err);
-      alert('Gagal memperbarui status pendaftar: ' + err.message);
+      alert('Gagal memperbarui status pendaftar.');
     } finally {
       setUpdatingId(null);
     }
   };
 
-  // --- DELETE ---
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Yakin ingin menghapus data ini?")) return;
+    if (!window.confirm('Yakin ingin menghapus data ini?')) return;
 
     try {
-      const tenant = localStorage.getItem('tenant') || 'scanbite';
+      const client = getDbClient(activeTab);
+      const { error: deleteError } = await client.from('registrations').delete().eq('id', id);
 
-      // Hapus dari kedua database (karena kita tidak tahu asal datanya)
-      const { error: eduError } = await supabase
-        .from('registrations')
-        .delete()
-        .eq('id', id)
-        .eq('tenant', tenant);
-
-      if (eduError) console.error('Error hapus dari pendidikan:', eduError);
-
-      const { error: kulError } = await supabaseKuliner
-        .from('registrations')
-        .delete()
-        .eq('id', id)
-        .eq('tenant', tenant);
-
-      if (kulError) console.error('Error hapus dari kuliner:', kulError);
-
-      if (eduError && kulError) throw new Error('Gagal menghapus dari kedua database');
+      if (deleteError) throw deleteError;
 
       alert('Data berhasil dihapus.');
       await fetchData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error saat menghapus:', err);
       alert('Gagal menghapus data.');
     }
   };
 
-  // --- HELPERS KOLOM DINAMIS ---
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
-    if (activeTab === 'instafood') return 'Jml Outlet';
+    if (activeTab === 'instafoto') return 'Jml Outlet';
     if (activeTab === 'lms' || activeTab === 'siput') return 'NPSN';
     return '-';
   };
 
   const getDynamicValue = (meta: Record<string, unknown>) => {
     if (!meta) return '-';
-    if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return meta.tables_count || '-';
-    if (activeTab === 'instafood') return meta.outlet_count || '-';
-    if (activeTab === 'lms' || activeTab === 'siput') return meta.npsn || '-';
+    if (activeTab === 'scanbite' || activeTab === 'restoran_asli') {
+      return String(meta.tables_count ?? '-');
+    }
+    if (activeTab === 'instafoto') return String(meta.outlet_count ?? '-');
+    if (activeTab === 'lms' || activeTab === 'siput') return String(meta.npsn ?? '-');
     return '-';
   };
 
-  // --- RENDER (sama seperti sebelumnya, tidak diubah) ---
+  const formatCreatedAt = (createdAt: string) => {
+    const date = new Date(createdAt || 0);
+    if (Number.isNaN(date.getTime())) {
+      return { date: '-', time: '-' };
+    }
+    return {
+      date: date.toLocaleDateString('id-ID'),
+      time: date.toLocaleTimeString('id-ID'),
+    };
+  };
+
   return (
     <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl">
       <div className="p-8 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -486,49 +407,62 @@ const fetchData = async () => {
                           <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
                             {getDynamicValue(item.meta_data)}
                           </span>
-                        )}
-                      </td>
-                      <td className="py-6 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <a
-                            href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl transition-all group/wa"
-                            title="Hubungi via WhatsApp"
-                          >
-                            <MessageCircle className="w-4 h-4 transition-transform group-hover/wa:scale-110" />
-                          </a>
+                        </td>
+                        <td className="py-6 px-4 text-center">
+                          {item.status === 'active' || item.status === 'verified' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Aktif
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                              <Clock className="w-3 h-3" />
+                              Pending
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-6 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <a
+                              href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl transition-all group/wa"
+                              title="Hubungi via WhatsApp"
+                            >
+                              <MessageCircle className="w-4 h-4 transition-transform group-hover/wa:scale-110" />
+                            </a>
 
-                          <button
-                            onClick={() => handleUpdateStatus(item.id, item.status)}
-                            disabled={updatingId === item.id}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                              item.status === 'active'
-                                ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
-                                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
-                            }`}
-                          >
-                            {updatingId === item.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : item.status === 'active' ? (
-                              'Nonaktifkan'
-                            ) : (
-                              'Setujui'
-                            )}
-                          </button>
+                            <button
+                              onClick={() => handleUpdateStatus(item)}
+                              disabled={updatingId === item.id}
+                              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                item.status === 'active' || item.status === 'verified'
+                                  ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
+                                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                              }`}
+                            >
+                              {updatingId === item.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : item.status === 'active' || item.status === 'verified' ? (
+                                'Nonaktifkan'
+                              ) : (
+                                'Setujui'
+                              )}
+                            </button>
 
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
-                            title="Hapus Data"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
+                              title="Hapus Data"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </motion.div>
