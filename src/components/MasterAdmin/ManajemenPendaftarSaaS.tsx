@@ -61,8 +61,7 @@ const fetchData = async () => {
     const { data: eduData, error: eduError } = await supabase
       .from('registrations')
       .select('*')
-      .eq('tenant', tenant);
-
+      
     if (eduError) console.error('Error pendidikan:', eduError);
 
     // 2. Ambil dari database kuliner (supabaseKuliner)
@@ -79,7 +78,7 @@ const fetchData = async () => {
     // 4. Filter berdasarkan activeTab (product_type)
     const filteredRegs = allData.filter((r: any) => {
       const productType = (r.product_type || r.business_type || '').toLowerCase();
-      
+
       console.log("Mengecek tipe produk:", productType, "terhadap tab:", activeTab);
 
       switch (activeTab) {
