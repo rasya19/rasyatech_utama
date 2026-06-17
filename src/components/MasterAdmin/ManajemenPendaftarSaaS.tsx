@@ -45,33 +45,37 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const fetchData = async () => {
+const fetchData = async () => {
   setLoading(true);
   setError(null);
   try {
     const tenant = localStorage.getItem('tenant') || 'scanbite';
-    const client = getClient(activeTab);
 
     console.log('🔍 activeTab:', activeTab);
     console.log('🔍 tenant:', tenant);
-    console.log('🔍 client yang dipakai:', client === supabase ? 'supabase (pendidikan)' : 'supabaseKuliner');
 
-    const { data: rawData, error: fetchError } = await client
+    // 1. Ambil dari database pendidikan
+    const { data: eduData, error: eduError } = await supabase
       .from('registrations')
       .select('*')
       .eq('tenant', tenant);
+    if (eduError) console.error('Error pendidikan:', eduError);
 
-    if (fetchError) throw fetchError;
+    // 2. Ambil dari database kuliner
+    const { data: kulData, error: kulError } = await supabaseKuliner
+      .from('registrations')
+      .select('*')
+      .eq('tenant', tenant);
+    if (kulError) console.error('Error kuliner:', kulError);
 
-    console.log('📦 rawData dari database:', rawData);
+    // 3. Gabungkan semua data
+    const allData = [...(eduData || []), ...(kulData || [])];
+    console.log('📦 allData (gabungan):', allData);
 
-    const safeData = Array.isArray(rawData) ? rawData : [];
-    console.log('📦 safeData (array):', safeData);
-
-    // Filter manual
-    const filteredRegs = safeData.filter((r: any) => {
+    // 4. Filter manual berdasarkan activeTab
+    const filteredRegs = allData.filter((r: any) => {
       const productType = (r.product_type || r.business_type || '').toLowerCase();
-      console.log(`🔎 Memeriksa data: id=${r.id}, product_type asli=${r.product_type}, normalized=${productType}, activeTab=${activeTab}`);
+      console.log(`🔎 Memeriksa: id=${r.id}, product_type=${r.product_type}, normalized=${productType}, activeTab=${activeTab}`);
 
       switch (activeTab) {
         case 'lms':
@@ -90,6 +94,40 @@ export default function ManajemenPendaftarSaaS() {
     });
 
     console.log('✅ filteredRegs setelah filter:', filteredRegs);
+
+    const mappedData: Pendaftar[] = filteredRegs.map((r: any) => ({
+      id: r.id,
+      full_name: r.admin_name || r.full_name || r.name || '-',
+      email: r.admin_email || r.email || '-',
+      whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
+      business_name: r.school_name || r.business_name || '-',
+      product_type: activeTab,
+      package: r.paket_langganan || r.selected_package || 'silver',
+      status: r.is_approved ? 'active' : 'pending',
+      meta_data: {
+        npsn: r.npsn || null,
+        tables_count: r.table_count || r.outlet_count || 0,
+        outlet_count: r.outlet_count || r.table_count || 0
+      },
+      created_at: r.created_at || new Date(0).toISOString()
+    }));
+
+    mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    setData(mappedData);
+  } catch (err: unknown) {
+    console.error('❌ Gagal load data:', err);
+    let userMessage = 'Gagal memuat data pendaftar';
+    if (err instanceof Error) {
+      userMessage = err.message;
+      if (err.message.includes('400')) {
+        userMessage = 'Permintaan ke database tidak valid. Periksa filter atau kolom yang digunakan.';
+      }
+    }
+    setError(userMessage);
+  } finally {
+    setLoading(false);
+  }
+};
 
     const mappedData: Pendaftar[] = filteredRegs.map((r: any) => ({
       id: r.id,
