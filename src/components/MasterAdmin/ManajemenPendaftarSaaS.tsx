@@ -8,11 +8,8 @@ import {
   CheckCircle2, 
   Loader2, 
   Search, 
-  Filter,
-  ExternalLink,
   School,
   Store,
-  LayoutGrid,
   Clock,
   RefreshCcw,
   AlertCircle,
@@ -35,11 +32,11 @@ interface Pendaftar {
 }
 
 const TABS = [
-  { id: 'lms', label: 'LMS Kesetaraan', icon: '📖', color: 'text-blue-400' },
-  { id: 'scanbite', label: 'Scanbite', icon: '☕', color: 'text-emerald-400' },
-  { id: 'restoran_asli', label: 'Restoran Asli', icon: '🍽️', color: 'text-rose-400' },
-  { id: 'siput', label: 'SIPUT', icon: '🐌', color: 'text-sky-400' },
-  { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
+  { id: 'lms', label: 'LMS Kesetaraan', icon: '📖' },
+  { id: 'scanbite', label: 'Scanbite', icon: '☕' },
+  { id: 'restoran_asli', label: 'Restoran Asli', icon: '🍽️' },
+  { id: 'siput', label: 'SIPUT', icon: '🐌' },
+  { id: 'instafoto', label: 'Instafoto', icon: '📸' },
 ] as const;
 
 export default function ManajemenPendaftarSaaS() {
@@ -56,30 +53,21 @@ export default function ManajemenPendaftarSaaS() {
     try {
       const tenant = localStorage.getItem('tenant') || 'scanbite_live';
       
-      // Tentukan client dan filter berdasarkan produk
-      let client = supabase;
-      let table = 'registrations';
-      let productFilter = activeTab;
+      // Tentukan client berdasarkan kelompok produk
+      const isKuliner = ['scanbite', 'restoran_asli', 'instafoto'].includes(activeTab);
+      const client = isKuliner ? supabaseKuliner : supabase;
 
-      // Untuk produk kuliner, gunakan supabaseKuliner
-      if (activeTab === 'scanbite' || activeTab === 'restoran_asli') {
-        client = supabaseKuliner;
-      }
-
-      // Query data dengan filter tenant dan product_app
+      // Query dengan filter tenant dan product_type
       const { data: rawData, error: fetchError } = await client
-        .from(table)
+        .from('registrations')
         .select('*')
         .eq('tenant', tenant)
-        .eq('product_app', activeTab)
-        .order('created_at', { ascending: false });
+        .eq('product_type', activeTab);
 
       if (fetchError) throw fetchError;
 
-      // Pastikan rawData adalah array
       const safeData = Array.isArray(rawData) ? rawData : [];
 
-      // Mapping ke interface Pendaftar
       const mappedData: Pendaftar[] = safeData.map((r: any) => ({
         id: r.id,
         full_name: r.admin_name || r.full_name || r.name || '-',
@@ -97,7 +85,6 @@ export default function ManajemenPendaftarSaaS() {
         created_at: r.created_at || new Date(0).toISOString()
       }));
 
-      // Sorting (sudah di-order oleh query, tapi amankan)
       mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
       setData(mappedData);
@@ -106,10 +93,8 @@ export default function ManajemenPendaftarSaaS() {
       let userMessage = 'Gagal memuat data pendaftar';
       if (err instanceof Error) {
         userMessage = err.message;
-        if (err.message.includes('fetch') || err.message.includes('network')) {
-          userMessage = 'Gagal terhubung ke server. Periksa koneksi internet.';
-        } else if (err.message.includes('map') || err.message.includes('is not a function')) {
-          userMessage = 'Data yang diterima tidak sesuai format.';
+        if (err.message.includes('400')) {
+          userMessage = 'Permintaan ke database tidak valid. Periksa filter atau kolom yang digunakan.';
         }
       }
       setError(userMessage);
@@ -132,7 +117,6 @@ export default function ManajemenPendaftarSaaS() {
 
       const client = isFromKuliner ? supabaseKuliner : supabase;
 
-      // 1. Update status
       const { error: updateError } = await client
         .from('registrations')
         .update({ is_approved: isApprovedValue })
@@ -141,17 +125,15 @@ export default function ManajemenPendaftarSaaS() {
 
       if (updateError) throw updateError;
 
-      // 2. Jika disetujui, kirim email kredensial
       if (isApprovedValue) {
         const { data: tenantData, error: fetchError } = await client
           .from('registrations')
-          .select('admin_email, tenant_name, subdomain, product_app')
+          .select('admin_email, tenant_name, subdomain, product_type')
           .eq('id', id)
           .single();
 
         if (!fetchError && tenantData) {
           const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-
           const response = await fetch('/api/send-credentials', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -162,7 +144,6 @@ export default function ManajemenPendaftarSaaS() {
               tenant: tenant,
             })
           });
-
           if (!response.ok) {
             console.error('Gagal mengirim email, status:', response.status);
             alert('Status berhasil diubah, tetapi gagal mengirim email kredensial.');
@@ -176,7 +157,6 @@ export default function ManajemenPendaftarSaaS() {
         alert('Status pendaftar berhasil diperbarui!');
       }
 
-      // Refresh data
       await fetchData();
     } catch (err: any) {
       console.error('Update operation error:', err);
@@ -193,7 +173,7 @@ export default function ManajemenPendaftarSaaS() {
     try {
       const tenant = localStorage.getItem('tenant') || 'scanbite_live';
 
-      // Hapus dari database pendidikan
+      // Hapus dari kedua database (pendidikan dan kuliner)
       const { error: eduError } = await supabase
         .from('registrations')
         .delete()
@@ -202,7 +182,6 @@ export default function ManajemenPendaftarSaaS() {
 
       if (eduError) console.error('Error hapus dari pendidikan:', eduError);
 
-      // Hapus dari database kuliner
       const { error: kulError } = await supabaseKuliner
         .from('registrations')
         .delete()
@@ -221,7 +200,7 @@ export default function ManajemenPendaftarSaaS() {
     }
   };
 
-  // --- HELPERS UNTUK KOLOM DINAMIS ---
+  // --- HELPERS KOLOM DINAMIS ---
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
     if (activeTab === 'instafoto') return 'Jml Outlet';
@@ -338,8 +317,7 @@ export default function ManajemenPendaftarSaaS() {
                 </thead>
                 <tbody>
                   {data.map((item) => {
-                    // Tentukan apakah dari kuliner berdasarkan activeTab
-                    const isFromKuliner = (activeTab === 'scanbite' || activeTab === 'restoran_asli');
+                    const isFromKuliner = ['scanbite', 'restoran_asli', 'instafoto'].includes(activeTab);
                     return (
                       <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
                         <td className="py-6 px-4">
