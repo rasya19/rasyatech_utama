@@ -46,47 +46,58 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  // --- FETCH DATA ---
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      // Ambil nama tenant langsung dari tab yang sedang aktif
-      const currentTenant = activeTab; 
+      const tenant = localStorage.getItem('tenant') || 'scanbite_live';
+      
+      // Tentukan client berdasarkan kelompok produk
+      const isKuliner = ['scanbite', 'restoran_asli', 'instafoto'].includes(activeTab);
+      const client = isKuliner ? supabaseKuliner : supabase;
 
-      let resultData: any[] = [];
-      let fetchError: any = null;
-
-      // Jalankan query ke database yang tepat
-      if (activeTab === 'lms') {
-        const { data: res, error: err } = await supabase
-          .from('registrations') // Memakai tabel registrations
-          .select('*')
-          .eq('tenant', currentTenant);
-        resultData = res || [];
-        fetchError = err;
-      } else {
-        const { data: res, error: err } = await supabaseKuliner
-          .from('registrations') // Memakai tabel registrations
-          .select('*')
-          .eq('tenant', currentTenant);
-        resultData = res || [];
-        fetchError = err;
-      }
+      // Query dengan filter tenant dan product_type
+      const { data: rawData, error: fetchError } = await client
+        .from('registrations')
+        .select('*')
+        .eq('tenant', tenant)
+        .eq('product_type', activeTab);
 
       if (fetchError) throw fetchError;
 
-      // Proses sorting data berdasarkan tanggal pendaftaran terbaru
-      const mappedData = [...resultData];
-      mappedData.sort((a, b) => {
-        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        return dateB - dateA;
-      });
+      const safeData = Array.isArray(rawData) ? rawData : [];
 
+      const mappedData: Pendaftar[] = safeData.map((r: any) => ({
+        id: r.id,
+        full_name: r.admin_name || r.full_name || r.name || '-',
+        email: r.admin_email || r.email || '-',
+        whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
+        business_name: r.school_name || r.business_name || '-',
+        product_type: activeTab,
+        package: r.paket_langganan || r.selected_package || 'silver',
+        status: r.is_approved ? 'active' : 'pending',
+        meta_data: {
+          npsn: r.npsn || null,
+          tables_count: r.table_count || r.outlet_count || 0,
+          outlet_count: r.outlet_count || r.table_count || 0
+        },
+        created_at: r.created_at || new Date(0).toISOString()
+      }));
+
+      mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
       setData(mappedData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Gagal load data:', err);
-      setError(err.message || 'Gagal memuat data pendaftar');
+      let userMessage = 'Gagal memuat data pendaftar';
+      if (err instanceof Error) {
+        userMessage = err.message;
+        if (err.message.includes('400')) {
+          userMessage = 'Permintaan ke database tidak valid. Periksa filter atau kolom yang digunakan.';
+        }
+      }
+      setError(userMessage);
     } finally {
       setLoading(false);
     }
