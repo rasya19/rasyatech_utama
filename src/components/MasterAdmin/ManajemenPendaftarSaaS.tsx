@@ -78,11 +78,11 @@ const fetchData = async () => {
     // 4. Filter berdasarkan activeTab (product_type)
     const filteredRegs = allData.filter((r: any) => {
       const productType = (r.product_type || r.business_type || '').toLowerCase();
-
-      console.log("Data yang sedang diproses:", productType);
-
+      
       if (activeTab === 'scanbite') {
         return productType.includes('scanbite');
+    }
+
      
       switch (activeTab) {
         case 'lms':
@@ -97,8 +97,7 @@ const fetchData = async () => {
           return productType === 'restoran_asli';
         default:
           return false;
-      }
-    });
+      });
 
       // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
       const mappedData: Pendaftar[] = (filteredRegs || []).map((r: any) => ({
