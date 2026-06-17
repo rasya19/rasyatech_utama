@@ -79,6 +79,9 @@ const fetchData = async () => {
     // 4. Filter berdasarkan activeTab (product_type)
     const filteredRegs = allData.filter((r: any) => {
       const productType = (r.product_type || r.business_type || '').toLowerCase();
+      
+      console.log("Mengecek tipe produk:", productType, "terhadap tab:", activeTab);
+
       switch (activeTab) {
         case 'lms':
           return productType === 'lms' || productType === 'armilla';
