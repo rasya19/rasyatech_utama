@@ -59,7 +59,7 @@ export const LandingDataProvider = ({ children }: { children: ReactNode }) => {
 
       const [settingsRes, regRes] = await Promise.all([
         supabase.from('settings').select('*'),
-        supabase.from('registrations').select('*')
+        supabase.from('tenant').select('*')
       ]);
 
       if (settingsRes.data) {

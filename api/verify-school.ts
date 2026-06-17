@@ -1,29 +1,26 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from "@supabase/supabase-js";
-import nodemailer from "nodemailer";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // 1. SET HEADERS CORS (Surat Izin Browser)
+  // CORS dan preflight...
   const origin = req.headers.origin || 'https://rasyatech.rsch.my.id';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-  // 2. TANGANI PREFLIGHT (Tes Ombak Browser)
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  // 3. BATASI HANYA UNTUK METHOD POST
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+  // Ambil data dari body
+  const { registrationId, email, school_name, subdomain, tenant } = req.body;
 
-  const { registrationId, email, school_name, subdomain } = req.body;
-  
+  // Validasi
   if (!(registrationId || email) || !subdomain) {
     return res.status(400).json({ error: "registrationId/email and subdomain are required" });
+  }
+  if (!tenant) {
+    return res.status(400).json({ error: "tenant is required" });
   }
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.SUPABASE_URL) {
@@ -31,42 +28,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const adminSupabase = createClient(
-    process.env.SUPABASE_URL, 
+    process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
   try {
     const activationDate = new Date();
-    
-    // 1. UPDATE STATUS DI TABEL registrations
+
+    // UPDATE di tabel tenant (bukan )
     const { error: dbError } = await adminSupabase
-      .from('registrations')
+      .from('tenant')  // <-- pakai tabel tenant
       .update({ 
         status: 'verified',
-        subdomain: subdomain // Pastikan subdomain juga diupdate di tabel registrations
+        subdomain: subdomain
       })
-      .or(`id.eq.${registrationId},admin_email.eq.${email}`);
+      .or(`id.eq.${registrationId},admin_email.eq.${email}`)
+      .eq('tenant', tenant);  // <-- filter penting
 
     if (dbError) {
-      console.error("Gagal update registrations:", dbError);
-      return res.status(500).json({ error: "Gagal update status pendaftaran: " + dbError.message });
+      console.error("Gagal update tenant:", dbError);
+      return res.status(500).json({ error: "Gagal update status tenant: " + dbError.message });
     }
 
-    // 2. INSERT/UPSERT KE TABEL schools
+    // UPSERT ke schools dengan menyertakan tenant
     if (subdomain && subdomain !== '-') {
       await adminSupabase
-        .from('schools') 
+        .from('schools')
         .upsert([{
           id: subdomain,
-          nama_sekolah: school_name || 'Sekolah Baru', 
-          created_at: activationDate.toISOString()
+          nama_sekolah: school_name || 'Sekolah Baru',
+          created_at: activationDate.toISOString(),
+          tenant: tenant,   // <-- simpan tenant
         }], { onConflict: 'id' });
     }
 
-    return res.status(200).json({ 
-        success: true, 
-        message: "Sekolah berhasil diverifikasi!" 
-    });
+    return res.status(200).json({ success: true, message: "Sekolah berhasil diverifikasi!" });
 
   } catch (error: any) {
     console.error("Backend Error:", error);

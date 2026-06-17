@@ -176,7 +176,7 @@ export default function Admin() {
     setLoadingRegistrations(true);
     setRegistrationsError(null);
     try {
-      const { data: regs, error } = await supabase.from('registrations').select('*');
+      const { data: regs, error } = await supabase.from('tenant').select('*');
       if (error) {
         console.error("Error fetching registrations:", error);
         setRegistrationsError(error.message);
@@ -381,24 +381,28 @@ export default function Admin() {
   };
 
   const handleDeleteRegistration = async (id: string) => {
-    if (!window.confirm("Apakah Mas Ismanto yakin ingin menghapus permanen pendaftar ini?")) return;
-    try {
-      const response = await fetch(`/api/delete-registration?id=${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Gagal menghapus pendaftar');
-      }
-      
-      const data = await response.json();
-      setSaveStatus({ type: 'success', message: data.message });
-      fetchRegistrations();
-    } catch (err) {
-      console.error(err);
-      setSaveStatus({ type: 'error', message: 'Gagal menghapus pendaftar.' });
+  if (!window.confirm("Apakah Mas Ismanto yakin ingin menghapus permanen pendaftar ini?")) return;
+  try {
+    // Ambil tenant dari context atau environment (jangan hardcode!)
+    const tenant = 'scanbite_live'; // atau dari context: const { tenant } = useTenant();
+    
+    const response = await fetch(`/api/delete-registration?id=${id}&tenant=${tenant}`, {
+      method: 'DELETE'
+    });
+    
+    if (response.ok) {
+      // Refresh data atau tampilkan notifikasi sukses
+      alert('Pendaftar berhasil dihapus!');
+      // reload data pendaftaran
+    } else {
+      const error = await response.json();
+      alert('Gagal menghapus: ' + error.error);
     }
-  };
+  } catch (error) {
+    console.error('Error deleting registration:', error);
+    alert('Terjadi kesalahan saat menghapus data.');
+  }
+};
 
   const handleVerifySchool = async (reg: any) => {
     if (!reg) return;
@@ -416,7 +420,7 @@ export default function Admin() {
     try {
       // 1. Validasi: Keunikan (Cek apakah subdomain sudah dipakai sekolah lain)
       const { data: existing, error: checkError } = await supabase
-        .from('registrations')
+        .from('')
         .select('id, school_name')
         .eq('subdomain', autoSubdomain)
         .eq('status', 'verified')
@@ -466,13 +470,14 @@ export default function Admin() {
     
     try {
         const response = await fetch('/api/unverify-school', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                registrationId: reg.id,
-                subdomain: reg.subdomain
-            })
-        });
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    registrationId: reg.id,
+    subdomain: reg.subdomain,
+    tenant: 'scanbite_live' // atau dari context
+  })
+});
 
         if (!response.ok) {
            const errorBody = await response.text();
@@ -490,7 +495,7 @@ export default function Admin() {
   const handleUpdateRegStatus = async (id: string, status: string) => {
     try {
       console.log(`Updating ${id} to ${status}...`);
-      const { error } = await supabase.from('registrations').update({ status }).eq('id', id);
+      const { error } = await supabase.from('').update({ status }).eq('id', id);
       if (error) throw error;
       console.log("Update successful");
       setSaveStatus({ type: 'success', message: 'Status berhasil diperbarui!' });
@@ -542,7 +547,7 @@ export default function Admin() {
 
       // 2. Also update registrations table just in case they added the column there
       const { error: regError } = await supabase
-        .from('registrations')
+        .from('')
         .update({ paket_langganan: newPackage })
         .eq('subdomain', subdomain);
 
@@ -625,10 +630,10 @@ export default function Admin() {
     
     try {
         if (editingRegistration.id) {
-            const { error } = await supabase.from('registrations').update(payload).eq('id', editingRegistration.id);
+            const { error } = await supabase.from('').update(payload).eq('id', editingRegistration.id);
             if (error) throw error;
         } else {
-             const { error } = await supabase.from('registrations').insert([payload]);
+             const { error } = await supabase.from('').insert([payload]);
              if (error) throw error;
         }
         setEditingRegistration(null);

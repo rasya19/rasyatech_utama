@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from "@supabase/supabase-js";
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS
@@ -32,23 +32,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
 
   try {
-    // Cari user di school_admins dengan filter tenant
+    // 1. Cari user di school_admins dengan filter tenant
     const { data: user, error: userError } = await adminSupabase
       .from('school_admins')
       .select('*')
       .eq('email', email)
-      .eq('tenant', tenant)
+      .eq('tenant', tenant)   // <-- filter tenant
       .single();
 
     if (userError || !user) {
       return res.status(401).json({ error: "Email atau password salah" });
     }
 
-    // Verifikasi password
+    // 2. Verifikasi password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(401).json({ error: "Email atau password salah" });
     }
+
+    // 3. Jika login berhasil, generate token atau session (sesuai kebutuhan)
+    // Misal buat JWT atau sesi
+    // ...
 
     return res.status(200).json({
       success: true,
@@ -60,6 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         school_id: user.school_id,
         tenant: user.tenant,
       },
+      // token: tokenJWT,
     });
 
   } catch (error: any) {
