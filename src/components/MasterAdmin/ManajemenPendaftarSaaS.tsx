@@ -49,52 +49,57 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Ambil data mentah dari LandingDataContext (sekarang isinya dari )
-const fetchData = async () => {
-  setLoading(true);
-  setError(null);
-  try {
-    // Ambil tenant dari localStorage
-    const tenant = localStorage.getItem('tenant') || 'scanbite_live';
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+        // 1. Ambil data dari kedua database
+        const { data: eduData } = await supabase.from('registrations').select('*');
+        const { data: kulData } = await supabaseKuliner.from('registrations').select('*');
 
-    // 1. Ambil dari database pendidikan (supabase)
-    const { data: eduData, error: eduError } = await supabase
-      .from('registrations')
-      .select('*')
-      
-    if (eduError) console.error('Error pendidikan:', eduError);
+        // 2. Gabungkan semua data mentah
+        const allData = [...(eduData || []), ...(kulData || [])];
+        
+        // 3. Update total untuk tampilan angka di dashboard (Card TOTAL PENDAFTAR)
+        // Pastikan Anda sudah punya state totalPendaftar, atau gunakan setTotalPendaftar
+        if (typeof setTotalPendaftar === 'function') {
+            setTotalPendaftar(allData.length);
+        }
 
-    // 2. Ambil dari database kuliner (supabaseKuliner)
-    const { data: kulData, error: kulError } = await supabaseKuliner
-      .from('registrations')
-      .select('*')
-      
+        // 4. Filter data berdasarkan tab yang aktif untuk tabel
+        const filteredRegs = allData.filter((r: any) => {
+            const pType = (r.product_type || r.business_type || '').toLowerCase().trim();
+            
+            // Fallback: Jika data tidak punya type, kita asumsikan 'siput' 
+            // agar data dari LMS yang tidak punya type tetap muncul di tab SIPUT
+            const productType = pType === '' ? 'siput' : pType;
 
-    if (kulError) console.error('Error kuliner:', kulError);
+            switch (activeTab) {
+                case 'lms': 
+                    return productType === 'lms' || productType === 'armilla';
+                case 'siput': 
+                    return productType === 'siput';
+                case 'scanbite': 
+                    return productType.includes('scanbite');
+                case 'instafoto': 
+                    return productType === 'instafood' || productType === 'instafoto';
+                case 'restoran_asli': 
+                    return productType === 'restoran_asli';
+                default: 
+                    return false;
+            }
+        });
 
-    // 3. Gabungkan data
-const allData = [...(eduData || []), ...(kulData || [])];
+        // 5. Update state tabel dengan data yang sudah difilter
+        setRegistrations(filteredRegs);
 
-// 4. Filter berdasarkan activeTab
-const filteredRegs = allData.filter((r: any) => {
-  const productType = (r.product_type || r.business_type || '').toLowerCase().trim();
-  
-  switch (activeTab) {
-    case 'lms':
-      return productType === 'lms' || productType === 'armilla';
-    case 'siput':
-      return productType === 'siput';
-    case 'scanbite':
-      // Menggunakan .includes() agar lebih aman menangkap 'scanbite_live' atau 'scanbite'
-      return productType.includes('scanbite');
-    case 'instafoto':
-      return productType === 'instafood' || productType === 'instafoto';
-    case 'restoran_asli':
-      return productType === 'restoran_asli';
-    default:
-      return false;
-  }
-});
+    } catch (err) {
+        console.error("Gagal mengambil data:", err);
+        setError("Gagal memuat data pendaftar");
+    } finally {
+        setLoading(false);
+    }
+};
       // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
       const mappedData: Pendaftar[] = (filteredRegs || []).map((r: any) => ({
       id: r.id,
