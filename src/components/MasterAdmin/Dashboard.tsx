@@ -1,6 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import { isMainDomainHostname } from '../../lib/subdomain-utils';
+import { fetchTotalPendaftarCount } from '../../lib/registration-stats';
 import MonitoringDashboard from './MonitoringDashboard';
 import ManajemenPendaftarSaaS from './ManajemenPendaftarSaaS';
 import UnifiedRegistrationManager from './UnifiedRegistrationManager';
@@ -69,6 +70,7 @@ export default function Admin() {
   const [ads, setAds] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
+  const [totalPendaftar, setTotalPendaftar] = useState(0);
   const [searchRegQuery, setSearchRegQuery] = useState('');
   const [filterRegPackage, setFilterRegPackage] = useState('all');
   const [affiliates, setAffiliates] = useState<any[]>([]);
@@ -147,6 +149,7 @@ export default function Admin() {
 
     // Listen to Registrations
     fetchRegistrations();
+    fetchTotalPendaftar();
 
     // // Listen to Affiliates
     // const unsubAffiliates = onSnapshot(query(collection(db, 'affiliates'), orderBy('name')), (snap) => {
@@ -188,6 +191,15 @@ export default function Admin() {
       setRegistrationsError(err.message || 'Error tidak diketahui');
     } finally {
       setLoadingRegistrations(false);
+    }
+  };
+
+  const fetchTotalPendaftar = async () => {
+    try {
+      const total = await fetchTotalPendaftarCount();
+      setTotalPendaftar(total);
+    } catch (err) {
+      console.error('Error fetching total pendaftar:', err);
     }
   };
 
@@ -985,7 +997,7 @@ export default function Admin() {
              </div>
              <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl transition-all duration-300">
                <div className="text-[10px] uppercase font-black tracking-widest text-[#00BEC4] mb-2">Total Pendaftar</div>
-               <div className="text-4xl font-black text-[#0B2447] font-mono tracking-tighter">{registrations.length}</div>
+               <div className="text-4xl font-black text-[#0B2447] font-mono tracking-tighter">{totalPendaftar}</div>
              </div>
              <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl transition-all duration-300">
                <div className="text-[10px] uppercase font-black tracking-widest text-[#14B8A6] mb-2">Mitra Affiliasi</div>
@@ -1025,7 +1037,7 @@ export default function Admin() {
           {/* Unified Registration Management */}
           {activeTab === 'registrations_unified' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <UnifiedRegistrationManager />
+              <UnifiedRegistrationManager onTotalPendaftarChange={setTotalPendaftar} />
             </motion.div>
           )}
 

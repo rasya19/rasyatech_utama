@@ -24,7 +24,13 @@ import {
 
 type MainTab = 'saas' | 'affiliates';
 
-export default function UnifiedRegistrationManager() {
+interface UnifiedRegistrationManagerProps {
+  onTotalPendaftarChange?: (count: number) => void;
+}
+
+export default function UnifiedRegistrationManager({
+  onTotalPendaftarChange,
+}: UnifiedRegistrationManagerProps) {
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('saas');
   
   // Affiliates State
@@ -102,7 +108,7 @@ export default function UnifiedRegistrationManager() {
             animate={{ opacity: 1, x: 0 }} 
             exit={{ opacity: 0, x: 10 }}
           >
-            <ManajemenPendaftarSaaS />
+            <ManajemenPendaftarSaaS onTotalPendaftarChange={onTotalPendaftarChange} />
           </motion.div>
         )}
 

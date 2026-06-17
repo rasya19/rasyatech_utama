@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 import { supabaseKuliner } from '../../lib/supabase-kuliner';
+import { resolveTenantUuid } from '../../lib/tenant-lookup';
+import { fetchTotalPendaftarCount } from '../../lib/registration-stats';
 import {
   Users,
   MessageCircle,
@@ -28,6 +30,8 @@ interface Pendaftar {
   package?: string;
   status: 'pending' | 'active' | 'verified';
   is_approved?: boolean;
+  tenant_id?: string | null;
+  tenant_master_id?: string | null;
   meta_data: Record<string, unknown>;
   created_at: string;
   /** Baris mentah dari Supabase — untuk update status dinamis */
@@ -128,6 +132,8 @@ function mapRowToPendaftar(row: Record<string, unknown>, tab: ProductType): Pend
     package: String(row.paket_langganan || row.selected_package || row.package_tier || 'silver'),
     status: resolveUiStatus(row),
     is_approved: isTruthyApproved(row.is_approved),
+    tenant_id: row.tenant_id ? String(row.tenant_id) : null,
+    tenant_master_id: row.tenant_master_id ? String(row.tenant_master_id) : null,
     meta_data: {
       npsn: row.npsn ?? null,
       tables_count: row.table_count ?? row.tables_count ?? 0,
@@ -159,12 +165,28 @@ function getRegistrationRowId(item: Pick<Pendaftar, 'id' | '_raw'>): string | nu
   return item.id;
 }
 
-export default function ManajemenPendaftarSaaS() {
+interface ManajemenPendaftarSaaSProps {
+  onTotalPendaftarChange?: (count: number) => void;
+}
+
+export default function ManajemenPendaftarSaaS({
+  onTotalPendaftarChange,
+}: ManajemenPendaftarSaaSProps) {
   const [activeTab, setActiveTab] = useState<ProductType>('lms');
   const [data, setData] = useState<Pendaftar[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const refreshTotalPendaftar = useCallback(async () => {
+    if (!onTotalPendaftarChange) return;
+    try {
+      const total = await fetchTotalPendaftarCount();
+      onTotalPendaftarChange(total);
+    } catch (err) {
+      console.warn('[ManajemenPendaftarSaaS] gagal hitung total pendaftar:', err);
+    }
+  }, [onTotalPendaftarChange]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -194,6 +216,7 @@ export default function ManajemenPendaftarSaaS() {
       const mapped = sortByCreatedAtDesc(filtered.map((row) => mapRowToPendaftar(row, activeTab)));
 
       setData(mapped);
+      await refreshTotalPendaftar();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Gagal memuat data pendaftar';
       setError(message);
@@ -201,11 +224,15 @@ export default function ManajemenPendaftarSaaS() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, refreshTotalPendaftar]);
 
   useEffect(() => {
     fetchData();
   }, [activeTab, fetchData]);
+
+  useEffect(() => {
+    refreshTotalPendaftar();
+  }, [refreshTotalPendaftar]);
 
   const handleUpdateStatus = async (item: Pendaftar) => {
     const rowId = getRegistrationRowId(item);
@@ -219,17 +246,38 @@ export default function ManajemenPendaftarSaaS() {
         status: activating ? 'verified' : 'pending',
       };
 
+      let tenantUuid: string | null = null;
+      if (activating) {
+        tenantUuid = await resolveTenantUuid(activeTab, client);
+        if (tenantUuid) {
+          payload.tenant_id = tenantUuid;
+          payload.tenant_master_id = tenantUuid;
+        } else {
+          console.warn(
+            `[ManajemenPendaftarSaaS] UUID tenant tidak ditemukan untuk produk "${activeTab}" — status tetap diperbarui tanpa FK.`
+          );
+        }
+      }
+
       // Hanya filter by id — jangan .eq('tenant', ...) karena id sudah unik global di tabel.
       const { data: updatedRows, error: updateError } = await client
         .from('registrations')
         .update(payload)
         .eq('id', rowId)
-        .select('id');
+        .select('id, tenant_id, tenant_master_id, status, is_approved');
 
       if (updateError) throw updateError;
       if (!updatedRows?.length) {
         throw new Error('Tidak ada baris yang diperbarui. Periksa ID pendaftar atau kebijakan RLS Supabase.');
       }
+
+      const updated = updatedRows[0] as Record<string, unknown>;
+      const resolvedTenantId = updated.tenant_id
+        ? String(updated.tenant_id)
+        : tenantUuid;
+      const resolvedTenantMasterId = updated.tenant_master_id
+        ? String(updated.tenant_master_id)
+        : tenantUuid;
 
       setData((prev) =>
         prev.map((row) =>
@@ -238,17 +286,27 @@ export default function ManajemenPendaftarSaaS() {
                 ...row,
                 status: activating ? 'verified' : 'pending',
                 is_approved: activating,
+                tenant_id: activating ? resolvedTenantId : row.tenant_id,
+                tenant_master_id: activating ? resolvedTenantMasterId : row.tenant_master_id,
                 _raw: {
                   ...row._raw,
                   status: activating ? 'verified' : 'pending',
                   is_approved: activating,
+                  tenant_id: activating ? resolvedTenantId : row._raw.tenant_id,
+                  tenant_master_id: activating
+                    ? resolvedTenantMasterId
+                    : row._raw.tenant_master_id,
                 },
               }
             : row
         )
       );
 
-      alert('Status pendaftar berhasil diperbarui!');
+      alert(
+        activating && !resolvedTenantId
+          ? 'Status diperbarui. UUID tenant belum tersedia di tabel tenant untuk produk ini.'
+          : 'Status pendaftar berhasil diperbarui!'
+      );
     } catch (err: unknown) {
       console.error('Update operation error:', err);
       const message = err instanceof Error ? err.message : 'Gagal memperbarui status pendaftar.';
@@ -279,6 +337,7 @@ export default function ManajemenPendaftarSaaS() {
       }
 
       setData((prev) => prev.filter((row) => row.id !== item.id));
+      await refreshTotalPendaftar();
       alert('Data berhasil dihapus.');
     } catch (err: unknown) {
       console.error('Error saat menghapus:', err);
