@@ -86,6 +86,20 @@ export default function ManajemenPendaftarSaaS() {
         created_at: r.created_at || new Date(0).toISOString()
       }));
 
+      
+      switch (activeTab) {
+        case 'lms':
+          return productType === 'lms' || productType === 'armilla';
+        case 'siput':
+          return productType === 'siput';
+        case 'scanbite':
+          return productType === 'scanbite';
+        case 'instafoto':
+          return productType === 'instafood' || productType === 'instafoto';
+        case 'restoran_asli':
+          return productType === 'restoran_asli';
+        default:
+          return false;
       mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
       setData(mappedData);
@@ -97,6 +111,7 @@ export default function ManajemenPendaftarSaaS() {
         if (err.message.includes('400')) {
           userMessage = 'Permintaan ke database tidak valid. Periksa filter atau kolom yang digunakan.';
         }
+
       }
       setError(userMessage);
     } finally {
@@ -318,7 +333,7 @@ export default function ManajemenPendaftarSaaS() {
                 </thead>
                 <tbody>
                   {data.map((item) => {
-                    const isFromKuliner = ['scanbite', 'restoran_asli', 'instafoto'].includes(activeTab);
+                    const isFromKuliner = ['scanbite', 'restoran_asli', 'instafood'].includes(activeTab);
                     return (
                       <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
                         <td className="py-6 px-4">
