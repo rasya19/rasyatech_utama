@@ -27,6 +27,7 @@ interface Pendaftar {
   product_type: ProductType;
   package?: string;
   status: 'pending' | 'active' | 'verified';
+  is_approved?: boolean;
   meta_data: Record<string, unknown>;
   created_at: string;
   /** Baris mentah dari Supabase — untuk update status dinamis */
@@ -78,13 +79,41 @@ function matchesActiveTab(row: Record<string, unknown>, tab: ProductType): boole
   }
 }
 
+function isTruthyApproved(value: unknown): boolean {
+  return value === true || value === 1 || String(value).toLowerCase() === 'true';
+}
+
+/** Toleran terhadap status string/boolean dari berbagai skema Supabase. */
+function isVerified(item: Pick<Pendaftar, 'status' | 'is_approved' | '_raw'>): boolean {
+  const statusValues = [
+    item.status,
+    item._raw?.status,
+  ]
+    .map((v) => String(v ?? '').toLowerCase())
+    .filter(Boolean);
+
+  if (statusValues.some((s) => s === 'verified' || s === 'active' || s === 'approved')) {
+    return true;
+  }
+
+  if (isTruthyApproved(item.is_approved) || isTruthyApproved(item._raw?.is_approved)) {
+    return true;
+  }
+
+  if (item._raw?.approved === true || String(item._raw?.approved).toLowerCase() === 'true') {
+    return true;
+  }
+
+  return false;
+}
+
 function resolveUiStatus(row: Record<string, unknown>): Pendaftar['status'] {
-  if (row.is_approved === true || row.is_approved === 'true' || row.is_approved === 1) {
-    return 'active';
+  if (isTruthyApproved(row.is_approved)) {
+    return 'verified';
   }
   const status = String(row.status || '').toLowerCase();
-  if (status === 'verified' || status === 'active') return 'active';
-  if (row.approved === true) return 'active';
+  if (status === 'verified' || status === 'active' || status === 'approved') return 'verified';
+  if (row.approved === true || String(row.approved).toLowerCase() === 'true') return 'verified';
   return 'pending';
 }
 
@@ -98,6 +127,7 @@ function mapRowToPendaftar(row: Record<string, unknown>, tab: ProductType): Pend
     product_type: tab,
     package: String(row.paket_langganan || row.selected_package || row.package_tier || 'silver'),
     status: resolveUiStatus(row),
+    is_approved: isTruthyApproved(row.is_approved),
     meta_data: {
       npsn: row.npsn ?? null,
       tables_count: row.table_count ?? row.tables_count ?? 0,
@@ -115,8 +145,18 @@ function sortByCreatedAtDesc<T extends { created_at?: string }>(items: T[]): T[]
   );
 }
 
-function rowHasIsApprovedColumn(row: Record<string, unknown>): boolean {
-  return Object.prototype.hasOwnProperty.call(row, 'is_approved');
+/** ID asli dari baris Supabase (bigint/UUID) — jangan pakai filter tenant pada update/delete. */
+function getRegistrationRowId(item: Pick<Pendaftar, 'id' | '_raw'>): string | number {
+  const rawId = item._raw?.id;
+  if (typeof rawId === 'number') return rawId;
+  if (typeof rawId === 'string' && rawId.trim() !== '') {
+    const asNumber = Number(rawId);
+    if (!Number.isNaN(asNumber) && String(asNumber) === rawId) return asNumber;
+    return rawId;
+  }
+  const asNumber = Number(item.id);
+  if (!Number.isNaN(asNumber) && String(asNumber) === item.id) return asNumber;
+  return item.id;
 }
 
 export default function ManajemenPendaftarSaaS() {
@@ -167,62 +207,83 @@ export default function ManajemenPendaftarSaaS() {
     fetchData();
   }, [activeTab, fetchData]);
 
-  const handleUpdateStatus = async (id: string, newStatus: 'active' | 'verified') => {
-    setUpdatingId(id);
-    try {
-      const client = activeTab === 'lms' ? supabase : supabaseKuliner;
-      
-      const targetItem = data.find(item => item.id === id);
-      const updatePayload: any = {};
+  const handleUpdateStatus = async (item: Pendaftar) => {
+    const rowId = getRegistrationRowId(item);
+    setUpdatingId(item.id);
+    const activating = !isVerified(item);
+    const client = getDbClient(activeTab);
 
-      // Cek struktur kolom secara dinamis
-      if (targetItem && 'is_approved' in targetItem) {
-        updatePayload.is_approved = true;
-      } else {
-        updatePayload.status = newStatus;
+    try {
+      const payload: Record<string, unknown> = {
+        is_approved: activating,
+        status: activating ? 'verified' : 'pending',
+      };
+
+      // Hanya filter by id — jangan .eq('tenant', ...) karena id sudah unik global di tabel.
+      const { data: updatedRows, error: updateError } = await client
+        .from('registrations')
+        .update(payload)
+        .eq('id', rowId)
+        .select('id');
+
+      if (updateError) throw updateError;
+      if (!updatedRows?.length) {
+        throw new Error('Tidak ada baris yang diperbarui. Periksa ID pendaftar atau kebijakan RLS Supabase.');
       }
 
-      const { error: err } = await client
-        .from('registrations')
-        .update(updatePayload)
-        .eq('id', id);
-
-      if (err) throw err;
-      
-      // 🔥 KUNCI PERBAIKAN: Paksa state lokal memperbarui kolom 'status' DAN 'is_approved' secara bersamaan
-      setData(prev => prev.map(item => 
-        item.id === id 
-          ? { 
-              ...item, 
-              status: newStatus, // Mengubah status string menjadi 'verified'/'active'
-              is_approved: true  // Mengubah status boolean menjadi true
-            } 
-          : item
-      ));
+      setData((prev) =>
+        prev.map((row) =>
+          row.id === item.id
+            ? {
+                ...row,
+                status: activating ? 'verified' : 'pending',
+                is_approved: activating,
+                _raw: {
+                  ...row._raw,
+                  status: activating ? 'verified' : 'pending',
+                  is_approved: activating,
+                },
+              }
+            : row
+        )
+      );
 
       alert('Status pendaftar berhasil diperbarui!');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Update operation error:', err);
-      alert('Gagal memperbarui status: ' + (err.message || 'Terjadi kesalahan'));
+      const message = err instanceof Error ? err.message : 'Gagal memperbarui status pendaftar.';
+      alert(message);
     } finally {
       setUpdatingId(null);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (item: Pendaftar) => {
     if (!window.confirm('Yakin ingin menghapus data ini?')) return;
+
+    const rowId = getRegistrationRowId(item);
 
     try {
       const client = getDbClient(activeTab);
-      const { error: deleteError } = await client.from('registrations').delete().eq('id', id);
+
+      // Hanya filter by id — jangan .eq('tenant', ...) karena id sudah unik global di tabel.
+      const { data: deletedRows, error: deleteError } = await client
+        .from('registrations')
+        .delete()
+        .eq('id', rowId)
+        .select('id');
 
       if (deleteError) throw deleteError;
+      if (!deletedRows?.length) {
+        throw new Error('Tidak ada baris yang dihapus. Periksa ID pendaftar atau kebijakan RLS Supabase.');
+      }
 
+      setData((prev) => prev.filter((row) => row.id !== item.id));
       alert('Data berhasil dihapus.');
-      await fetchData();
     } catch (err: unknown) {
       console.error('Error saat menghapus:', err);
-      alert('Gagal menghapus data.');
+      const message = err instanceof Error ? err.message : 'Gagal menghapus data.';
+      alert(message);
     }
   };
 
@@ -378,6 +439,7 @@ export default function ManajemenPendaftarSaaS() {
                 <tbody>
                   {data.map((item) => {
                     const created = formatCreatedAt(item.created_at);
+                    const verified = isVerified(item);
                     return (
                       <tr
                         key={item.id}
@@ -419,7 +481,7 @@ export default function ManajemenPendaftarSaaS() {
                           </span>
                         </td>
                         <td className="py-6 px-4 text-center">
-                          {item.status === 'active' || item.status === 'verified' ? (
+                          {verified ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
                               <CheckCircle2 className="w-3 h-3" />
                               Aktif
@@ -447,14 +509,14 @@ export default function ManajemenPendaftarSaaS() {
                               onClick={() => handleUpdateStatus(item)}
                               disabled={updatingId === item.id}
                               className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                                item.status === 'active' || item.status === 'verified'
+                                verified
                                   ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
                                   : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
                               }`}
                             >
                               {updatingId === item.id ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : item.status === 'active' || item.status === 'verified' ? (
+                              ) : verified ? (
                                 'Nonaktifkan'
                               ) : (
                                 'Setujui'
@@ -462,7 +524,7 @@ export default function ManajemenPendaftarSaaS() {
                             </button>
 
                             <button
-                              onClick={() => handleDelete(item.id)}
+                              onClick={() => handleDelete(item)}
                               className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
                               title="Hapus Data"
                             >
