@@ -76,29 +76,29 @@ const fetchData = async () => {
     const allData = [...(eduData || []), ...(kulData || [])];
 
     // 4. Filter berdasarkan activeTab (product_type)
-    const filteredRegs = allData.filter((r: any) => {
-      const productType = (r.product_type || r.business_type || '').toLowerCase();
-      
-      if (activeTab === 'scanbite') {
-        return productType.includes('scanbite');
-    }
+const filteredRegs = allData.filter((r: any) => {
+  // Ambil tipe produk, buat huruf kecil, dan hapus spasi di depan/belakang
+  const productType = (r.product_type || r.business_type || '').toLowerCase().trim();
+  
+  // Debugging log untuk memastikan apa yang sedang difilter
+  console.log(`Checking [${productType}] against tab [${activeTab}]`);
 
-     
-      switch (activeTab) {
-        case 'lms':
-          return productType === 'lms' || productType === 'armilla';
-        case 'siput':
-          return productType === 'siput';
-        case 'scanbite':
-          return productType === 'scanbite';
-        case 'instafoto':
-          return productType === 'instafood' || productType === 'instafoto';
-        case 'restoran_asli':
-          return productType === 'restoran_asli';
-        default:
-          return false;
-      });
-
+  switch (activeTab) {
+    case 'lms':
+      return productType === 'lms' || productType === 'armilla';
+    case 'siput':
+      return productType === 'siput';
+    case 'scanbite':
+      // Menggunakan .includes() agar lebih aman menangkap 'scanbite_live' atau 'scanbite'
+      return productType.includes('scanbite');
+    case 'instafoto':
+      return productType === 'instafood' || productType === 'instafoto';
+    case 'restoran_asli':
+      return productType === 'restoran_asli';
+    default:
+      return false;
+  }
+});
       // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
       const mappedData: Pendaftar[] = (filteredRegs || []).map((r: any) => ({
       id: r.id,
