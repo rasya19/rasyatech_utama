@@ -2,6 +2,27 @@ import { TENANT_SUBDOMAIN_DOMAIN } from './saas-products';
 
 const SUBDOMAIN_MIN_LENGTH = 3;
 const SUBDOMAIN_MAX_LENGTH = 32;
+/** Host utama (landing + master-admin), bukan subdomain tenant. */
+export function isMainDomainHostname(hostname: string): boolean {
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.endsWith('.run.app') ||
+    hostname.endsWith('.vercel.app') ||
+    hostname.includes('asia-southeast1.run.app')
+  ) {
+    return true;
+  }
+
+  const parts = hostname.split('.');
+  return parts[0] === 'rasyatech' || parts[0] === 'www' || parts.length < 3;
+}
+
+export function getSubdomainFromHostname(hostname: string): string | null {
+  if (isMainDomainHostname(hostname)) return null;
+  return hostname.split('.')[0] || null;
+}
+
 const RESERVED_SUBDOMAINS = new Set([
   'www',
   'api',

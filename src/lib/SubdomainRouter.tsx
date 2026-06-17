@@ -29,6 +29,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { supabaseMaster } from './supabase-hub';
+import { getSubdomainFromHostname } from './subdomain-utils';
 import type { ProductType, MasterRegistration } from './types/products';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
@@ -59,26 +60,7 @@ const SubdomainRouterContext = createContext<SubdomainRouterState>(defaultState)
 // ─── Helper: detect subdomain from hostname ───────────────────────────────────
 
 function detectSubdomain(): string | null {
-  const hostname = window.location.hostname;
-
-  // Local dev / Cloud Run preview → always treat as main domain
-  if (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname.endsWith('.run.app') ||
-    hostname.endsWith('.vercel.app')
-  ) {
-    return null;
-  }
-
-  const parts = hostname.split('.');
-  // Main domain patterns: rasyatech.rsch.my.id or www.rsch.my.id
-  const isMainDomain =
-    parts[0] === 'rasyatech' ||
-    parts[0] === 'www' ||
-    parts.length < 3;
-
-  return isMainDomain ? null : parts[0];
+  return getSubdomainFromHostname(window.location.hostname);
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────

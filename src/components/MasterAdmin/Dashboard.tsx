@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
+import { isMainDomainHostname } from '../../lib/subdomain-utils';
 import MonitoringDashboard from './MonitoringDashboard';
 import ManajemenPendaftarSaaS from './ManajemenPendaftarSaaS';
 import UnifiedRegistrationManager from './UnifiedRegistrationManager';
@@ -661,8 +662,7 @@ export default function Admin() {
   };
 
   const isAuthorizedSuperAdmin = user?.email?.toLowerCase() === 'ismanto095@gmail.com';
-  const hostnamePrefix = window.location.hostname.split('.')[0];
-  const isMainDomain = hostnamePrefix === 'rasyatech' || hostnamePrefix === 'www' || window.location.hostname.split('.').length < 3 || window.location.hostname.includes('asia-southeast1.run.app') || window.location.hostname.includes('localhost');
+  const isMainDomain = isMainDomainHostname(window.location.hostname);
 
   useEffect(() => {
     if (!loading && user && (!isAuthorizedSuperAdmin || !isMainDomain)) {

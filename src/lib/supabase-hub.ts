@@ -83,6 +83,11 @@ export function getProductClient(product: ProductType): SupabaseClient {
     return clientCache.get(cacheKey)!;
   }
 
+  if (url === MASTER_URL && key === MASTER_KEY) {
+    clientCache.set(cacheKey, supabaseMaster);
+    return supabaseMaster;
+  }
+
   const client = createClient(url, key);
   clientCache.set(cacheKey, client);
   return client;
