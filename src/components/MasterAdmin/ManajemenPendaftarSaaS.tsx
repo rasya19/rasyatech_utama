@@ -193,49 +193,90 @@ export default function ManajemenPendaftarSaaS() {
     fetchData();
   }, [activeTab, fetchData]);
 
-  const handleUpdateStatus = async (item: Pendaftar) => {
-    setUpdatingId(item.id);
-    const activating = !isVerified(item);
-    const client = getDbClient(activeTab);
+  const handleUpdateStatus = async (id: string, currentStatus: string) => {
+  setUpdatingId(id);
+  try {
+    const tenant = localStorage.getItem('tenant') || 'scanbite';
+    const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
+    const isApprovedValue = nextStatus === 'active';
 
-    try {
-      const payload: Record<string, unknown> = {
-        is_approved: activating,
-        status: activating ? 'verified' : 'pending',
-      };
-
-      const { error: updateError } = await client
+    // Update di kedua database sekaligus
+    const [updateEdu, updateKul] = await Promise.allSettled([
+      supabase
         .from('registrations')
-        .update(payload)
-        .eq('id', item.id);
+        .update({ is_approved: isApprovedValue })
+        .eq('id', id)
+        .eq('tenant', tenant),
+      supabaseKuliner
+        .from('registrations')
+        .update({ is_approved: isApprovedValue })
+        .eq('id', id)
+        .eq('tenant', tenant)
+    ]);
 
-      if (updateError) throw updateError;
+    // Cek apakah minimal satu berhasil
+    const eduSuccess = updateEdu.status === 'fulfilled' && !updateEdu.value.error;
+    const kulSuccess = updateKul.status === 'fulfilled' && !updateKul.value.error;
 
-      setData((prev) =>
-        prev.map((row) =>
-          row.id === item.id
-            ? {
-                ...row,
-                status: activating ? 'verified' : 'pending',
-                is_approved: activating,
-                _raw: {
-                  ...row._raw,
-                  status: activating ? 'verified' : 'pending',
-                  is_approved: activating,
-                },
-              }
-            : row
-        )
-      );
-
-      alert('Status pendaftar berhasil diperbarui!');
-    } catch (err: unknown) {
-      console.error('Update operation error:', err);
-      alert('Gagal memperbarui status pendaftar.');
-    } finally {
-      setUpdatingId(null);
+    if (!eduSuccess && !kulSuccess) {
+      throw new Error('Gagal update di kedua database');
     }
-  };
+
+    // Kirim email jika disetujui
+    if (isApprovedValue) {
+      // Ambil data dari database yang berhasil diupdate (prioritas kuliner dulu, lalu pendidikan)
+      let tenantData = null;
+      let fetchError = null;
+
+      if (kulSuccess) {
+        const { data, error } = await supabaseKuliner
+          .from('registrations')
+          .select('admin_email, tenant_name, subdomain')
+          .eq('id', id)
+          .single();
+        tenantData = data;
+        fetchError = error;
+      }
+
+      if (!tenantData && eduSuccess) {
+        const { data, error } = await supabase
+          .from('registrations')
+          .select('admin_email, tenant_name, subdomain')
+          .eq('id', id)
+          .single();
+        tenantData = data;
+        fetchError = error;
+      }
+
+      if (!fetchError && tenantData) {
+        const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+        await fetch('/api/send-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: tenantData.admin_email,
+            password: generatedPassword,
+            school_name: tenantData.tenant_name,
+            tenant: tenant,
+          })
+        });
+        alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
+      } else {
+        alert('Status berhasil diperbarui! (Gagal ambil data email)');
+      }
+    } else {
+      alert('Status pendaftar berhasil diperbarui!');
+    }
+
+    // Refresh data
+    await fetchData();
+  } catch (err: any) {
+    console.error('Update operation error:', err);
+    alert('Gagal memperbarui status pendaftar: ' + err.message);
+  } finally {
+    setUpdatingId(null);
+  }
+};
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Yakin ingin menghapus data ini?')) return;
