@@ -79,6 +79,10 @@ const fetchData = async () => {
     const filteredRegs = allData.filter((r: any) => {
       const productType = (r.product_type || r.business_type || '').toLowerCase();
 
+      console.log("Data yang sedang diproses:", productType);
+
+      if (activeTab === 'scanbite') {
+        return productType.includes('scanbite');
      
       switch (activeTab) {
         case 'lms':
