@@ -212,11 +212,11 @@ export default function ManajemenPendaftarSaaS() {
 
     // Coba update di client yang sesuai
     const { data: updateData, error: updateError } = await client
-      .from('registrations')
-      .update({ is_approved: isApprovedValue })
-      .eq('id', id)
-      .eq('tenant', tenant)
-      .select(); // tambahkan .select() untuk melihat data yang terupdate
+  .from('registrations')
+  .update({ is_approved: isApprovedValue })
+  .eq('id', id)
+  // .eq('tenant', tenant) // <-- comment dulu
+  .select();
 
     if (updateError) {
       console.error('❌ Update error dari client:', updateError);
