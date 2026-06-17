@@ -27,6 +27,7 @@ interface Pendaftar {
   product_type: ProductType;
   package?: string;
   status: 'pending' | 'active' | 'verified';
+  is_approved?: boolean;
   meta_data: Record<string, unknown>;
   created_at: string;
   /** Baris mentah dari Supabase — untuk update status dinamis */
@@ -78,13 +79,41 @@ function matchesActiveTab(row: Record<string, unknown>, tab: ProductType): boole
   }
 }
 
+function isTruthyApproved(value: unknown): boolean {
+  return value === true || value === 1 || String(value).toLowerCase() === 'true';
+}
+
+/** Toleran terhadap status string/boolean dari berbagai skema Supabase. */
+function isVerified(item: Pick<Pendaftar, 'status' | 'is_approved' | '_raw'>): boolean {
+  const statusValues = [
+    item.status,
+    item._raw?.status,
+  ]
+    .map((v) => String(v ?? '').toLowerCase())
+    .filter(Boolean);
+
+  if (statusValues.some((s) => s === 'verified' || s === 'active' || s === 'approved')) {
+    return true;
+  }
+
+  if (isTruthyApproved(item.is_approved) || isTruthyApproved(item._raw?.is_approved)) {
+    return true;
+  }
+
+  if (item._raw?.approved === true || String(item._raw?.approved).toLowerCase() === 'true') {
+    return true;
+  }
+
+  return false;
+}
+
 function resolveUiStatus(row: Record<string, unknown>): Pendaftar['status'] {
-  if (row.is_approved === true || row.is_approved === 'true' || row.is_approved === 1) {
-    return 'active';
+  if (isTruthyApproved(row.is_approved)) {
+    return 'verified';
   }
   const status = String(row.status || '').toLowerCase();
-  if (status === 'verified' || status === 'active') return 'active';
-  if (row.approved === true) return 'active';
+  if (status === 'verified' || status === 'active' || status === 'approved') return 'verified';
+  if (row.approved === true || String(row.approved).toLowerCase() === 'true') return 'verified';
   return 'pending';
 }
 
@@ -98,6 +127,7 @@ function mapRowToPendaftar(row: Record<string, unknown>, tab: ProductType): Pend
     product_type: tab,
     package: String(row.paket_langganan || row.selected_package || row.package_tier || 'silver'),
     status: resolveUiStatus(row),
+    is_approved: isTruthyApproved(row.is_approved),
     meta_data: {
       npsn: row.npsn ?? null,
       tables_count: row.table_count ?? row.tables_count ?? 0,
@@ -113,10 +143,6 @@ function sortByCreatedAtDesc<T extends { created_at?: string }>(items: T[]): T[]
     (a, b) =>
       new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
   );
-}
-
-function rowHasIsApprovedColumn(row: Record<string, unknown>): boolean {
-  return Object.prototype.hasOwnProperty.call(row, 'is_approved');
 }
 
 export default function ManajemenPendaftarSaaS() {
@@ -169,18 +195,14 @@ export default function ManajemenPendaftarSaaS() {
 
   const handleUpdateStatus = async (item: Pendaftar) => {
     setUpdatingId(item.id);
-    const activating = item.status === 'pending';
+    const activating = !isVerified(item);
     const client = getDbClient(activeTab);
-    const row = item._raw;
 
     try {
-      const payload: Record<string, unknown> = {};
-
-      if (rowHasIsApprovedColumn(row)) {
-        payload.is_approved = activating;
-      } else {
-        payload.status = activating ? 'verified' : 'pending';
-      }
+      const payload: Record<string, unknown> = {
+        is_approved: activating,
+        status: activating ? 'verified' : 'pending',
+      };
 
       const { error: updateError } = await client
         .from('registrations')
@@ -189,8 +211,24 @@ export default function ManajemenPendaftarSaaS() {
 
       if (updateError) throw updateError;
 
+      setData((prev) =>
+        prev.map((row) =>
+          row.id === item.id
+            ? {
+                ...row,
+                status: activating ? 'verified' : 'pending',
+                is_approved: activating,
+                _raw: {
+                  ...row._raw,
+                  status: activating ? 'verified' : 'pending',
+                  is_approved: activating,
+                },
+              }
+            : row
+        )
+      );
+
       alert('Status pendaftar berhasil diperbarui!');
-      await fetchData();
     } catch (err: unknown) {
       console.error('Update operation error:', err);
       alert('Gagal memperbarui status pendaftar.');
@@ -368,6 +406,7 @@ export default function ManajemenPendaftarSaaS() {
                 <tbody>
                   {data.map((item) => {
                     const created = formatCreatedAt(item.created_at);
+                    const verified = isVerified(item);
                     return (
                       <tr
                         key={item.id}
@@ -409,7 +448,7 @@ export default function ManajemenPendaftarSaaS() {
                           </span>
                         </td>
                         <td className="py-6 px-4 text-center">
-                          {item.status === 'active' || item.status === 'verified' ? (
+                          {verified ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
                               <CheckCircle2 className="w-3 h-3" />
                               Aktif
@@ -437,14 +476,14 @@ export default function ManajemenPendaftarSaaS() {
                               onClick={() => handleUpdateStatus(item)}
                               disabled={updatingId === item.id}
                               className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                                item.status === 'active' || item.status === 'verified'
+                                verified
                                   ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
                                   : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
                               }`}
                             >
                               {updatingId === item.id ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : item.status === 'active' || item.status === 'verified' ? (
+                              ) : verified ? (
                                 'Nonaktifkan'
                               ) : (
                                 'Setujui'
