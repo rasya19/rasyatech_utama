@@ -86,6 +86,7 @@ export default function ManajemenPendaftarSaaS() {
         created_at: r.created_at || new Date(0).toISOString()
       }));
 
+<<<<<<< HEAD
       
       switch (activeTab) {
         case 'lms':
@@ -100,6 +101,7 @@ export default function ManajemenPendaftarSaaS() {
           return productType === 'restoran_asli';
         default:
           return false;
+=======
       mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
       setData(mappedData);
@@ -111,7 +113,7 @@ export default function ManajemenPendaftarSaaS() {
         if (err.message.includes('400')) {
           userMessage = 'Permintaan ke database tidak valid. Periksa filter atau kolom yang digunakan.';
         }
-
+>>>>>>> 56f8ce2436b8767bbf03871e695db3c947bee0cc
       }
       setError(userMessage);
     } finally {
