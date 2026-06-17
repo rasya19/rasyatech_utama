@@ -53,53 +53,54 @@ export default function ManajemenPendaftarSaaS() {
     setLoading(true);
     setError(null);
     try {
-        // 1. Ambil data dari kedua database
-        const { data: eduData } = await supabase.from('registrations').select('*');
-        const { data: kulData } = await supabaseKuliner.from('registrations').select('*');
+    const tenant = localStorage.getItem('tenant') || 'scanbite_live';
+    const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
+    const isApprovedValue = (nextStatus === 'active');
 
-        // 2. Gabungkan semua data mentah
-        const allData = [...(eduData || []), ...(kulData || [])];
-        
-        // 3. Update total untuk tampilan angka di dashboard (Card TOTAL PENDAFTAR)
-        // Pastikan Anda sudah punya state totalPendaftar, atau gunakan setTotalPendaftar
-        if (typeof setTotalPendaftar === 'function') {
-            setTotalPendaftar(allData.length);
-        }
+    const client = isFromKuliner ? supabaseKuliner : supabase;
 
-        // 4. Filter data berdasarkan tab yang aktif untuk tabel
-        const filteredRegs = allData.filter((r: any) => {
-            const pType = (r.product_type || r.business_type || '').toLowerCase().trim();
-            
-            // Fallback: Jika data tidak punya type, kita asumsikan 'siput' 
-            // agar data dari LMS yang tidak punya type tetap muncul di tab SIPUT
-            const productType = pType === '' ? 'siput' : pType;
+    // 1. Update status
+    const { error: updateError } = await client
+      .from('registrations')
+      .update({ is_approved: isApprovedValue })
+      .eq('id', id);
 
-            switch (activeTab) {
-                case 'lms': 
-                    return productType === 'lms' || productType === 'armilla';
-                case 'siput': 
-                    return productType === 'siput';
-                case 'scanbite': 
-                    return productType.includes('scanbite');
-                case 'instafoto': 
-                    return productType === 'instafood' || productType === 'instafoto';
-                case 'restoran_asli': 
-                    return productType === 'restoran_asli';
-                default: 
-                    return false;
-            }
+    if (updateError) throw updateError;
+
+    // 2. Jika disetujui, ambil data & kirim email
+    if (isApprovedValue) {
+      const { data: tenantData, error: fetchError } = await client
+        .from('registrations')
+        .select('admin_email, tenant_name, subdomain, product_app')
+        .eq('id', id)
+        .single();
+
+      if (!fetchError && tenantData) {
+        const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+
+        await fetch('/api/send-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: tenantData.admin_email,
+            password: generatedPassword,
+            school_name: tenantData.tenant_name,
+            tenant: tenant,
+          })
         });
-
-        // 5. Update state tabel dengan data yang sudah difilter
-        setRegistrations(filteredRegs);
-
-    } catch (err) {
-        console.error("Gagal mengambil data:", err);
-        setError("Gagal memuat data pendaftar");
-    } finally {
-        setLoading(false);
+        alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
+      } else {
+        alert('Status pendaftar berhasil diperbarui! (Gagal ambil data email)');
+      }
+    } else {
+      alert('Status pendaftar berhasil diperbarui!');
     }
-};
+  } catch (err: any) {
+    console.error('Update operation error:', err);
+    alert('Gagal memperbarui status pendaftar: ' + err.message);
+  } finally {
+    setUpdatingId(null);
+  }
       // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
       const mappedData: Pendaftar[] = (filteredRegs || []).map((r: any) => ({
       id: r.id,
