@@ -51,8 +51,8 @@ export default function ManajemenPendaftarSaaS() {
     setLoading(true);
     setError(null);
     try {
-      const tenant = localStorage.getItem('tenant') || 'scanbite_live';
-      
+      const tenant = localStorage.getItem('tenant') || 'scanbite';
+       
       // Tentukan client berdasarkan kelompok produk
       const isKuliner = ['scanbite', 'restoran_asli', 'instafoto'].includes(activeTab);
       const client = isKuliner ? supabaseKuliner : supabase;
@@ -67,6 +67,7 @@ export default function ManajemenPendaftarSaaS() {
       if (fetchError) throw fetchError;
 
       const safeData = Array.isArray(rawData) ? rawData : [];
+
 
       const mappedData: Pendaftar[] = safeData.map((r: any) => ({
         id: r.id,
