@@ -1,22 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
-import { useLandingData } from '../../lib/LandingDataContext'
-import { 
-  Users, 
-  MessageCircle, 
-  CheckCircle2, 
-  Loader2, 
-  Search, 
-  Filter,
-  ExternalLink,
+import { supabaseKuliner } from '../../lib/supabase-kuliner';
+import {
+  Users,
+  MessageCircle,
+  CheckCircle2,
+  Loader2,
+  Search,
   School,
   Store,
-  LayoutGrid,
   Clock,
   RefreshCcw,
   AlertCircle,
-  Trash2 // <-- Ditambahkan ikon Trash2
+  Trash2,
 } from 'lucide-react';
 
 type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
@@ -30,8 +27,10 @@ interface Pendaftar {
   product_type: ProductType;
   package?: string;
   status: 'pending' | 'active' | 'verified';
-  meta_data: any;
+  meta_data: Record<string, unknown>;
   created_at: string;
+  /** Baris mentah dari Supabase — untuk update status dinamis */
+  _raw: Record<string, unknown>;
 }
 
 const TABS = [
@@ -42,6 +41,86 @@ const TABS = [
   { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
 ] as const;
 
+const KULINER_TABS: ProductType[] = ['scanbite', 'restoran_asli', 'instafoto'];
+
+function isMainDbTab(tab: ProductType): boolean {
+  return tab === 'lms' || tab === 'siput';
+}
+
+function getDbClient(tab: ProductType) {
+  return isMainDbTab(tab) ? supabase : supabaseKuliner;
+}
+
+function getProductTypeValue(row: Record<string, unknown>): string {
+  return String(row.product_type || row.product_name || row.business_type || '').toLowerCase();
+}
+
+function matchesActiveTab(row: Record<string, unknown>, tab: ProductType): boolean {
+  const pType = getProductTypeValue(row);
+  const tabLower = tab.toLowerCase();
+
+  switch (tab) {
+    case 'lms':
+      return (
+        pType === 'lms' ||
+        pType.includes('lms') ||
+        pType.includes('armilla') ||
+        pType.includes('kesetaraan')
+      );
+    case 'siput':
+      return pType === 'siput' || pType.includes('siput');
+    case 'scanbite':
+      return pType === 'scanbite' || pType.includes('scanbite');
+    case 'restoran_asli':
+      return pType === 'restoran_asli' || pType.includes('restoran') || pType.includes('resto');
+    case 'instafoto':
+      return pType === 'instafoto' || pType.includes('instafoto') || pType.includes('instafood');
+    default:
+      return pType === tabLower || pType.includes(tabLower);
+  }
+}
+
+function resolveUiStatus(row: Record<string, unknown>): Pendaftar['status'] {
+  if (row.is_approved === true || row.is_approved === 'true' || row.is_approved === 1) {
+    return 'active';
+  }
+  const status = String(row.status || '').toLowerCase();
+  if (status === 'verified' || status === 'active') return 'active';
+  if (row.approved === true) return 'active';
+  return 'pending';
+}
+
+function mapRowToPendaftar(row: Record<string, unknown>, tab: ProductType): Pendaftar {
+  return {
+    id: String(row.id),
+    full_name: String(row.admin_name || row.full_name || row.name || '-'),
+    email: String(row.admin_email || row.email || '-'),
+    whatsapp: String(row.whatsapp || row.whatsapp_number || row.WA || '-'),
+    business_name: String(row.school_name || row.business_name || row.tenant_name || '-'),
+    product_type: tab,
+    package: String(row.paket_langganan || row.selected_package || row.package_tier || 'silver'),
+    status: resolveUiStatus(row),
+    meta_data: {
+      npsn: row.npsn ?? null,
+      tables_count: row.table_count ?? row.tables_count ?? 0,
+      outlet_count: row.outlet_count ?? 0,
+    },
+    created_at: String(row.created_at || ''),
+    _raw: row,
+  };
+}
+
+function sortByCreatedAtDesc<T extends { created_at?: string }>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) =>
+      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  );
+}
+
+function rowHasIsApprovedColumn(row: Record<string, unknown>): boolean {
+  return Object.prototype.hasOwnProperty.call(row, 'is_approved');
+}
+
 export default function ManajemenPendaftarSaaS() {
   const [activeTab, setActiveTab] = useState<ProductType>('lms');
   const [data, setData] = useState<Pendaftar[]>([]);
@@ -49,93 +128,78 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Ambil data mentah registrations dari LandingDataContext dengan safe defaults
-  const { registrations: contextRegs = [], fetchData: refreshContext = async () => {} } = useLandingData() || {};
-  const regs: any[] = Array.isArray(contextRegs) ? contextRegs : [];
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
-      // Amankan jika data dari context belum siap / kosong
-      if (!regs || regs.length === 0) {
-        setData([]);
-        return;
+      let rows: Record<string, unknown>[] = [];
+
+      if (activeTab === 'lms' || activeTab === 'siput') {
+        const tenant = activeTab === 'lms' ? 'lms_live' : 'siput_live';
+        const { data: lmsRows, error: lmsError } = await supabase
+          .from('registrations')
+          .select('*')
+          .eq('tenant', tenant);
+
+        if (lmsError) throw lmsError;
+        rows = (lmsRows as Record<string, unknown>[]) || [];
+      } else {
+        const tenant = localStorage.getItem('tenant') || 'scanbite_live';
+        const { data: kulinerRows, error: kulinerError } = await supabaseKuliner
+          .from('registrations')
+          .select('*')
+          .eq('tenant', tenant);
+
+        if (kulinerError) throw kulinerError;
+        rows = (kulinerRows as Record<string, unknown>[]) || [];
       }
 
-      // 1. Filter data lokal berdasarkan activeTab menggunakan kolom product_name (case-insensitive)
-      const filteredRegs = regs.filter((r: any) => {
-        const pName = (r.product_name || '').toLowerCase();
-        
-        switch (activeTab) {
-          case 'lms':
-            return pName.includes('lms') || pName.includes('armilla') || pName.includes('kesetaraan');
-          case 'siput':
-            return pName.includes('siput');
-          case 'scanbite':
-            return pName.includes('scanbite');
-          case 'instafoto':
-            return pName.includes('instafoto') || pName.includes('instafood');
-          case 'restoran_asli':
-            return pName.includes('resto') || pName.includes('restoran');
-          default:
-            return false;
-        }
-      });
+      const filtered = rows.filter((row) => matchesActiveTab(row, activeTab));
+      const mapped = sortByCreatedAtDesc(filtered.map((row) => mapRowToPendaftar(row, activeTab)));
 
-      // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
-      const mappedData: Pendaftar[] = (filteredRegs || []).map((r: any) => ({
-        id: r.id,
-        full_name: r.admin_name || r.full_name || r.name || '-',
-        email: r.admin_email || r.email || '-',
-        whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
-        business_name: r.school_name || r.business_name || '-',
-        product_type: activeTab,
-        package: r.paket_langganan || r.selected_package || 'silver',
-        status: (r.status === 'verified' || r.status === 'active' || r.approved === true || r.is_approved === true || r.is_approved === 'true') ? 'active' : 'pending',
-        meta_data: { 
-          npsn: r.npsn || null,
-          tables_count: r.table_count || r.outlet_count || 0,
-          outlet_count: r.outlet_count || r.table_count || 0
-        },
-        created_at: r.created_at
-      }));
-
-      // 3. Urutkan dari data pendaftaran yang paling baru
-      mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      
-      setData(mappedData);
-    } catch (err: any) {
-      setError(err.message || 'Gagal memuat data pendaftar');
+      setData(mapped);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal memuat data pendaftar';
+      setError(message);
+      setData([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab]);
 
   useEffect(() => {
+    if (KULINER_TABS.includes(activeTab)) {
+      localStorage.setItem('tenant', `${activeTab}_live`);
+    }
     fetchData();
-  }, [activeTab, regs]); // <-- Tambahkan regs di dependency array
+  }, [activeTab, fetchData]);
 
-  const handleUpdateStatus = async (id: string, currentStatus: string) => {
-    setUpdatingId(id);
+  const handleUpdateStatus = async (item: Pendaftar) => {
+    setUpdatingId(item.id);
+    const activating = item.status === 'pending';
+    const client = getDbClient(activeTab);
+    const row = item._raw;
+
     try {
-      const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-      const isApprovedValue = (nextStatus === 'active');
+      const payload: Record<string, unknown> = {};
 
-      // Update status di tabel tunggal registrations
-      const { error: updateError } = await supabase
+      if (rowHasIsApprovedColumn(row)) {
+        payload.is_approved = activating;
+      } else {
+        payload.status = activating ? 'verified' : 'pending';
+      }
+
+      const { error: updateError } = await client
         .from('registrations')
-        .update({ 
-          status: nextStatus,
-          is_approved: isApprovedValue
-        })
-        .eq('id', id);
+        .update(payload)
+        .eq('id', item.id);
 
       if (updateError) throw updateError;
-      
+
       alert('Status pendaftar berhasil diperbarui!');
-      if (refreshContext) await refreshContext(); // Paksa context mengambil data terbaru dari database
-      
-    } catch (err: any) {
+      await fetchData();
+    } catch (err: unknown) {
       console.error('Update operation error:', err);
       alert('Gagal memperbarui status pendaftar.');
     } finally {
@@ -144,24 +208,21 @@ export default function ManajemenPendaftarSaaS() {
   };
 
   const handleDelete = async (id: string) => {
-  if (!window.confirm("Yakin ingin menghapus data ini?")) return;
+    if (!window.confirm('Yakin ingin menghapus data ini?')) return;
 
-  try {
-    // Karena cuma ada 1 tabel, pakai supabase utama saja
-    const { error } = await supabase
-      .from('registrations') // Targetkan tabel tunggal ini
-      .delete()
-      .eq('id', id);
+    try {
+      const client = getDbClient(activeTab);
+      const { error: deleteError } = await client.from('registrations').delete().eq('id', id);
 
-    if (error) throw error;
+      if (deleteError) throw deleteError;
 
-    alert('Data berhasil dihapus.');
-    await fetchData(); // Refresh data setelah hapus
-  } catch (err: any) {
-    console.error('Error saat menghapus:', err);
-    alert('Gagal menghapus data.');
-  }
-};
+      alert('Data berhasil dihapus.');
+      await fetchData();
+    } catch (err: unknown) {
+      console.error('Error saat menghapus:', err);
+      alert('Gagal menghapus data.');
+    }
+  };
 
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
@@ -170,30 +231,46 @@ export default function ManajemenPendaftarSaaS() {
     return '-';
   };
 
-  const getDynamicValue = (meta: any) => {
+  const getDynamicValue = (meta: Record<string, unknown>) => {
     if (!meta) return '-';
-    if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return meta.tables_count || '-';
-    if (activeTab === 'instafoto') return meta.outlet_count || '-';
-    if (activeTab === 'lms' || activeTab === 'siput') return meta.npsn || '-';
+    if (activeTab === 'scanbite' || activeTab === 'restoran_asli') {
+      return String(meta.tables_count ?? '-');
+    }
+    if (activeTab === 'instafoto') return String(meta.outlet_count ?? '-');
+    if (activeTab === 'lms' || activeTab === 'siput') return String(meta.npsn ?? '-');
     return '-';
+  };
+
+  const formatCreatedAt = (createdAt: string) => {
+    const date = new Date(createdAt || 0);
+    if (Number.isNaN(date.getTime())) {
+      return { date: '-', time: '-' };
+    }
+    return {
+      date: date.toLocaleDateString('id-ID'),
+      time: date.toLocaleTimeString('id-ID'),
+    };
   };
 
   return (
     <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl">
-      {/* Header */}
       <div className="p-8 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-blue-500/10 rounded-xl">
               <Users className="w-5 h-5 text-blue-400" />
             </div>
-            <h1 className="text-2xl font-bold text-white uppercase tracking-tight">Manajemen Pendaftar SaaS</h1>
+            <h1 className="text-2xl font-bold text-white uppercase tracking-tight">
+              Manajemen Pendaftar SaaS
+            </h1>
           </div>
-          <p className="text-slate-400 text-sm">Rekap pendaftaran produk ekosistem Rasyatech Enterprise.</p>
+          <p className="text-slate-400 text-sm">
+            LMS & SIPUT → Supabase utama · Kuliner → Supabase Kuliner
+          </p>
         </div>
 
-        <button 
-          onClick={fetchData} 
+        <button
+          onClick={fetchData}
           disabled={loading}
           className="flex items-center gap-2 px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-2xl transition-all text-sm font-bold border border-slate-700/50 disabled:opacity-50"
         >
@@ -202,15 +279,14 @@ export default function ManajemenPendaftarSaaS() {
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="px-8 pt-4 pb-2 bg-[#0D1426] border-b border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as ProductType)}
             className={`flex items-center gap-3 px-6 py-4 border-b-2 transition-all whitespace-nowrap ${
-              activeTab === tab.id 
-                ? 'border-blue-500 text-white bg-blue-500/5' 
+              activeTab === tab.id
+                ? 'border-blue-500 text-white bg-blue-500/5'
                 : 'border-transparent text-slate-500 hover:text-slate-300'
             }`}
           >
@@ -220,11 +296,10 @@ export default function ManajemenPendaftarSaaS() {
         ))}
       </div>
 
-      {/* Content */}
       <div className="p-8">
         <AnimatePresence mode="wait">
           {loading ? (
-            <motion.div 
+            <motion.div
               key="loading"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -232,10 +307,12 @@ export default function ManajemenPendaftarSaaS() {
               className="py-32 flex flex-col items-center justify-center gap-4"
             >
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-              <p className="text-slate-500 font-medium font-serif italic">Membaca database Supabase...</p>
+              <p className="text-slate-500 font-medium font-serif italic">
+                Membaca database Supabase...
+              </p>
             </motion.div>
           ) : error ? (
-            <motion.div 
+            <motion.div
               key="error"
               className="py-32 flex flex-col items-center justify-center gap-4 text-center"
             >
@@ -246,18 +323,22 @@ export default function ManajemenPendaftarSaaS() {
               <p className="text-slate-500 max-w-sm">{error}</p>
             </motion.div>
           ) : data.length === 0 ? (
-            <motion.div 
+            <motion.div
               key="empty"
               className="py-32 flex flex-col items-center justify-center gap-4 text-center"
             >
               <div className="p-4 bg-slate-800/50 rounded-full">
                 <Search className="w-8 h-8 text-slate-600" />
               </div>
-              <h3 className="text-slate-400 font-bold text-lg uppercase tracking-widest">Belum Ada Pendaftar</h3>
-              <p className="text-slate-600 max-w-sm text-sm">Belum ada user yang mendaftar untuk produk {activeTab.toUpperCase()} di wilayah ini.</p>
+              <h3 className="text-slate-400 font-bold text-lg uppercase tracking-widest">
+                Belum Ada Pendaftar
+              </h3>
+              <p className="text-slate-600 max-w-sm text-sm">
+                Belum ada user yang mendaftar untuk produk {activeTab.toUpperCase()} di tenant ini.
+              </p>
             </motion.div>
           ) : (
-            <motion.div 
+            <motion.div
               key="content"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -266,101 +347,130 @@ export default function ManajemenPendaftarSaaS() {
               <table className="w-full text-left border-collapse min-w-[1000px]">
                 <thead>
                   <tr className="border-b border-slate-800">
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Waktu Daftar</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Nama Lengkap</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Instansi / Bisnis</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">WhatsApp</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Paket</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">{getDynamicColumnHeader()}</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-right">Aksi</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      Waktu Daftar
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      Nama Lengkap
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      Instansi / Bisnis
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      WhatsApp
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      Paket
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      {getDynamicColumnHeader()}
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-center">
+                      Status
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-right">
+                      Aksi
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((item) => (
-                    <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
-                      <td className="py-6 px-4">
-                        <div className="text-slate-300 text-sm font-medium">{new Date(item.created_at).toLocaleDateString('id-ID')}</div>
-                        <div className="text-slate-600 text-[10px] font-mono mt-0.5">{new Date(item.created_at).toLocaleTimeString('id-ID')}</div>
-                      </td>
-                      <td className="py-6 px-4">
-                        <div className="text-white font-bold">{item.full_name}</div>
-                        <div className="text-slate-500 text-xs mt-1">{item.email}</div>
-                      </td>
-                      <td className="py-6 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="p-1.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
-                            {activeTab === 'lms' || activeTab === 'siput' ? <School className="w-3.5 h-3.5" /> : <Store className="w-3.5 h-3.5" />}
+                  {data.map((item) => {
+                    const created = formatCreatedAt(item.created_at);
+                    return (
+                      <tr
+                        key={item.id}
+                        className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group"
+                      >
+                        <td className="py-6 px-4">
+                          <div className="text-slate-300 text-sm font-medium">{created.date}</div>
+                          <div className="text-slate-600 text-[10px] font-mono mt-0.5">
+                            {created.time}
+                          </div>
+                        </td>
+                        <td className="py-6 px-4">
+                          <div className="text-white font-bold">{item.full_name}</div>
+                          <div className="text-slate-500 text-xs mt-1">{item.email}</div>
+                        </td>
+                        <td className="py-6 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="p-1.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
+                              {activeTab === 'lms' || activeTab === 'siput' ? (
+                                <School className="w-3.5 h-3.5" />
+                              ) : (
+                                <Store className="w-3.5 h-3.5" />
+                              )}
+                            </span>
+                            <span className="text-slate-300 font-semibold">{item.business_name}</span>
+                          </div>
+                        </td>
+                        <td className="py-6 px-4 font-mono text-slate-400 text-sm">
+                          {item.whatsapp}
+                        </td>
+                        <td className="py-6 px-4">
+                          <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                            {item.package || 'default'}
                           </span>
-                          <span className="text-slate-300 font-semibold">{item.business_name}</span>
-                        </div>
-                      </td>
-                      <td className="py-6 px-4 font-mono text-slate-400 text-sm">{item.whatsapp}</td>
-                      <td className="py-6 px-4">
-                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                          {item.package || 'default'}
-                        </span>
-                      </td>
-                      <td className="py-6 px-4">
-                        <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
-                          {getDynamicValue(item.meta_data)}
-                        </span>
-                      </td>
-                      <td className="py-6 px-4 text-center">
-                        {item.status === 'active' ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Aktif
+                        </td>
+                        <td className="py-6 px-4">
+                          <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
+                            {getDynamicValue(item.meta_data)}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                            <Clock className="w-3 h-3" />
-                            Pending
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-6 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <a 
-                            href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl transition-all group/wa"
-                            title="Hubungi via WhatsApp"
-                          >
-                            <MessageCircle className="w-4 h-4 transition-transform group-hover/wa:scale-110" />
-                          </a>
-                          
-                          <button
-                            onClick={() => handleUpdateStatus(item.id, item.status)}
-                            disabled={updatingId === item.id}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                              item.status === 'active'
-                                ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
-                                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
-                            }`}
-                          >
-                            {updatingId === item.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : item.status === 'active' ? (
-                              'Nonaktifkan'
-                            ) : (
-                              'Setujui'
-                            )}
-                          </button>
+                        </td>
+                        <td className="py-6 px-4 text-center">
+                          {item.status === 'active' || item.status === 'verified' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Aktif
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                              <Clock className="w-3 h-3" />
+                              Pending
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-6 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <a
+                              href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl transition-all group/wa"
+                              title="Hubungi via WhatsApp"
+                            >
+                              <MessageCircle className="w-4 h-4 transition-transform group-hover/wa:scale-110" />
+                            </a>
 
-                          {/* Tombol Hapus Ditambahkan Di Sini */}
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
-                            title="Hapus Data"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            <button
+                              onClick={() => handleUpdateStatus(item)}
+                              disabled={updatingId === item.id}
+                              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                item.status === 'active' || item.status === 'verified'
+                                  ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
+                                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                              }`}
+                            >
+                              {updatingId === item.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : item.status === 'active' || item.status === 'verified' ? (
+                                'Nonaktifkan'
+                              ) : (
+                                'Setujui'
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
+                              title="Hapus Data"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </motion.div>
@@ -368,19 +478,23 @@ export default function ManajemenPendaftarSaaS() {
         </AnimatePresence>
       </div>
 
-      {/* Footer Info */}
       <div className="p-6 bg-[#0D1426]/50 border-t border-slate-800 text-slate-600 text-xs flex justify-between items-center">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
-            Supabase Live Sync Enabled
+            {isMainDbTab(activeTab) ? 'Supabase LMS/SIPUT' : 'Supabase Kuliner'}
           </span>
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            Secure WhatsApp API
+            Tenant:{' '}
+            {isMainDbTab(activeTab)
+              ? activeTab === 'lms'
+                ? 'lms_live'
+                : 'siput_live'
+              : localStorage.getItem('tenant') || 'scanbite_live'}
           </span>
         </div>
-        <div className="font-mono">RASYATECH_ADMIN_V2.0.4</div>
+        <div className="font-mono">RASYATECH_ADMIN_V2.1.0</div>
       </div>
     </div>
   );
