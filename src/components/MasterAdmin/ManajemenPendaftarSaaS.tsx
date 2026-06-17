@@ -134,60 +134,60 @@ export default function ManajemenPendaftarSaaS() {
 
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
   setUpdatingId(id);
+  const handleUpdateStatus = async (id: string, currentStatus: string, isFromKuliner: boolean) => {
+  setUpdatingId(id); // Asumsi Anda punya state ini
   try {
-    const tenant = localStorage.getItem('tenant') || 'scanbite_live'; // <-- DEKLARASIKAN DI SINI
+    const tenant = localStorage.getItem('tenant') || 'scanbite_live';
     const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
     const isApprovedValue = (nextStatus === 'active');
 
-    const { error: updateError } = await supabase
+    // Tentukan client Supabase
+    const client = isFromKuliner ? supabaseKuliner : supabase;
+
+    // 1. Update status
+    const { error: updateError } = await client
       .from('registrations')
       .update({ is_approved: isApprovedValue })
-      .eq('id', id)
-      .eq('tenant', tenant);
+      .eq('id', id);
 
     if (updateError) throw updateError;
     
+    // 2. Jika disetujui, ambil data & kirim email
     if (isApprovedValue) {
-      // Ambil data pendaftar
-      const { data: tenantData, error: fetchError } = await supabase
-        .from('registrations')
-        .select('admin_email, tenant_name, subdomain, product_app')
-        .eq('id', id)
-        .eq('tenant', tenant)
-        .single();
-      
-      if (!fetchError && tenantData) {
-        const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-        
-        // Hapus bagian .from('') yang kosong – tidak perlu simpan password ke database
-        // Langsung panggil API send-credentials
-        await fetch('/api/send-credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: tenantData.admin_email,
-            password: generatedPassword,
-            school_name: tenantData.tenant_name,
-            tenant: tenant, // <-- pakai tenant yang sudah dideklarasi
-          })
-        });
-        
-        alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
-      } else {
-        alert('Status pendaftar berhasil diperbarui! (Gagal ambil data email)');
-      }
+        const { data: tenantData, error: fetchError } = await client
+            .from('registrations')
+            .select('admin_email, tenant_name, subdomain, product_app')
+            .eq('id', id)
+            .single();
+            
+        if (!fetchError && tenantData) {
+            const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+            
+            await fetch('/api/send-credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: tenantData.admin_email,
+                    password: generatedPassword,
+                    school_name: tenantData.tenant_name,
+                    tenant: tenant,
+                })
+            });
+            alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
+        } else {
+            alert('Status pendaftar berhasil diperbarui! (Gagal ambil data email)');
+        }
     } else {
-      alert('Status pendaftar berhasil diperbarui!');
+        alert('Status pendaftar berhasil diperbarui!');
     }
     
   } catch (err: any) {
     console.error('Update operation error:', err);
-    alert('Gagal memperbarui status pendaftar.');
+    alert('Gagal memperbarui status pendaftar: ' + err.message);
   } finally {
     setUpdatingId(null);
   }
 };
-
   const handleDelete = async (id: string) => {
   if (!window.confirm("Yakin ingin menghapus data ini?")) return;
 
