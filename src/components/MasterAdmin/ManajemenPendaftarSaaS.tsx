@@ -120,11 +120,11 @@ export default function ManajemenPendaftarSaaS() {
     }));
 
     mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    setData(mappedData);
-  } catch (err: any) {
-    console.error('Gagal load data:', err);
-    setError(err.message || 'Gagal memuat data pendaftar');
-  } finally {
+  setData(mappedData);
+} catch (err: any) { // <-- Baris 124 Anda ada di sini
+  console.error('Gagal load data:', err);
+  setError(err.message || 'Gagal memuat data pendaftar');
+} finally {
     setLoading(false);
   }
 };
