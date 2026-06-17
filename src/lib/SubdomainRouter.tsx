@@ -10,6 +10,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { supabaseMaster } from './supabase-hub';
+import { getSubdomainFromHostname } from './subdomain-utils';
 import type { ProductType, MasterRegistration } from './types/products';
 
 // ─── Context shape ────────────────────────────────────────────────────────────

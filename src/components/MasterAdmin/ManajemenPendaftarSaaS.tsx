@@ -26,8 +26,10 @@ interface Pendaftar {
   product_type: ProductType;
   package?: string;
   status: 'pending' | 'active' | 'verified';
-  meta_data: any;
+  meta_data: Record<string, unknown>;
   created_at: string;
+  /** Baris mentah dari Supabase — untuk update status dinamis */
+  _raw: Record<string, unknown>;
 }
 
 const TABS = [
@@ -37,6 +39,84 @@ const TABS = [
   { id: 'siput', label: 'SIPUT', icon: '🐌' },
   { id: 'instafood', label: 'Instafood', icon: '📸' }, // <-- konsisten
 ] as const;
+
+function isMainDbTab(tab: ProductType): boolean {
+  return tab === 'lms' || tab === 'siput';
+}
+
+function getDbClient(tab: ProductType) {
+  return isMainDbTab(tab) ? supabase : supabaseKuliner;
+}
+
+function getProductTypeValue(row: Record<string, unknown>): string {
+  return String(row.product_type || row.product_name || row.business_type || '').toLowerCase();
+}
+
+function matchesActiveTab(row: Record<string, unknown>, tab: ProductType): boolean {
+  const pType = getProductTypeValue(row);
+  const tabLower = tab.toLowerCase();
+
+  switch (tab) {
+    case 'lms':
+      return (
+        pType === 'lms' ||
+        pType.includes('lms') ||
+        pType.includes('armilla') ||
+        pType.includes('kesetaraan')
+      );
+    case 'siput':
+      return pType === 'siput' || pType.includes('siput');
+    case 'scanbite':
+      return pType === 'scanbite' || pType.includes('scanbite');
+    case 'restoran_asli':
+      return pType === 'restoran_asli' || pType.includes('restoran') || pType.includes('resto');
+    case 'instafoto':
+      return pType === 'instafoto' || pType.includes('instafoto') || pType.includes('instafood');
+    default:
+      return pType === tabLower || pType.includes(tabLower);
+  }
+}
+
+function resolveUiStatus(row: Record<string, unknown>): Pendaftar['status'] {
+  if (row.is_approved === true || row.is_approved === 'true' || row.is_approved === 1) {
+    return 'active';
+  }
+  const status = String(row.status || '').toLowerCase();
+  if (status === 'verified' || status === 'active') return 'active';
+  if (row.approved === true) return 'active';
+  return 'pending';
+}
+
+function mapRowToPendaftar(row: Record<string, unknown>, tab: ProductType): Pendaftar {
+  return {
+    id: String(row.id),
+    full_name: String(row.admin_name || row.full_name || row.name || '-'),
+    email: String(row.admin_email || row.email || '-'),
+    whatsapp: String(row.whatsapp || row.whatsapp_number || row.WA || '-'),
+    business_name: String(row.school_name || row.business_name || row.tenant_name || '-'),
+    product_type: tab,
+    package: String(row.paket_langganan || row.selected_package || row.package_tier || 'silver'),
+    status: resolveUiStatus(row),
+    meta_data: {
+      npsn: row.npsn ?? null,
+      tables_count: row.table_count ?? row.tables_count ?? 0,
+      outlet_count: row.outlet_count ?? 0,
+    },
+    created_at: String(row.created_at || ''),
+    _raw: row,
+  };
+}
+
+function sortByCreatedAtDesc<T extends { created_at?: string }>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) =>
+      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  );
+}
+
+function rowHasIsApprovedColumn(row: Record<string, unknown>): boolean {
+  return Object.prototype.hasOwnProperty.call(row, 'is_approved');
+}
 
 export default function ManajemenPendaftarSaaS() {
   const [activeTab, setActiveTab] = useState<ProductType>('lms');
@@ -234,7 +314,7 @@ const fetchData = async () => {
     return '-';
   };
 
-  const getDynamicValue = (meta: any) => {
+  const getDynamicValue = (meta: Record<string, unknown>) => {
     if (!meta) return '-';
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return meta.tables_count || '-';
     if (activeTab === 'instafood') return meta.outlet_count || '-';
@@ -245,16 +325,19 @@ const fetchData = async () => {
   // --- RENDER (sama seperti sebelumnya, tidak diubah) ---
   return (
     <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl">
-      {/* Header */}
       <div className="p-8 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-blue-500/10 rounded-xl">
               <Users className="w-5 h-5 text-blue-400" />
             </div>
-            <h1 className="text-2xl font-bold text-white uppercase tracking-tight">Manajemen Pendaftar SaaS</h1>
+            <h1 className="text-2xl font-bold text-white uppercase tracking-tight">
+              Manajemen Pendaftar SaaS
+            </h1>
           </div>
-          <p className="text-slate-400 text-sm">Rekap pendaftaran produk ekosistem Rasyatech Enterprise.</p>
+          <p className="text-slate-400 text-sm">
+            LMS & SIPUT → Supabase utama · Kuliner → Supabase Kuliner
+          </p>
         </div>
 
         <button
@@ -267,7 +350,6 @@ const fetchData = async () => {
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="px-8 pt-4 pb-2 bg-[#0D1426] border-b border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar">
         {TABS.map((tab) => (
           <button
@@ -285,7 +367,6 @@ const fetchData = async () => {
         ))}
       </div>
 
-      {/* Content */}
       <div className="p-8">
         <AnimatePresence mode="wait">
           {loading ? (
@@ -297,7 +378,9 @@ const fetchData = async () => {
               className="py-32 flex flex-col items-center justify-center gap-4"
             >
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-              <p className="text-slate-500 font-medium font-serif italic">Membaca database Supabase...</p>
+              <p className="text-slate-500 font-medium font-serif italic">
+                Membaca database Supabase...
+              </p>
             </motion.div>
           ) : error ? (
             <motion.div
@@ -318,8 +401,12 @@ const fetchData = async () => {
               <div className="p-4 bg-slate-800/50 rounded-full">
                 <Search className="w-8 h-8 text-slate-600" />
               </div>
-              <h3 className="text-slate-400 font-bold text-lg uppercase tracking-widest">Belum Ada Pendaftar</h3>
-              <p className="text-slate-600 max-w-sm text-sm">Belum ada user yang mendaftar untuk produk {activeTab.toUpperCase()} di wilayah ini.</p>
+              <h3 className="text-slate-400 font-bold text-lg uppercase tracking-widest">
+                Belum Ada Pendaftar
+              </h3>
+              <p className="text-slate-600 max-w-sm text-sm">
+                Belum ada user yang mendaftar untuk produk {activeTab.toUpperCase()} di tenant ini.
+              </p>
             </motion.div>
           ) : (
             <motion.div
@@ -331,56 +418,73 @@ const fetchData = async () => {
               <table className="w-full text-left border-collapse min-w-[1000px]">
                 <thead>
                   <tr className="border-b border-slate-800">
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Waktu Daftar</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Nama Lengkap</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Instansi / Bisnis</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">WhatsApp</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Paket</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">{getDynamicColumnHeader()}</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-right">Aksi</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      Waktu Daftar
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      Nama Lengkap
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      Instansi / Bisnis
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      WhatsApp
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      Paket
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
+                      {getDynamicColumnHeader()}
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-center">
+                      Status
+                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-right">
+                      Aksi
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((item) => (
-                    <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
-                      <td className="py-6 px-4">
-                        <div className="text-slate-300 text-sm font-medium">{new Date(item.created_at).toLocaleDateString('id-ID')}</div>
-                        <div className="text-slate-600 text-[10px] font-mono mt-0.5">{new Date(item.created_at).toLocaleTimeString('id-ID')}</div>
-                      </td>
-                      <td className="py-6 px-4">
-                        <div className="text-white font-bold">{item.full_name}</div>
-                        <div className="text-slate-500 text-xs mt-1">{item.email}</div>
-                      </td>
-                      <td className="py-6 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="p-1.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
-                            {activeTab === 'lms' || activeTab === 'siput' ? <School className="w-3.5 h-3.5" /> : <Store className="w-3.5 h-3.5" />}
+                  {data.map((item) => {
+                    const created = formatCreatedAt(item.created_at);
+                    return (
+                      <tr
+                        key={item.id}
+                        className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group"
+                      >
+                        <td className="py-6 px-4">
+                          <div className="text-slate-300 text-sm font-medium">{created.date}</div>
+                          <div className="text-slate-600 text-[10px] font-mono mt-0.5">
+                            {created.time}
+                          </div>
+                        </td>
+                        <td className="py-6 px-4">
+                          <div className="text-white font-bold">{item.full_name}</div>
+                          <div className="text-slate-500 text-xs mt-1">{item.email}</div>
+                        </td>
+                        <td className="py-6 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="p-1.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
+                              {activeTab === 'lms' || activeTab === 'siput' ? (
+                                <School className="w-3.5 h-3.5" />
+                              ) : (
+                                <Store className="w-3.5 h-3.5" />
+                              )}
+                            </span>
+                            <span className="text-slate-300 font-semibold">{item.business_name}</span>
+                          </div>
+                        </td>
+                        <td className="py-6 px-4 font-mono text-slate-400 text-sm">
+                          {item.whatsapp}
+                        </td>
+                        <td className="py-6 px-4">
+                          <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                            {item.package || 'default'}
                           </span>
-                          <span className="text-slate-300 font-semibold">{item.business_name}</span>
-                        </div>
-                      </td>
-                      <td className="py-6 px-4 font-mono text-slate-400 text-sm">{item.whatsapp}</td>
-                      <td className="py-6 px-4">
-                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                          {item.package || 'default'}
-                        </span>
-                      </td>
-                      <td className="py-6 px-4">
-                        <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
-                          {getDynamicValue(item.meta_data)}
-                        </span>
-                      </td>
-                      <td className="py-6 px-4 text-center">
-                        {item.status === 'active' ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                            <Clock className="w-3 h-3" />
-                            Pending
+                        </td>
+                        <td className="py-6 px-4">
+                          <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
+                            {getDynamicValue(item.meta_data)}
                           </span>
                         )}
                       </td>
@@ -432,19 +536,18 @@ const fetchData = async () => {
         </AnimatePresence>
       </div>
 
-      {/* Footer Info */}
       <div className="p-6 bg-[#0D1426]/50 border-t border-slate-800 text-slate-600 text-xs flex justify-between items-center">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
-            Supabase Live Sync Enabled
+            {isMainDbTab(activeTab) ? 'Supabase LMS/SIPUT' : 'Supabase Kuliner'}
           </span>
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            Secure WhatsApp API
+            Produk: {activeTab}
           </span>
         </div>
-        <div className="font-mono">RASYATECH_ADMIN_V2.0.4</div>
+        <div className="font-mono">RASYATECH_ADMIN_V2.1.0</div>
       </div>
     </div>
   );

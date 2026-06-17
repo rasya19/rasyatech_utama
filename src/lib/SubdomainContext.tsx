@@ -8,6 +8,7 @@
  */
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { SubdomainRouterProvider } from './SubdomainRouter';
+import { getSubdomainFromHostname } from './subdomain-utils';
 
 // ─── Legacy context (subdomain string only) ───────────────────────────────────
 
