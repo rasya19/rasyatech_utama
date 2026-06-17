@@ -16,7 +16,7 @@ import {
   Clock,
   RefreshCcw,
   AlertCircle,
-  Trash2 // <-- Ditambahkan ikon Trash2
+  Trash2
 } from 'lucide-react';
 
 type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
@@ -49,181 +49,179 @@ export default function ManajemenPendaftarSaaS() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  // --- FETCH DATA ---
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-    const tenant = localStorage.getItem('tenant') || 'scanbite_live';
-    const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-    const isApprovedValue = (nextStatus === 'active');
+      const tenant = localStorage.getItem('tenant') || 'scanbite_live';
+      
+      // Tentukan client dan filter berdasarkan produk
+      let client = supabase;
+      let table = 'registrations';
+      let productFilter = activeTab;
 
-    const client = isFromKuliner ? supabaseKuliner : supabase;
-
-    // 1. Update status
-    const { error: updateError } = await client
-      .from('registrations')
-      .update({ is_approved: isApprovedValue })
-      .eq('id', id);
-
-    if (updateError) throw updateError;
-
-    // 2. Jika disetujui, ambil data & kirim email
-    if (isApprovedValue) {
-      const { data: tenantData, error: fetchError } = await client
-        .from('registrations')
-        .select('admin_email, tenant_name, subdomain, product_app')
-        .eq('id', id)
-        .single();
-
-      if (!fetchError && tenantData) {
-        const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-
-        await fetch('/api/send-credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: tenantData.admin_email,
-            password: generatedPassword,
-            school_name: tenantData.tenant_name,
-            tenant: tenant,
-          })
-        });
-        alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
-      } else {
-        alert('Status pendaftar berhasil diperbarui! (Gagal ambil data email)');
+      // Untuk produk kuliner, gunakan supabaseKuliner
+      if (activeTab === 'scanbite' || activeTab === 'restoran_asli') {
+        client = supabaseKuliner;
       }
-    } else {
-      alert('Status pendaftar berhasil diperbarui!');
-    }
-  } catch (err: any) {
-    console.error('Update operation error:', err);
-    alert('Gagal memperbarui status pendaftar: ' + err.message);
-  } finally {
-    setUpdatingId(null);
-  }
-      // 2. Mapping data hasil filter agar sesuai dengan interface Pendaftar UI
-      const mappedData: Pendaftar[] = (filteredRegs || []).map((r: any) => ({
-      id: r.id,
-      full_name: r.admin_name || r.full_name || r.name || '-',
-      email: r.admin_email || r.email || '-',
-      whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
-      business_name: r.school_name || r.business_name || '-',
-      product_type: activeTab,
-      package: r.paket_langganan || r.selected_package || 'silver',
-      status: r.is_approved ? 'active' : 'pending',
-      meta_data: { 
-        npsn: r.npsn || null,
-        tables_count: r.table_count || r.outlet_count || 0,
-        outlet_count: r.outlet_count || r.table_count || 0
-      },
-      created_at: r.created_at
-    }));
 
-    mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  setData(mappedData);
-} catch (err: any) { // <-- Baris 124 Anda ada di sini
-  console.error('Gagal load data:', err);
-  setError(err.message || 'Gagal memuat data pendaftar');
-} finally {
-    setLoading(false);
-  }
-};
+      // Query data dengan filter tenant dan product_app
+      const { data: rawData, error: fetchError } = await client
+        .from(table)
+        .select('*')
+        .eq('tenant', tenant)
+        .eq('product_app', activeTab)
+        .order('created_at', { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      // Pastikan rawData adalah array
+      const safeData = Array.isArray(rawData) ? rawData : [];
+
+      // Mapping ke interface Pendaftar
+      const mappedData: Pendaftar[] = safeData.map((r: any) => ({
+        id: r.id,
+        full_name: r.admin_name || r.full_name || r.name || '-',
+        email: r.admin_email || r.email || '-',
+        whatsapp: r.whatsapp || r.whatsapp_number || r.WA || '-',
+        business_name: r.school_name || r.business_name || '-',
+        product_type: activeTab,
+        package: r.paket_langganan || r.selected_package || 'silver',
+        status: r.is_approved ? 'active' : 'pending',
+        meta_data: {
+          npsn: r.npsn || null,
+          tables_count: r.table_count || r.outlet_count || 0,
+          outlet_count: r.outlet_count || r.table_count || 0
+        },
+        created_at: r.created_at || new Date(0).toISOString()
+      }));
+
+      // Sorting (sudah di-order oleh query, tapi amankan)
+      mappedData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      setData(mappedData);
+    } catch (err: unknown) {
+      console.error('Gagal load data:', err);
+      let userMessage = 'Gagal memuat data pendaftar';
+      if (err instanceof Error) {
+        userMessage = err.message;
+        if (err.message.includes('fetch') || err.message.includes('network')) {
+          userMessage = 'Gagal terhubung ke server. Periksa koneksi internet.';
+        } else if (err.message.includes('map') || err.message.includes('is not a function')) {
+          userMessage = 'Data yang diterima tidak sesuai format.';
+        }
+      }
+      setError(userMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
-  }, [activeTab,]); // <-- Tambahkan regs di dependency array
+  }, [activeTab]);
 
-  const handleUpdateStatus = async (id: string, currentStatus: string) => {
-  setUpdatingId(id);
+  // --- UPDATE STATUS ---
   const handleUpdateStatus = async (id: string, currentStatus: string, isFromKuliner: boolean) => {
-  setUpdatingId(id); // Asumsi Anda punya state ini
-  try {
-    const tenant = localStorage.getItem('tenant') || 'scanbite_live';
-    const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-    const isApprovedValue = (nextStatus === 'active');
+    setUpdatingId(id);
+    try {
+      const tenant = localStorage.getItem('tenant') || 'scanbite_live';
+      const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
+      const isApprovedValue = (nextStatus === 'active');
 
-    // Tentukan client Supabase
-    const client = isFromKuliner ? supabaseKuliner : supabase;
+      const client = isFromKuliner ? supabaseKuliner : supabase;
 
-    // 1. Update status
-    const { error: updateError } = await client
-      .from('registrations')
-      .update({ is_approved: isApprovedValue })
-      .eq('id', id);
+      // 1. Update status
+      const { error: updateError } = await client
+        .from('registrations')
+        .update({ is_approved: isApprovedValue })
+        .eq('id', id)
+        .eq('tenant', tenant);
 
-    if (updateError) throw updateError;
-    
-    // 2. Jika disetujui, ambil data & kirim email
-    if (isApprovedValue) {
+      if (updateError) throw updateError;
+
+      // 2. Jika disetujui, kirim email kredensial
+      if (isApprovedValue) {
         const { data: tenantData, error: fetchError } = await client
-            .from('registrations')
-            .select('admin_email, tenant_name, subdomain, product_app')
-            .eq('id', id)
-            .single();
-            
+          .from('registrations')
+          .select('admin_email, tenant_name, subdomain, product_app')
+          .eq('id', id)
+          .single();
+
         if (!fetchError && tenantData) {
-            const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-            
-            await fetch('/api/send-credentials', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: tenantData.admin_email,
-                    password: generatedPassword,
-                    school_name: tenantData.tenant_name,
-                    tenant: tenant,
-                })
-            });
+          const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+
+          const response = await fetch('/api/send-credentials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: tenantData.admin_email,
+              password: generatedPassword,
+              school_name: tenantData.tenant_name,
+              tenant: tenant,
+            })
+          });
+
+          if (!response.ok) {
+            console.error('Gagal mengirim email, status:', response.status);
+            alert('Status berhasil diubah, tetapi gagal mengirim email kredensial.');
+          } else {
             alert('Pendaftar berhasil disetujui & email kredensial terkirim!');
+          }
         } else {
-            alert('Status pendaftar berhasil diperbarui! (Gagal ambil data email)');
+          alert('Status pendaftar berhasil diperbarui! (Gagal ambil data email)');
         }
-    } else {
+      } else {
         alert('Status pendaftar berhasil diperbarui!');
+      }
+
+      // Refresh data
+      await fetchData();
+    } catch (err: any) {
+      console.error('Update operation error:', err);
+      alert('Gagal memperbarui status pendaftar: ' + err.message);
+    } finally {
+      setUpdatingId(null);
     }
-    
-  } catch (err: any) {
-    console.error('Update operation error:', err);
-    alert('Gagal memperbarui status pendaftar: ' + err.message);
-  } finally {
-    setUpdatingId(null);
-  }
-};
+  };
+
+  // --- DELETE ---
   const handleDelete = async (id: string) => {
-  if (!window.confirm("Yakin ingin menghapus data ini?")) return;
+    if (!window.confirm("Yakin ingin menghapus data ini?")) return;
 
-  try {
-    const tenant = localStorage.getItem('tenant') || 'scanbite_live';
+    try {
+      const tenant = localStorage.getItem('tenant') || 'scanbite_live';
 
-    // Hapus dari database pendidikan
-    const { error: eduError } = await supabase
-      .from('registrations')
-      .delete()
-      .eq('id', id)
-      .eq('tenant', tenant);
+      // Hapus dari database pendidikan
+      const { error: eduError } = await supabase
+        .from('registrations')
+        .delete()
+        .eq('id', id)
+        .eq('tenant', tenant);
 
-    if (eduError) console.error('Error hapus dari pendidikan:', eduError);
+      if (eduError) console.error('Error hapus dari pendidikan:', eduError);
 
-    // Hapus dari database kuliner
-    const { error: kulError } = await supabaseKuliner
-      .from('registrations')
-      .delete()
-      .eq('id', id)
-      .eq('tenant', tenant);
+      // Hapus dari database kuliner
+      const { error: kulError } = await supabaseKuliner
+        .from('registrations')
+        .delete()
+        .eq('id', id)
+        .eq('tenant', tenant);
 
-    if (kulError) console.error('Error hapus dari kuliner:', kulError);
+      if (kulError) console.error('Error hapus dari kuliner:', kulError);
 
-    // Jika keduanya gagal, lempar error
-    if (eduError && kulError) throw new Error('Gagal menghapus dari kedua database');
+      if (eduError && kulError) throw new Error('Gagal menghapus dari kedua database');
 
-    alert('Data berhasil dihapus.');
-    await fetchData(); // Refresh data
-  } catch (err: any) {
-    console.error('Error saat menghapus:', err);
-    alert('Gagal menghapus data.');
-  }
-};
+      alert('Data berhasil dihapus.');
+      await fetchData();
+    } catch (err: any) {
+      console.error('Error saat menghapus:', err);
+      alert('Gagal menghapus data.');
+    }
+  };
 
+  // --- HELPERS UNTUK KOLOM DINAMIS ---
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
     if (activeTab === 'instafoto') return 'Jml Outlet';
@@ -239,6 +237,7 @@ export default function ManajemenPendaftarSaaS() {
     return '-';
   };
 
+  // --- RENDER ---
   return (
     <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl">
       {/* Header */}
@@ -338,90 +337,93 @@ export default function ManajemenPendaftarSaaS() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((item) => (
-                    <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
-                      <td className="py-6 px-4">
-                        <div className="text-slate-300 text-sm font-medium">{new Date(item.created_at).toLocaleDateString('id-ID')}</div>
-                        <div className="text-slate-600 text-[10px] font-mono mt-0.5">{new Date(item.created_at).toLocaleTimeString('id-ID')}</div>
-                      </td>
-                      <td className="py-6 px-4">
-                        <div className="text-white font-bold">{item.full_name}</div>
-                        <div className="text-slate-500 text-xs mt-1">{item.email}</div>
-                      </td>
-                      <td className="py-6 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="p-1.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
-                            {activeTab === 'lms' || activeTab === 'siput' ? <School className="w-3.5 h-3.5" /> : <Store className="w-3.5 h-3.5" />}
+                  {data.map((item) => {
+                    // Tentukan apakah dari kuliner berdasarkan activeTab
+                    const isFromKuliner = (activeTab === 'scanbite' || activeTab === 'restoran_asli');
+                    return (
+                      <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
+                        <td className="py-6 px-4">
+                          <div className="text-slate-300 text-sm font-medium">{new Date(item.created_at).toLocaleDateString('id-ID')}</div>
+                          <div className="text-slate-600 text-[10px] font-mono mt-0.5">{new Date(item.created_at).toLocaleTimeString('id-ID')}</div>
+                        </td>
+                        <td className="py-6 px-4">
+                          <div className="text-white font-bold">{item.full_name}</div>
+                          <div className="text-slate-500 text-xs mt-1">{item.email}</div>
+                        </td>
+                        <td className="py-6 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="p-1.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
+                              {activeTab === 'lms' || activeTab === 'siput' ? <School className="w-3.5 h-3.5" /> : <Store className="w-3.5 h-3.5" />}
+                            </span>
+                            <span className="text-slate-300 font-semibold">{item.business_name}</span>
+                          </div>
+                        </td>
+                        <td className="py-6 px-4 font-mono text-slate-400 text-sm">{item.whatsapp}</td>
+                        <td className="py-6 px-4">
+                          <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                            {item.package || 'default'}
                           </span>
-                          <span className="text-slate-300 font-semibold">{item.business_name}</span>
-                        </div>
-                      </td>
-                      <td className="py-6 px-4 font-mono text-slate-400 text-sm">{item.whatsapp}</td>
-                      <td className="py-6 px-4">
-                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                          {item.package || 'default'}
-                        </span>
-                      </td>
-                      <td className="py-6 px-4">
-                        <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
-                          {getDynamicValue(item.meta_data)}
-                        </span>
-                      </td>
-                      <td className="py-6 px-4 text-center">
-                        {item.status === 'active' ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Aktif
+                        </td>
+                        <td className="py-6 px-4">
+                          <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
+                            {getDynamicValue(item.meta_data)}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                            <Clock className="w-3 h-3" />
-                            Pending
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-6 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <a 
-                            href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl transition-all group/wa"
-                            title="Hubungi via WhatsApp"
-                          >
-                            <MessageCircle className="w-4 h-4 transition-transform group-hover/wa:scale-110" />
-                          </a>
-                          
-                          <button
-                            onClick={() => handleUpdateStatus(item.id, item.status)}
-                            disabled={updatingId === item.id}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                              item.status === 'active'
-                                ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
-                                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
-                            }`}
-                          >
-                            {updatingId === item.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : item.status === 'active' ? (
-                              'Nonaktifkan'
-                            ) : (
-                              'Setujui'
-                            )}
-                          </button>
+                        </td>
+                        <td className="py-6 px-4 text-center">
+                          {item.status === 'active' ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Aktif
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                              <Clock className="w-3 h-3" />
+                              Pending
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-6 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <a 
+                              href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl transition-all group/wa"
+                              title="Hubungi via WhatsApp"
+                            >
+                              <MessageCircle className="w-4 h-4 transition-transform group-hover/wa:scale-110" />
+                            </a>
+                            
+                            <button
+                              onClick={() => handleUpdateStatus(item.id, item.status, isFromKuliner)}
+                              disabled={updatingId === item.id}
+                              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                item.status === 'active'
+                                  ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
+                                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                              }`}
+                            >
+                              {updatingId === item.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : item.status === 'active' ? (
+                                'Nonaktifkan'
+                              ) : (
+                                'Setujui'
+                              )}
+                            </button>
 
-                          {/* Tombol Hapus Ditambahkan Di Sini */}
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
-                            title="Hapus Data"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
+                              title="Hapus Data"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </motion.div>
