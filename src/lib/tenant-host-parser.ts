@@ -9,6 +9,9 @@
 
 export type TenantProductPillar = 'lms' | 'siput' | 'kuliner';
 
+/** Rute internal per produk SaaS (5 pilar). */
+export type SaasProductRoute = 'lms' | 'siput' | 'scanbite' | 'resto' | 'instafood';
+
 export type ParsedTenantHost = {
   /** Slug lengkap dari hostname (mis. pkbm-armilla, tk-armillanusa). */
   tenantSlug: string;
@@ -52,6 +55,56 @@ const KULINER_SEGMENTS = new Set([
   'instafoto',
   'instafood',
 ]);
+
+const PRODUCT_ROUTE_MAP: Record<string, SaasProductRoute> = {
+  lms: 'lms',
+  armilla: 'lms',
+  kesetaraan: 'lms',
+  siput: 'siput',
+  scanbite: 'scanbite',
+  restoran_asli: 'resto',
+  restoran: 'resto',
+  resto: 'resto',
+  instafoto: 'instafood',
+  instafood: 'instafood',
+};
+
+export function productAppToRoute(product: string | null | undefined): SaasProductRoute {
+  if (!product) return 'lms';
+  const key = product.trim().toLowerCase();
+  if (PRODUCT_ROUTE_MAP[key]) return PRODUCT_ROUTE_MAP[key];
+  const upper = product.trim().toUpperCase();
+  if (upper === 'LMS') return 'lms';
+  if (upper === 'SIPUT') return 'siput';
+  if (upper === 'SCANBITE') return 'scanbite';
+  if (upper === 'RESTO') return 'resto';
+  if (upper === 'INSTAFOOD') return 'instafood';
+  return 'lms';
+}
+
+export function routeToInternalPrefix(route: SaasProductRoute): string {
+  return `/_${route}`;
+}
+
+export function getTenantBaseDomains(): string[] {
+  const edu =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_TENANT_DOMAIN) ||
+    (typeof process !== 'undefined' && process.env?.VITE_TENANT_DOMAIN) ||
+    'rsch.my.id';
+  const kuliner =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta as ImportMeta & { env?: Record<string, string> }).env
+        ?.VITE_TENANT_DOMAIN_KULINER) ||
+    (typeof process !== 'undefined' && process.env?.VITE_TENANT_DOMAIN_KULINER) ||
+    'rsch.web.id';
+  const apex =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_APEX_DOMAIN) ||
+    (typeof process !== 'undefined' && process.env?.VITE_APEX_DOMAIN) ||
+    'rasyatech.com';
+  return [...new Set([edu, kuliner, apex].map((d) => String(d).toLowerCase().replace(/^\.+/, '')))];
+}
 
 /** Awalan kelembagaan Indonesia — LMS Kesetaraan (PKBM / SKB). */
 export const LMS_INSTITUTIONAL_MARKERS = ['pkbm-', 'skb-'] as const;
@@ -117,99 +170,148 @@ export function buildInstitutionalSubdomain(
 
 export function extractHostnameSubdomainSlug(hostname: string): string | null {
   const h = hostname.split(':')[0].toLowerCase();
-  const base = getTenantBaseDomain();
-  const parts = h.split('.');
-  const baseParts = base.split('.');
 
-  if (parts.slice(-baseParts.length).join('.') !== base) {
-    return parts.length >= 3 ? parts[0] : null;
+  for (const base of getTenantBaseDomains()) {
+    const parts = h.split('.');
+    const baseParts = base.split('.');
+    if (parts.slice(-baseParts.length).join('.') !== base) continue;
+
+    const prefix = parts.slice(0, parts.length - baseParts.length);
+    if (prefix.length === 0) continue;
+
+    if (prefix.length === 1) {
+      const slug = prefix[0];
+      if (PORTAL_SLUGS.has(slug) || PRODUCT_SEGMENTS.has(slug)) continue;
+      return slug;
+    }
+
+    if (prefix.length >= 2 && PRODUCT_SEGMENTS.has(prefix[1])) {
+      return prefix[0];
+    }
   }
 
-  const prefix = parts.slice(0, parts.length - baseParts.length);
-  if (prefix.length !== 1) return null;
-  return prefix[0];
+  if (!isApexLandingHostname(h)) {
+    const parts = h.split('.');
+    if (parts.length >= 3) {
+      const legacySlug = parts[0];
+      if (legacySlug && !PORTAL_SLUGS.has(legacySlug) && !PRODUCT_SEGMENTS.has(legacySlug)) {
+        return legacySlug;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function extractProductHintFromHostname(hostname: string): string | null {
+  const h = hostname.split(':')[0].toLowerCase();
+  for (const base of getTenantBaseDomains()) {
+    const parts = h.split('.');
+    const baseParts = base.split('.');
+    if (parts.slice(-baseParts.length).join('.') !== base) continue;
+    const prefix = parts.slice(0, parts.length - baseParts.length);
+    if (prefix.length >= 2 && PRODUCT_SEGMENTS.has(prefix[1])) {
+      return prefix[1];
+    }
+  }
+  return null;
 }
 
 export type MiddlewareRewriteResult = {
   targetPath: string;
   hostnameSubdomain: string;
   cleanTenantSlug: string;
-  pillar: TenantProductPillar;
+  productRoute: SaasProductRoute;
 };
+
+function buildRewriteForRoute(
+  route: SaasProductRoute,
+  hostnameSubdomain: string,
+  pathname: string
+): MiddlewareRewriteResult {
+  const cleanTenantSlug = stripInstitutionalPrefixFromSlug(hostnameSubdomain);
+  const prefix = routeToInternalPrefix(route);
+  const suffix = pathname === '/' || pathname === '' ? '' : pathname;
+  const targetPath =
+    pathname === '/' || pathname === '' ? `${prefix}/${cleanTenantSlug}` : `${prefix}/${cleanTenantSlug}${suffix}`;
+
+  return {
+    targetPath,
+    hostnameSubdomain,
+    cleanTenantSlug,
+    productRoute: route,
+  };
+}
 
 /**
  * Tentukan path rewrite internal untuk hostname tenant (dipakai edge middleware & client fallback).
- * Contoh: pkbm-armilla-nusa.rsch.my.id + / → /_lms/armilla-nusa
  */
 export function resolveMiddlewareRewriteTarget(
   hostname: string,
-  pathname: string
+  pathname: string,
+  productOverride?: SaasProductRoute | null
 ): MiddlewareRewriteResult | null {
-  if (isMainDomainHostname(hostname) || isApexLandingHostname(hostname)) {
+  if (isApexLandingHostname(hostname)) {
     return null;
   }
 
   const hostnameSubdomain = extractHostnameSubdomainSlug(hostname);
   if (!hostnameSubdomain) return null;
 
-  const cleanTenantSlug = stripInstitutionalPrefixFromSlug(hostnameSubdomain);
-  const suffix = pathname === '/' || pathname === '' ? '' : pathname;
+  if (productOverride) {
+    return buildRewriteForRoute(productOverride, hostnameSubdomain, pathname);
+  }
 
   if (slugMatchesInstitutionalMarker(hostnameSubdomain, LMS_INSTITUTIONAL_MARKERS)) {
-    return {
-      targetPath: `/_lms/${cleanTenantSlug}${suffix}`,
-      hostnameSubdomain,
-      cleanTenantSlug,
-      pillar: 'lms',
-    };
+    return buildRewriteForRoute('lms', hostnameSubdomain, pathname);
   }
 
   if (slugMatchesInstitutionalMarker(hostnameSubdomain, SIPUT_INSTITUTIONAL_MARKERS)) {
-    return {
-      targetPath: `/_siput/${cleanTenantSlug}${suffix}`,
-      hostnameSubdomain,
-      cleanTenantSlug,
-      pillar: 'siput',
-    };
+    return buildRewriteForRoute('siput', hostnameSubdomain, pathname);
+  }
+
+  const productHint = extractProductHintFromHostname(hostname);
+  if (productHint) {
+    return buildRewriteForRoute(productAppToRoute(productHint), hostnameSubdomain, pathname);
   }
 
   const parsed = parseTenantHostname(hostname);
-  if (!parsed) return null;
+  if (parsed?.productHint) {
+    return buildRewriteForRoute(
+      productAppToRoute(parsed.productHint),
+      hostnameSubdomain,
+      pathname
+    );
+  }
 
-  const slug = parsed.cleanTenantSlug || parsed.tenantSlug;
-  const routePrefix =
-    parsed.pillar === 'siput'
-      ? `/_siput/${slug}`
-      : parsed.pillar === 'kuliner'
-        ? `/kuliner/${slug}`
-        : `/_lms/${slug}`;
+  if (parsed?.pillar === 'siput') {
+    return buildRewriteForRoute('siput', hostnameSubdomain, pathname);
+  }
 
-  return {
-    targetPath: pathname === '/' || pathname === '' ? routePrefix : `${routePrefix}${suffix}`,
-    hostnameSubdomain: parsed.tenantSlug,
-    cleanTenantSlug: slug,
-    pillar: parsed.pillar,
-  };
+  if (parsed?.pillar === 'kuliner') {
+    return buildRewriteForRoute('scanbite', hostnameSubdomain, pathname);
+  }
+
+  const host = hostname.split(':')[0].toLowerCase();
+  const kulinerDomain = getTenantBaseDomains().find((d) => d.includes('web.id'));
+  if (kulinerDomain && host.endsWith(kulinerDomain)) {
+    return buildRewriteForRoute('scanbite', hostnameSubdomain, pathname);
+  }
+
+  return buildRewriteForRoute('lms', hostnameSubdomain, pathname);
 }
 
-/** Apex domain tanpa subdomain — landing utama. */
+/** Apex domain tanpa subdomain — landing utama (sangat ketat). */
 export function isApexLandingHostname(hostname: string): boolean {
   const h = hostname.split(':')[0].toLowerCase();
-  const base = getTenantBaseDomain();
-  return h === base || h === `www.${base}`;
+  return getTenantBaseDomains().some((base) => h === base || h === `www.${base}`);
 }
 
 export function getTenantBaseDomain(): string {
-  const fromEnv =
-    (typeof import.meta !== 'undefined' &&
-      (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_TENANT_DOMAIN) ||
-    (typeof process !== 'undefined' && process.env?.VITE_TENANT_DOMAIN);
-  return String(fromEnv || 'rsch.my.id')
-    .toLowerCase()
-    .replace(/^\.+/, '');
+  return getTenantBaseDomains()[0];
 }
 
-/** Host utama (landing / master-admin) — bukan subdomain tenant. */
+/** Host dev / landing apex — BUKAN subdomain tenant. */
 export function isMainDomainHostname(hostname: string): boolean {
   const h = hostname.split(':')[0].toLowerCase();
 
@@ -223,34 +325,13 @@ export function isMainDomainHostname(hostname: string): boolean {
     return true;
   }
 
-  const base = getTenantBaseDomain();
-  const parts = h.split('.');
-  const baseParts = base.split('.');
+  return isApexLandingHostname(h);
+}
 
-  if (parts.length < baseParts.length) return true;
-
-  const suffix = parts.slice(-baseParts.length).join('.');
-  if (suffix !== base) {
-    // Domain lain (mis. rasyatech.com) — anggap main jika < 3 bagian
-    return parts.length < 3 || parts[0] === 'rasyatech' || parts[0] === 'www';
-  }
-
-  const prefix = parts.slice(0, parts.length - baseParts.length);
-  if (prefix.length === 0) return true;
-
-  if (prefix.length === 1) {
-    const slug = prefix[0];
-    if (PORTAL_SLUGS.has(slug)) return true;
-    if (PRODUCT_SEGMENTS.has(slug)) return true;
-    return false;
-  }
-
-  // tenant.produk.rsch.my.id → tenant (bukan main)
-  if (prefix.length >= 2 && PRODUCT_SEGMENTS.has(prefix[1])) {
-    return false;
-  }
-
-  return prefix[0] === 'rasyatech' || prefix[0] === 'www';
+/** Hostname milik tenant (bukan apex / dev). */
+export function isTenantHostname(hostname: string): boolean {
+  if (isMainDomainHostname(hostname)) return false;
+  return extractHostnameSubdomainSlug(hostname) != null;
 }
 
 export function inferPillarFromProduct(product: string | null): TenantProductPillar {
@@ -264,66 +345,35 @@ export function inferPillarFromProduct(product: string | null): TenantProductPil
 export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
   const h = hostname.split(':')[0].toLowerCase();
 
-  if (isMainDomainHostname(h)) {
-    console.log('[tenant-host-parser] main domain — skip tenant parse:', h);
+  if (isApexLandingHostname(h)) {
     return null;
   }
 
-  const base = getTenantBaseDomain();
-  const parts = h.split('.');
-  const baseParts = base.split('.');
+  const hostnameSubdomain = extractHostnameSubdomainSlug(h);
+  if (!hostnameSubdomain) return null;
 
-  if (parts.slice(-baseParts.length).join('.') !== base) {
-    const legacySlug = parts[0];
-    if (legacySlug && !PORTAL_SLUGS.has(legacySlug)) {
-      console.log('[tenant-host-parser] legacy host (non-base domain):', h, '→', legacySlug);
-      return {
-        tenantSlug: legacySlug,
-        cleanTenantSlug: stripInstitutionalPrefixFromSlug(legacySlug),
-        productHint: null,
-        pillar: inferPillarFromInstitutionalSlug(legacySlug) ?? 'lms',
-        hostname: h,
-      };
-    }
-    return null;
-  }
+  const productHint = extractProductHintFromHostname(h);
+  const cleanTenantSlug = stripInstitutionalPrefixFromSlug(hostnameSubdomain);
+  const route = productHint
+    ? productAppToRoute(productHint)
+    : slugMatchesInstitutionalMarker(hostnameSubdomain, SIPUT_INSTITUTIONAL_MARKERS)
+      ? 'siput'
+      : slugMatchesInstitutionalMarker(hostnameSubdomain, LMS_INSTITUTIONAL_MARKERS)
+        ? 'lms'
+        : getTenantBaseDomains().some((d) => d.includes('web.id') && h.endsWith(d))
+          ? 'scanbite'
+          : 'lms';
 
-  const prefix = parts.slice(0, parts.length - baseParts.length);
-  if (prefix.length === 0 || prefix.length === 1 && PRODUCT_SEGMENTS.has(prefix[0])) {
-    return null;
-  }
+  const pillar: TenantProductPillar =
+    route === 'siput' ? 'siput' : route === 'lms' ? 'lms' : 'kuliner';
 
-  let tenantSlug: string;
-  let productHint: string | null = null;
-
-  if (prefix.length === 1) {
-    tenantSlug = prefix[0];
-  } else {
-    tenantSlug = prefix[0];
-    const maybeProduct = prefix[1];
-    if (PRODUCT_SEGMENTS.has(maybeProduct)) {
-      productHint = maybeProduct;
-    }
-  }
-
-  if (!tenantSlug || PORTAL_SLUGS.has(tenantSlug)) return null;
-
-  const cleanTenantSlug = stripInstitutionalPrefixFromSlug(tenantSlug);
-
-  const pillar =
-    productHint != null
-      ? inferPillarFromProduct(productHint)
-      : inferPillarFromInstitutionalSlug(tenantSlug) ?? 'lms';
-
-  console.log('[tenant-host-parser] tenant detected:', {
-    hostname: h,
-    tenantSlug,
+  return {
+    tenantSlug: hostnameSubdomain,
     cleanTenantSlug,
     productHint,
     pillar,
-  });
-
-  return { tenantSlug, cleanTenantSlug, productHint, pillar, hostname: h };
+    hostname: h,
+  };
 }
 
 /** Path internal SPA untuk rewrite / redirect tenant. */
@@ -331,16 +381,19 @@ export function buildTenantRoutePath(
   parsed: ParsedTenantHost,
   productFromDb?: string | null
 ): string {
-  const product = parsed.productHint || productFromDb || null;
-  const pillar = product
-    ? inferPillarFromProduct(product)
-    : inferPillarFromInstitutionalSlug(parsed.tenantSlug) ?? parsed.pillar;
+  const product = productFromDb || parsed.productHint || null;
+  const route = product
+    ? productAppToRoute(product)
+    : parsed.pillar === 'siput'
+      ? 'siput'
+      : parsed.pillar === 'kuliner'
+        ? 'scanbite'
+        : inferPillarFromInstitutionalSlug(parsed.tenantSlug) === 'siput'
+          ? 'siput'
+          : 'lms';
 
   const slug = parsed.cleanTenantSlug || parsed.tenantSlug;
-
-  if (pillar === 'siput') return `/_siput/${slug}`;
-  if (pillar === 'kuliner') return `/kuliner/${slug}`;
-  return `/_lms/${slug}`;
+  return `${routeToInternalPrefix(route)}/${slug}`;
 }
 
 export function getSubdomainFromHostname(hostname: string): string | null {

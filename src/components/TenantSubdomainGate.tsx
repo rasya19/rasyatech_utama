@@ -18,6 +18,8 @@ export default function TenantSubdomainGate() {
       location.pathname.startsWith('/_lms/') ||
       location.pathname.startsWith('/_siput/') ||
       location.pathname.startsWith('/_scanbite/') ||
+      location.pathname.startsWith('/_resto/') ||
+      location.pathname.startsWith('/_instafood/') ||
       location.pathname.startsWith('/lms/') ||
       location.pathname.startsWith('/siput/') ||
       location.pathname.startsWith('/kuliner/') ||

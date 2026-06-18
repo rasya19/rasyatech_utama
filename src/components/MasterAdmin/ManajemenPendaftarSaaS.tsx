@@ -16,6 +16,12 @@ import {
   linkMainRegistrationTenantId,
 } from '../../lib/provision-tenant-on-approval';
 import { logSupabaseInsertError } from '../../lib/tenant-insert-utils';
+import { sendTenantApprovalNotification } from '../../lib/notifications';
+import { deriveSlugFromRegistration } from '../../lib/provision-tenant-on-approval';
+import {
+  buildInstitutionalSubdomain,
+  stripInstitutionalPrefixFromSlug,
+} from '../../lib/tenant-host-parser';
 import {
   Users,
   MessageCircle,
@@ -315,6 +321,35 @@ export default function ManajemenPendaftarSaaS({
             tenant_id: provisionTenantId,
             tenant_master_id: provisionTenantId,
           };
+        }
+
+        try {
+          const mergedRow = { ...item._raw, ...updated };
+          let kodeTenant =
+            String(mergedRow.kode_tenant || '').trim() ||
+            deriveSlugFromRegistration(mergedRow);
+
+          if (isMainDbTab(activeTab)) {
+            const pillar = activeTab === 'siput' ? 'siput' : 'lms';
+            kodeTenant = buildInstitutionalSubdomain(
+              stripInstitutionalPrefixFromSlug(kodeTenant),
+              pillar
+            );
+          }
+          const product = String(
+            mergedRow.product_type || mergedRow.business_type || mergedRow.tenant || activeTab
+          );
+
+          await sendTenantApprovalNotification({
+            fullName: item.full_name,
+            businessName: item.business_name,
+            product,
+            kodeTenant,
+            email: item.email !== '-' ? item.email : undefined,
+            whatsapp: item.whatsapp,
+          });
+        } catch (notifyErr) {
+          console.warn('[ManajemenPendaftarSaaS] notifikasi approval:', notifyErr);
         }
       }
 

@@ -15,23 +15,33 @@ import TenantProductRoute from './components/TenantProductRoute';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { LandingDataProvider } from './lib/LandingDataContext';
 import { supabase } from './lib/supabase';
-import { isMainDomainHostname, parseTenantHostname, buildTenantRoutePath } from './lib/subdomain-utils';
+import { isTenantHostname, parseTenantHostname, buildTenantRoutePath } from './lib/subdomain-utils';
 
-function LandingOrRedirect() {
-  const subdomain = useSubdomain();
+function TenantHome() {
   const hostname = window.location.hostname;
   const parsed = parseTenantHostname(hostname);
 
   if (parsed) {
     const target = buildTenantRoutePath(parsed);
-    const currentPath = window.location.pathname;
-    if (currentPath !== target && !currentPath.startsWith(`${target}/`)) {
-      return <Navigate to={target} replace />;
-    }
+    return <Navigate to={target} replace />;
   }
 
-  if (subdomain && !isMainDomainHostname(hostname)) {
-    return <Navigate to="/admin" replace />;
+  return <RasyatechLanding />;
+}
+
+function LandingOrRedirect() {
+  const hostname = window.location.hostname;
+
+  if (isTenantHostname(hostname)) {
+    const parsed = parseTenantHostname(hostname);
+    if (parsed) {
+      const target = buildTenantRoutePath(parsed);
+      const currentPath = window.location.pathname;
+      if (currentPath !== target && !currentPath.startsWith(`${target}/`)) {
+        return <Navigate to={target} replace />;
+      }
+    }
+    return <TenantHome />;
   }
 
   return <RasyatechLanding />;
@@ -40,13 +50,24 @@ function LandingOrRedirect() {
 /** Domain utama → Master Admin; subdomain tenant → dashboard tenant. */
 function AdminEntry() {
   const subdomain = useSubdomain();
-  const onMainDomain = isMainDomainHostname(window.location.hostname);
+  const onTenantHost = isTenantHostname(window.location.hostname);
 
-  if (!onMainDomain && subdomain) {
+  if (onTenantHost && subdomain) {
     return <TenantDashboard />;
   }
 
   return <MasterAdmin />;
+}
+
+function TenantCatchAll() {
+  const hostname = window.location.hostname;
+  if (isTenantHostname(hostname)) {
+    const parsed = parseTenantHostname(hostname);
+    if (parsed) {
+      return <Navigate to={buildTenantRoutePath(parsed)} replace />;
+    }
+  }
+  return <Navigate to="/" replace />;
 }
 
 function AppRoutes() {
@@ -80,6 +101,9 @@ function AppRoutes() {
 
         <Route path="/_lms/:subdomain/*" element={<TenantProductRoute pillar="lms" />} />
         <Route path="/_siput/:subdomain/*" element={<TenantProductRoute pillar="siput" />} />
+        <Route path="/_scanbite/:subdomain/*" element={<TenantProductRoute pillar="scanbite" />} />
+        <Route path="/_resto/:subdomain/*" element={<TenantProductRoute pillar="resto" />} />
+        <Route path="/_instafood/:subdomain/*" element={<TenantProductRoute pillar="instafood" />} />
         <Route path="/lms/:subdomain" element={<TenantProductRoute pillar="lms" />} />
         <Route path="/siput/:subdomain" element={<TenantProductRoute pillar="siput" />} />
         <Route path="/kuliner/:subdomain" element={<TenantProductRoute pillar="kuliner" />} />
@@ -89,7 +113,7 @@ function AppRoutes() {
         <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
         <Route path="/daftar" element={<FormPendaftaranSaaS />} />
 
-        <Route path="*" element={<Navigate to="/" />} />
+        <Route path="*" element={<TenantCatchAll />} />
       </Routes>
     </>
   );

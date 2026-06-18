@@ -3,8 +3,10 @@ import { useParams, Navigate } from 'react-router-dom';
 import TenantDashboard from './TenantDashboard';
 import SchoolLogin from './SchoolLogin';
 
+type TenantProductPillar = 'lms' | 'siput' | 'scanbite' | 'resto' | 'instafood' | 'kuliner';
+
 type TenantProductRouteProps = {
-  pillar: 'lms' | 'siput' | 'kuliner';
+  pillar: TenantProductPillar;
 };
 
 export default function TenantProductRoute({ pillar }: TenantProductRouteProps) {

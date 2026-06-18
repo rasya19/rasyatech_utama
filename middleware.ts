@@ -1,10 +1,8 @@
 /**
  * Vercel Edge Middleware — bypass aset statis + rewrite subdomain tenant.
  */
-import {
-  isApexLandingHostname,
-  resolveMiddlewareRewriteTarget,
-} from './src/lib/tenant-host-parser';
+import { isApexLandingHostname } from './src/lib/tenant-host-parser';
+import { resolveMiddlewareRewriteWithDb } from './src/lib/middleware-tenant-lookup';
 
 const STATIC_FILE_PATTERN =
   /\.(?:png|jpe?g|gif|webp|svg|ico|js|css|woff2?|ttf|eot|map|json|txt|xml)$/i;
@@ -23,6 +21,8 @@ const INTERNAL_ROUTE_PREFIXES = [
   '/_lms/',
   '/_siput/',
   '/_scanbite/',
+  '/_resto/',
+  '/_instafood/',
   '/lms/',
   '/siput/',
   '/kuliner/',
@@ -58,7 +58,8 @@ function logMiddlewareDecision(
 function middlewareRewrite(
   request: Request,
   targetPath: string,
-  cleanTenantSlug: string
+  cleanTenantSlug: string,
+  productRoute?: string
 ): Response {
   const url = new URL(request.url);
   const rewriteUrl = new URL(targetPath, url.origin);
@@ -67,12 +68,14 @@ function middlewareRewrite(
 
   logMiddlewareDecision(url.hostname, url.pathname, rewriteTarget, {
     tenant_slug: cleanTenantSlug,
+    product_route: productRoute,
   });
 
   return new Response(null, {
     headers: {
       'x-middleware-rewrite': rewriteTarget,
       'x-tenant-slug': cleanTenantSlug,
+      ...(productRoute ? { 'x-tenant-product': productRoute } : {}),
     },
   });
 }
@@ -83,7 +86,7 @@ export const config = {
   ],
 };
 
-export default function middleware(request: Request) {
+export default async function middleware(request: Request) {
   const url = new URL(request.url);
   const hostname = (request.headers.get('host') || url.hostname).split(':')[0].toLowerCase();
   const pathname = url.pathname;
@@ -107,11 +110,16 @@ export default function middleware(request: Request) {
     return;
   }
 
-  const resolved = resolveMiddlewareRewriteTarget(hostname, pathname);
+  const resolved = await resolveMiddlewareRewriteWithDb(hostname, pathname);
   if (!resolved) {
-    logMiddlewareDecision(hostname, pathname, '(passthrough — bukan tenant)');
+    logMiddlewareDecision(hostname, pathname, '(passthrough — hostname bukan tenant)');
     return;
   }
 
-  return middlewareRewrite(request, resolved.targetPath, resolved.cleanTenantSlug);
+  return middlewareRewrite(
+    request,
+    resolved.targetPath,
+    resolved.cleanTenantSlug,
+    resolved.productRoute
+  );
 }

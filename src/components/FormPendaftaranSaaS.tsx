@@ -13,9 +13,9 @@ import {
   isKulinerDbProduct,
   resolvePackageTierForProduct,
   resolveRegistrationNpsnAndTabelCount,
-  getProductRedirectDomain,
   type SaasProductType,
 } from '../lib/saas-product-options';
+import { buildTenantPortalUrl } from '../lib/tenant-url';
 import {
   Building2,
   Mail,
@@ -63,10 +63,10 @@ export default function FormPendaftaranSaaS() {
 
   const getProductRedirectDetails = (type: SaasProductType, businessName: string) => {
     const slug = generateSubdomain(businessName);
-    const baseDomain = getProductRedirectDomain(type);
+    const productApp = toProductApp(type);
     return {
       name: getProductLabel(type),
-      url: `https://${slug}.${baseDomain}`,
+      url: buildTenantPortalUrl(slug, productApp),
     };
   };
 
