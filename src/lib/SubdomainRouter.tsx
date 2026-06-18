@@ -10,7 +10,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { supabaseMaster } from './supabase-hub';
-import { parseTenantHostname } from './tenant-host-parser';
+import { parseTenantHostname, inferProductAppFromInstitutionalSlug } from './tenant-host-parser';
 import type { ProductType, MasterRegistration } from './types/products';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
@@ -71,6 +71,18 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
         if (error) throw error;
 
         if (!data) {
+          const inferredProduct = inferProductAppFromInstitutionalSlug(subdomain);
+          if (inferredProduct) {
+            setState({
+              subdomain,
+              productType: inferredProduct,
+              tenant: null,
+              loading: false,
+              error: null,
+            });
+            return;
+          }
+
           setState({
             subdomain,
             productType: null,
@@ -81,7 +93,10 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        const productType = (data.product_app as ProductType) || inferProductFromData(data);
+        const productType =
+          (data.product_app as ProductType) ||
+          inferProductAppFromInstitutionalSlug(subdomain) ||
+          inferProductFromData(data);
 
         setState({
           subdomain,
@@ -121,6 +136,10 @@ export function useSubdomain(): string | null {
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
 function inferProductFromData(data: Record<string, unknown>): ProductType {
+  const subdomain = String(data.subdomain || '');
+  const fromSlug = inferProductAppFromInstitutionalSlug(subdomain);
+  if (fromSlug) return fromSlug;
+
   const productApp = String(data.product_app || '');
   if (productApp === 'siput') return 'siput';
   if (productApp === 'lms') return 'lms';

@@ -11,7 +11,7 @@ import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
 import cors from "cors";
-import { parseTenantHostname, inferPillarFromProduct } from "./src/lib/tenant-host-parser.js";
+import { parseTenantHostname, inferPillarFromInstitutionalSlug } from "./src/lib/tenant-host-parser.js";
 
 const ROOT = process.cwd();
 const isProduction = process.env.NODE_ENV === "production";
@@ -79,7 +79,10 @@ async function resolveTenantPillarFromDatabase(
     .maybeSingle();
 
   if (regError) throw regError;
-  return normalizeTenantPillar(regRow?.product_name || regRow?.product_app);
+  const fromRegistration = normalizeTenantPillar(regRow?.product_name || regRow?.product_app);
+  if (fromRegistration) return fromRegistration;
+
+  return inferPillarFromInstitutionalSlug(subdomain);
 }
 
 function resolveDistFolder(pillar: "siput" | "lms" | "kuliner" | null): string {
@@ -102,10 +105,14 @@ async function handleTenantRootRedirect(
 ): Promise<boolean> {
   const hostname = (req.headers.host || "").split(":")[0].toLowerCase();
   const parsed = parseTenantHostname(hostname);
-  let pillar = parsed ? inferPillarFromProduct(parsed.productHint) : null;
+  let pillar = parsed?.pillar ?? null;
 
   if (!pillar) {
     pillar = await resolveTenantPillarFromDatabase(subdomain);
+  }
+
+  if (!pillar) {
+    pillar = inferPillarFromInstitutionalSlug(subdomain);
   }
 
   console.log("[server][tenant-redirect]", { hostname, subdomain, pillar });

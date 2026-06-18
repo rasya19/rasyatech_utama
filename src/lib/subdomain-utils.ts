@@ -7,6 +7,11 @@ export {
   buildTenantRoutePath,
   getTenantBaseDomain,
   inferPillarFromProduct,
+  inferPillarFromInstitutionalSlug,
+  inferProductAppFromInstitutionalSlug,
+  slugMatchesInstitutionalMarker,
+  LMS_INSTITUTIONAL_MARKERS,
+  SIPUT_INSTITUTIONAL_MARKERS,
 } from './tenant-host-parser';
 
 const SUBDOMAIN_MIN_LENGTH = 3;

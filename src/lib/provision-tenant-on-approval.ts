@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PendaftarProductTab } from './pendaftar-mutations';
+import { inferProductAppFromInstitutionalSlug } from './tenant-host-parser';
 
 const TENANT_DOMAIN = import.meta.env.VITE_TENANT_DOMAIN || 'rsch.my.id';
 
@@ -91,10 +92,12 @@ export async function provisionMainTenantOnApproval(
   }
 
   const tenantName = registrationDisplayName(registrationRow, slug);
+  const inferredProduct = inferProductAppFromInstitutionalSlug(slug);
   const productApp =
-    tab === 'siput'
+    inferredProduct ||
+    (tab === 'siput'
       ? 'siput'
-      : String(registrationRow.product_type || registrationRow.product_name || 'lms').toLowerCase();
+      : String(registrationRow.product_type || registrationRow.product_name || 'lms').toLowerCase());
 
   const now = new Date().toISOString();
   const domain = TENANT_DOMAIN.replace(/^\.+/, '');

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { supabaseKuliner } from './supabase-kuliner';
+import { inferProductAppFromInstitutionalSlug } from './tenant-host-parser';
 
 export type TenantProductTab =
   | 'lms'
@@ -59,6 +60,49 @@ async function queryTenantIdBySubdomain(
   }
 
   return data?.id ? String(data.id) : null;
+}
+
+async function queryTenantIdBySubdomainAndProduct(
+  client: SupabaseClient,
+  subdomain: string,
+  productApp: string
+): Promise<string | null> {
+  const { data, error } = await client
+    .from('tenant')
+    .select('id')
+    .eq('subdomain', subdomain.trim().toLowerCase())
+    .eq('product_app', productApp)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (error.message.includes('Could not find the table')) return null;
+    console.warn('[tenant-lookup] query tenant by subdomain+product:', error.message);
+    return null;
+  }
+
+  return data?.id ? String(data.id) : null;
+}
+
+async function lookupMainTenantByInstitutionalSlug(
+  client: SupabaseClient,
+  subdomain: string
+): Promise<string | null> {
+  const inferred = inferProductAppFromInstitutionalSlug(subdomain);
+  if (!inferred) return null;
+
+  const productApps =
+    inferred === 'lms' ? ['lms', 'armilla', 'kesetaraan'] : ['siput'];
+
+  for (const productApp of productApps) {
+    const id = await queryTenantIdBySubdomainAndProduct(client, subdomain, productApp);
+    if (id) {
+      console.log('[tenant-lookup] UUID via awalan kelembagaan:', subdomain, productApp, id);
+      return id;
+    }
+  }
+
+  return null;
 }
 
 /** Lookup tenant Kuliner (eks sb_settings) via kolom `slug`. */
@@ -172,6 +216,9 @@ export async function resolveTenantUuidForRegistration(
         console.log('[tenant-lookup] UUID via subdomain (main DB):', fromMain);
         return fromMain;
       }
+
+      const fromInstitutional = await lookupMainTenantByInstitutionalSlug(supabase, subdomain);
+      if (fromInstitutional) return fromInstitutional;
     }
   }
 

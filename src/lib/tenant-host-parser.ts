@@ -1,9 +1,10 @@
 /**
  * Parser hostname multi-tenant Rasyatech.
  * Mendukung:
- *   - tkarmillanusa.rsch.my.id          → tenant klasik
- *   - tkarmillanusa.siput.rsch.my.id    → tenant + produk di hostname
- *   - scanbite-warung.rsch.my.id        → tenant kuliner
+ *   - pkbm-armilla.rsch.my.id          → LMS Kesetaraan (awalan PKBM)
+ *   - kb-ceria.rsch.my.id              → SIPUT PAUD (awalan KB)
+ *   - sps-amanah.rsch.my.id            → SIPUT PAUD (awalan SPS)
+ *   - rasyatech.rsch.my.id             → landing utama (bukan tenant)
  */
 
 export type TenantProductPillar = 'lms' | 'siput' | 'kuliner';
@@ -49,6 +50,36 @@ const KULINER_SEGMENTS = new Set([
   'instafood',
 ]);
 
+/** Awalan kelembagaan Indonesia — LMS Kesetaraan (PKBM / SKB). */
+export const LMS_INSTITUTIONAL_MARKERS = ['pkbm-', 'skb-'] as const;
+
+/** Awalan kelembagaan Indonesia — SIPUT PAUD (TK, KB, SPS, TPA, PAUD). */
+export const SIPUT_INSTITUTIONAL_MARKERS = ['tk-', 'kb-', 'sps-', 'tpa-', 'paud-'] as const;
+
+export function slugMatchesInstitutionalMarker(
+  slug: string,
+  markers: readonly string[]
+): boolean {
+  const normalized = slug.trim().toLowerCase();
+  if (!normalized) return false;
+  return markers.some((marker) => normalized.startsWith(marker) || normalized.includes(marker));
+}
+
+/** Infer pillar dari slug subdomain (pkbm-*, kb-*, sps-*, dll.). */
+export function inferPillarFromInstitutionalSlug(slug: string): TenantProductPillar | null {
+  if (slugMatchesInstitutionalMarker(slug, LMS_INSTITUTIONAL_MARKERS)) return 'lms';
+  if (slugMatchesInstitutionalMarker(slug, SIPUT_INSTITUTIONAL_MARKERS)) return 'siput';
+  return null;
+}
+
+/** Nilai `product_app` di tabel tenant master dari awalan kelembagaan. */
+export function inferProductAppFromInstitutionalSlug(slug: string): 'lms' | 'siput' | null {
+  const pillar = inferPillarFromInstitutionalSlug(slug);
+  if (pillar === 'lms') return 'lms';
+  if (pillar === 'siput') return 'siput';
+  return null;
+}
+
 export function getTenantBaseDomain(): string {
   const fromEnv =
     (typeof import.meta !== 'undefined' &&
@@ -90,7 +121,8 @@ export function isMainDomainHostname(hostname: string): boolean {
 
   if (prefix.length === 1) {
     const slug = prefix[0];
-    if (PORTAL_SLUGS.has(slug) || PRODUCT_SEGMENTS.has(slug)) return true;
+    if (PORTAL_SLUGS.has(slug)) return true;
+    if (PRODUCT_SEGMENTS.has(slug)) return true;
     return false;
   }
 
@@ -129,7 +161,7 @@ export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
       return {
         tenantSlug: legacySlug,
         productHint: null,
-        pillar: 'lms',
+        pillar: inferPillarFromInstitutionalSlug(legacySlug) ?? 'lms',
         hostname: h,
       };
     }
@@ -156,7 +188,10 @@ export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
 
   if (!tenantSlug || PORTAL_SLUGS.has(tenantSlug)) return null;
 
-  const pillar = inferPillarFromProduct(productHint);
+  const pillar =
+    productHint != null
+      ? inferPillarFromProduct(productHint)
+      : inferPillarFromInstitutionalSlug(tenantSlug) ?? 'lms';
 
   console.log('[tenant-host-parser] tenant detected:', {
     hostname: h,
@@ -174,7 +209,9 @@ export function buildTenantRoutePath(
   productFromDb?: string | null
 ): string {
   const product = parsed.productHint || productFromDb || null;
-  const pillar = product ? inferPillarFromProduct(product) : parsed.pillar;
+  const pillar = product
+    ? inferPillarFromProduct(product)
+    : inferPillarFromInstitutionalSlug(parsed.tenantSlug) ?? parsed.pillar;
 
   if (pillar === 'siput') return `/siput/${parsed.tenantSlug}`;
   if (pillar === 'kuliner') return `/kuliner/${parsed.tenantSlug}`;
