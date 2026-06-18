@@ -283,11 +283,10 @@ export default function ManajemenPendaftarSaaS({
 
         try {
           if (isMainDbTab(activeTab)) {
-            const provision = await provisionMainTenantOnApproval(
-              client,
-              activeTab,
-              { ...item._raw, ...updated }
-            );
+            const provision = await provisionMainTenantOnApproval(activeTab, {
+              ...item._raw,
+              ...updated,
+            });
             if (provision.tenantId) {
               await linkMainRegistrationTenantId(client, rowId, provision.tenantId);
               provisionTenantId = provision.tenantId;
@@ -298,11 +297,17 @@ export default function ManajemenPendaftarSaaS({
               };
             }
           } else {
-            const provision = await provisionKulinerTenantOnApproval(client, {
+            const provision = await provisionKulinerTenantOnApproval(activeTab, {
               ...item._raw,
               ...updated,
             });
             provisionTenantId = provision.tenantId;
+            if (provision.tenantId) {
+              await client
+                .from('registrations')
+                .update({ tenant_id: provision.tenantId })
+                .eq('id', rowId);
+            }
           }
         } catch (provisionErr) {
           logSupabaseInsertError(

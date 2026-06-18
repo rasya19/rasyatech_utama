@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.tenant (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT tenant_subdomain_unique UNIQUE (subdomain),
-  CONSTRAINT tenant_subdomain_format CHECK (subdomain ~ '^[a-z0-9]{3,32}$')
+  CONSTRAINT tenant_subdomain_format CHECK (subdomain ~ '^[a-z0-9]([a-z0-9-]{1,46}[a-z0-9])?$')
 );
 
 CREATE INDEX IF NOT EXISTS idx_tenant_product_app ON public.tenant (product_app);

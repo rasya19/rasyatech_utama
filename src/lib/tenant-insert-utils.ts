@@ -4,6 +4,9 @@ import { buildInstitutionalSubdomain, inferProductAppFromInstitutionalSlug } fro
 
 export const DEFAULT_PACKAGE_TIER = 'basic';
 
+/** Regex selaras constraint DB: huruf/angka + strip, 3–48 karakter. */
+export const TENANT_SUBDOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]{1,46}[a-z0-9])?$/;
+
 export type TenantInsertPayload = {
   tenant_name: string;
   subdomain: string;
@@ -19,6 +22,55 @@ export type TenantInsertPayload = {
   created_at: string;
   updated_at: string;
 };
+
+/** Normalisasi subdomain agar lolos constraint (mendukung strip). */
+export function normalizeTenantSubdomain(raw: string): string {
+  let slug = String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  if (slug.length < 3) {
+    slug = `${slug || 'tenant'}-app`.replace(/-+/g, '-');
+  }
+
+  slug = slug.slice(0, 48);
+
+  if (!TENANT_SUBDOMAIN_REGEX.test(slug)) {
+    const compact = slug.replace(/-/g, '').slice(0, 32);
+    slug = compact.length >= 3 ? compact : `tenant${compact}`.slice(0, 32);
+  }
+
+  return slug;
+}
+
+export function validateTenantSubdomain(subdomain: string): string | null {
+  if (!TENANT_SUBDOMAIN_REGEX.test(subdomain)) {
+    return `Format subdomain tidak valid: "${subdomain}". Gunakan huruf kecil, angka, dan strip (3–48 karakter).`;
+  }
+  return null;
+}
+
+/** Hapus key undefined agar PostgREST tidak menolak payload. */
+export function stripUndefinedPayloadFields(
+  row: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (value !== undefined) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+export function buildSubdomainHost(subdomain: string, tenantDomain: string): string {
+  const domain = tenantDomain.replace(/^\.+/, '').toLowerCase();
+  return `${normalizeTenantSubdomain(subdomain)}.${domain}`;
+}
 
 export function isMissingColumnError(message: string, column: string): boolean {
   const lower = message.toLowerCase();
@@ -96,36 +148,54 @@ export function registrationDisplayName(row: Record<string, unknown>, fallback: 
   );
 }
 
-/** Objek INSERT wajib untuk tabel tenant (Main DB) — semua kolom skema inti terisi. */
+/** Objek INSERT wajib untuk tabel tenant (DB produk LMS/SIPUT) — semua kolom terisi. */
 export function buildMainTenantInsertRow(
   tab: PendaftarProductTab,
   registrationRow: Record<string, unknown>,
   institutionalSubdomain: string,
   tenantDomain: string
-): TenantInsertPayload & Record<string, unknown> {
-  const tenantName = registrationDisplayName(registrationRow, institutionalSubdomain);
-  const packageTier = resolvePackageTier(registrationRow);
-  const productApp = resolveProductApp(tab, registrationRow, institutionalSubdomain);
-  const now = new Date().toISOString();
-  const domain = tenantDomain.replace(/^\.+/, '');
+): Record<string, unknown> {
+  const subdomain = normalizeTenantSubdomain(institutionalSubdomain);
+  const validationError = validateTenantSubdomain(subdomain);
+  if (validationError) {
+    throw new Error(validationError);
+  }
 
-  return {
+  const tenantName =
+    registrationDisplayName(registrationRow, subdomain).trim() || subdomain;
+  const packageTier = resolvePackageTier(registrationRow);
+  const productApp = resolveProductApp(tab, registrationRow, subdomain);
+  const now = new Date().toISOString();
+  const adminEmail = String(
+    registrationRow.admin_email || registrationRow.email || ''
+  ).trim();
+  const safeEmail =
+    adminEmail && adminEmail !== '-'
+      ? adminEmail
+      : `no-reply+${subdomain}@rasyatech.local`;
+
+  return stripUndefinedPayloadFields({
     tenant_name: tenantName,
-    subdomain: institutionalSubdomain,
+    subdomain,
     package_tier: packageTier,
     source: String(registrationRow.source || 'manajemen_pendaftar_approval'),
-    npsn: registrationRow.npsn != null && String(registrationRow.npsn).trim() !== ''
-      ? String(registrationRow.npsn)
-      : '-',
+    npsn:
+      registrationRow.npsn != null && String(registrationRow.npsn).trim() !== ''
+        ? String(registrationRow.npsn)
+        : '-',
     product_app: productApp,
-    subdomain_host: `${institutionalSubdomain}.${domain}`,
-    admin_name: String(registrationRow.admin_name || registrationRow.full_name || tenantName),
-    admin_email: String(registrationRow.admin_email || registrationRow.email || ''),
-    whatsapp: String(registrationRow.whatsapp || registrationRow.whatsapp_number || ''),
+    subdomain_host: buildSubdomainHost(subdomain, tenantDomain),
+    admin_name: String(
+      registrationRow.admin_name || registrationRow.full_name || tenantName
+    ).trim() || tenantName,
+    admin_email: safeEmail,
+    whatsapp:
+      String(registrationRow.whatsapp || registrationRow.whatsapp_number || '').trim() ||
+      '-',
     status: 'verified',
     created_at: now,
     updated_at: now,
-  };
+  });
 }
 
 export function buildInstitutionalSubdomainForTab(
