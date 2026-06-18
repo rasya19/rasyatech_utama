@@ -192,7 +192,7 @@ export async function resolveTenantUuidForRegistration(
   registrationRow?: Record<string, unknown>
 ): Promise<string | null> {
   const subdomain = String(
-    registrationRow?.subdomain || registrationRow?.slug || ''
+    registrationRow?.kode_tenant || registrationRow?.subdomain || registrationRow?.slug || ''
   )
     .trim()
     .toLowerCase();

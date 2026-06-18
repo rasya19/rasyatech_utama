@@ -28,7 +28,7 @@ function isUuid(value: unknown): boolean {
 
 /** Normalisasi slug/subdomain dari baris registrations. */
 export function deriveSlugFromRegistration(row: Record<string, unknown>): string {
-  const explicit = String(row.subdomain || row.slug || '')
+  const explicit = String(row.kode_tenant || row.subdomain || row.slug || '')
     .trim()
     .toLowerCase();
   if (explicit && explicit !== '-') {

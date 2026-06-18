@@ -10,7 +10,6 @@ import {
   normalizeProductParam,
   toProductApp,
   isMainDbProduct,
-  isKulinerDbProduct,
   resolvePackageTierForProduct,
   getProductRedirectDomain,
   type SaasProductType,
@@ -60,7 +59,6 @@ export default function FormPendaftaranSaaS() {
     tables_count: '',
     outlet_count: '',
     npsn: '',
-    school_name: '',
   });
 
   const getProductRedirectDetails = (type: SaasProductType, businessName: string) => {
@@ -138,48 +136,36 @@ export default function FormPendaftaranSaaS() {
         formData.package,
         DEFAULT_PACKAGE_TIER
       );
-      const subdomain = generateSubdomain(formData.business_name);
-      const tenantName = formData.business_name.trim();
       const productApp = toProductApp(productType);
+      const businessName = formData.business_name.trim();
+      const kodeTenant = generateSubdomain(businessName);
+      const tabelCount = needsTablesCount
+        ? parseInt(formData.tables_count || '0', 10) || 0
+        : needsOutletCount
+          ? parseInt(formData.outlet_count || '0', 10) || 0
+          : 0;
 
-      const baseData = {
-        full_name: formData.full_name,
-        email: formData.email,
-        whatsapp_number: formData.whatsapp,
-        whatsapp: formData.whatsapp,
-        business_name: tenantName,
-        school_name: tenantName,
-        tenant_name: tenantName,
+      submittedPayload = {
+        full_name: formData.full_name.trim(),
+        email: formData.email.trim(),
+        whatsapp_number: formData.whatsapp.trim(),
+        business_name: businessName,
         product_type: productApp,
-        product_app: productApp,
-        subdomain,
-        npsn: formData.npsn.trim() || '-',
-        package_tier: packageTier,
-        paket_langganan: packageTier,
-        source: 'gerbang_pendaftaran',
+        selected_package: packageTier,
+        tabel_count: tabelCount,
         status: 'pending',
+        business_type: productApp,
+        kode_tenant: kodeTenant,
         tenant: productType,
+        package_tier: packageTier,
+        npsn: formData.npsn.trim() || '-',
       };
 
-      if (isSchoolProduct) {
-        submittedPayload = { ...baseData };
-        const { error: schoolError } = await supabase
-          .from('registrations')
-          .insert([submittedPayload]);
-        if (schoolError) throw schoolError;
-      } else {
-        submittedPayload = {
-          ...baseData,
-          business_type: productApp,
-          selected_package: packageTier,
-          table_count: parseInt(formData.tables_count || '0', 10) || 0,
-          outlet_count: parseInt(formData.outlet_count || '0', 10) || 0,
-        };
-        const { error: culinaryError } = await supabaseKuliner
-          .from('registrations')
-          .insert([submittedPayload]);
-        if (culinaryError) throw culinaryError;
-      }
+      const client = isSchoolProduct ? supabase : supabaseKuliner;
+      const { error: insertError } = await client
+        .from('registrations')
+        .insert([submittedPayload]);
+      if (insertError) throw insertError;
 
       try {
         await sendWhatsAppNotification(formData);

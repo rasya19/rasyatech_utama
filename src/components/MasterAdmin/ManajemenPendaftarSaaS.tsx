@@ -146,8 +146,8 @@ function mapRowToPendaftar(row: Record<string, unknown>, tab: ProductType): Pend
     tenant_master_id: row.tenant_master_id ? String(row.tenant_master_id) : null,
     meta_data: {
       npsn: row.npsn ?? null,
-      tables_count: row.table_count ?? row.tables_count ?? 0,
-      outlet_count: row.outlet_count ?? 0,
+      tables_count: row.tabel_count ?? row.table_count ?? row.tables_count ?? 0,
+      outlet_count: row.outlet_count ?? row.tabel_count ?? 0,
     },
     created_at: String(row.created_at || ''),
     _raw: row,
