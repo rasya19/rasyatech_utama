@@ -171,7 +171,7 @@ export async function provisionKulinerTenantOnApproval(
     currency_code: 'IDR',
     phone: String(registrationRow.whatsapp || registrationRow.whatsapp_number || '') || null,
     address: String(registrationRow.address || '') || null,
-    update_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 
   const candidateTenantId = registrationRow.tenant_id ?? registrationRow.id;
