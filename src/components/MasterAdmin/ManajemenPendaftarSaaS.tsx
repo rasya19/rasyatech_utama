@@ -15,7 +15,7 @@ import {
   provisionKulinerTenantOnApproval,
   linkMainRegistrationTenantId,
 } from '../../lib/provision-tenant-on-approval';
-import { logSupabaseInsertError } from '../../lib/tenant-insert-utils';
+import { logSupabaseInsertError, normalizeTenantSubdomain } from '../../lib/tenant-insert-utils';
 import { sendTenantApprovalNotification } from '../../lib/notifications';
 import { deriveSlugFromRegistration } from '../../lib/provision-tenant-on-approval';
 import {
@@ -330,15 +330,18 @@ export default function ManajemenPendaftarSaaS({
 
         try {
           const mergedRow = { ...item._raw, ...updated };
-          let kodeTenant =
+          let kodeTenant = normalizeTenantSubdomain(
             String(mergedRow.kode_tenant || '').trim() ||
-            deriveSlugFromRegistration(mergedRow);
+              deriveSlugFromRegistration(mergedRow)
+          );
 
           if (isMainDbTab(activeTab)) {
             const pillar = activeTab === 'siput' ? 'siput' : 'lms';
-            kodeTenant = buildInstitutionalSubdomain(
-              stripInstitutionalPrefixFromSlug(kodeTenant),
-              pillar
+            kodeTenant = normalizeTenantSubdomain(
+              buildInstitutionalSubdomain(
+                stripInstitutionalPrefixFromSlug(kodeTenant),
+                pillar
+              )
             );
           }
           const product = String(

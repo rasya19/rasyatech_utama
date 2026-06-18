@@ -1,4 +1,4 @@
--- Perbaiki constraint subdomain tenant: izinkan tanda hubung (pkbm-armilla-nusa)
+-- Sanitasi provisioning: subdomain huruf kecil + angka saja (tanpa strip)
 -- Jalankan di SQL Editor DB produk LMS / SIPUT (dan master jika tenant ada di sana)
 
 DO $$
@@ -22,7 +22,7 @@ END $$;
 
 ALTER TABLE public.tenant
   ADD CONSTRAINT tenant_subdomain_format
-  CHECK (subdomain ~ '^[a-z0-9]([a-z0-9-]{1,46}[a-z0-9])?$');
+  CHECK (subdomain ~ '^[a-z0-9]{3,32}$');
 
 DO $$
 BEGIN

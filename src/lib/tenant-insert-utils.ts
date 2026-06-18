@@ -4,8 +4,33 @@ import { buildInstitutionalSubdomain, inferProductAppFromInstitutionalSlug } fro
 
 export const DEFAULT_PACKAGE_TIER = 'basic';
 
-/** Regex selaras constraint DB: huruf/angka + strip, 3–48 karakter. */
-export const TENANT_SUBDOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]{1,46}[a-z0-9])?$/;
+/** Regex selaras constraint DB provisioning: huruf kecil + angka saja, 3–32 karakter. */
+export const TENANT_SUBDOMAIN_REGEX = /^[a-z0-9]{3,32}$/;
+
+/**
+ * Sanitasi subdomain sebelum INSERT tenant (provisioning).
+ * Huruf kecil semua, hapus strip/spasi/karakter lain.
+ * Contoh: 'TK-Armilla-Nusa' → 'tkarmillanusa'
+ */
+export function normalizeTenantSubdomain(raw: string): string {
+  let slug = String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+  if (slug.length < 3) {
+    slug = `${slug || 'tenant'}app`.slice(0, 32);
+  }
+
+  return slug.slice(0, 32);
+}
+
+export function validateTenantSubdomain(subdomain: string): string | null {
+  if (!TENANT_SUBDOMAIN_REGEX.test(subdomain)) {
+    return `Format subdomain tidak valid: "${subdomain}". Gunakan huruf kecil dan angka (3–32 karakter, tanpa strip).`;
+  }
+  return null;
+}
 
 export type TenantInsertPayload = {
   tenant_name: string;
@@ -22,37 +47,6 @@ export type TenantInsertPayload = {
   created_at: string;
   updated_at: string;
 };
-
-/** Normalisasi subdomain agar lolos constraint (mendukung strip). */
-export function normalizeTenantSubdomain(raw: string): string {
-  let slug = String(raw || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-  if (slug.length < 3) {
-    slug = `${slug || 'tenant'}-app`.replace(/-+/g, '-');
-  }
-
-  slug = slug.slice(0, 48);
-
-  if (!TENANT_SUBDOMAIN_REGEX.test(slug)) {
-    const compact = slug.replace(/-/g, '').slice(0, 32);
-    slug = compact.length >= 3 ? compact : `tenant${compact}`.slice(0, 32);
-  }
-
-  return slug;
-}
-
-export function validateTenantSubdomain(subdomain: string): string | null {
-  if (!TENANT_SUBDOMAIN_REGEX.test(subdomain)) {
-    return `Format subdomain tidak valid: "${subdomain}". Gunakan huruf kecil, angka, dan strip (3–48 karakter).`;
-  }
-  return null;
-}
 
 /** Hapus key undefined agar PostgREST tidak menolak payload. */
 export function stripUndefinedPayloadFields(
@@ -203,5 +197,5 @@ export function buildInstitutionalSubdomainForTab(
   tab: PendaftarProductTab
 ): string {
   const pillar = tab === 'siput' ? 'siput' : 'lms';
-  return buildInstitutionalSubdomain(cleanSlug, pillar);
+  return normalizeTenantSubdomain(buildInstitutionalSubdomain(cleanSlug, pillar));
 }
