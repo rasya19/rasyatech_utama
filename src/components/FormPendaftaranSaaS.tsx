@@ -97,7 +97,6 @@ export default function FormPendaftaranSaaS() {
   const productType = formData.product_type as SaasProductType;
   const isLms = productType === 'lms';
   const isSchoolProduct = isMainDbProduct(productType);
-  const isCulinary = isKulinerDbProduct(productType);
   const needsTablesCount = productType === 'scanbite' || productType === 'resto';
   const needsOutletCount = productType === 'instafood';
 
