@@ -3,7 +3,6 @@ import { supabase } from '../../lib/supabase';
 import { isMainDomainHostname } from '../../lib/subdomain-utils';
 import { fetchTotalPendaftarCount } from '../../lib/registration-stats';
 import MonitoringDashboard from './MonitoringDashboard';
-import ManajemenPendaftarSaaS from './ManajemenPendaftarSaaS';
 import UnifiedRegistrationManager from './UnifiedRegistrationManager';
 import { 
   Save, 

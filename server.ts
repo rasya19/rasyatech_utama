@@ -11,6 +11,7 @@ import path from "path";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
 import cors from "cors";
+import { parseTenantHostname, inferPillarFromProduct } from "./src/lib/tenant-host-parser.js";
 
 const ROOT = process.cwd();
 const isProduction = process.env.NODE_ENV === "production";
@@ -29,26 +30,27 @@ function createAdminSupabase() {
 function parseTenantSubdomain(host: string | undefined): string | null {
   if (!host) return null;
   const hostname = host.split(":")[0].toLowerCase();
-  if (hostname === "localhost" || hostname === "127.0.0.1") return null;
-
-  const parts = hostname.split(".");
-  if (parts.length < 3) return null;
-
-  const slug = parts[0];
-  if (["www", "rasyatech", "api", "mail"].includes(slug)) return null;
-  return slug;
+  const parsed = parseTenantHostname(hostname);
+  if (parsed) {
+    console.log("[server][subdomain]", hostname, "→", parsed.tenantSlug, parsed.pillar);
+    return parsed.tenantSlug;
+  }
+  return null;
 }
 
-function normalizeTenantPillar(product: string | null | undefined): "siput" | "lms" | null {
+function normalizeTenantPillar(product: string | null | undefined): "siput" | "lms" | "kuliner" | null {
   const value = (product || "").toLowerCase();
   if (value === "siput") return "siput";
-  if (value === "lms" || value === "armilla") return "lms";
+  if (value === "lms" || value === "armilla" || value === "kesetaraan") return "lms";
+  if (["scanbite", "restoran_asli", "resto", "restoran", "instafoto", "instafood"].includes(value)) {
+    return "kuliner";
+  }
   return null;
 }
 
 async function resolveTenantPillarFromDatabase(
   subdomain: string
-): Promise<"siput" | "lms" | null> {
+): Promise<"siput" | "lms" | "kuliner" | null> {
   const adminSupabase = createAdminSupabase();
   if (!adminSupabase) return null;
 
@@ -80,13 +82,13 @@ async function resolveTenantPillarFromDatabase(
   return normalizeTenantPillar(regRow?.product_name || regRow?.product_app);
 }
 
-function resolveDistFolder(pillar: "siput" | "lms" | null): string {
+function resolveDistFolder(pillar: "siput" | "lms" | "kuliner" | null): string {
   if (pillar === "siput") return "dist-siput";
   if (pillar === "lms") return "dist-lms";
   return "dist";
 }
 
-function resolveIndexHtml(pillar: "siput" | "lms" | null): string {
+function resolveIndexHtml(pillar: "siput" | "lms" | "kuliner" | null): string {
   const folder = resolveDistFolder(pillar);
   const candidate = path.join(ROOT, folder, "index.html");
   if (fs.existsSync(candidate)) return candidate;
@@ -98,16 +100,32 @@ async function handleTenantRootRedirect(
   res: Response,
   subdomain: string
 ): Promise<boolean> {
-  const pillar = await resolveTenantPillarFromDatabase(subdomain);
+  const hostname = (req.headers.host || "").split(":")[0].toLowerCase();
+  const parsed = parseTenantHostname(hostname);
+  let pillar = parsed ? inferPillarFromProduct(parsed.productHint) : null;
+
+  if (!pillar) {
+    pillar = await resolveTenantPillarFromDatabase(subdomain);
+  }
+
+  console.log("[server][tenant-redirect]", { hostname, subdomain, pillar });
+
   if (pillar === "siput") {
-    res.redirect(302, "/admin");
+    res.redirect(302, `/siput/${subdomain}`);
     return true;
   }
   if (pillar === "lms") {
-    res.redirect(302, "/login-sekolah");
+    res.redirect(302, `/lms/${subdomain}`);
     return true;
   }
-  return false;
+  if (pillar === "kuliner") {
+    res.redirect(302, `/kuliner/${subdomain}`);
+    return true;
+  }
+
+  // Fallback: arahkan ke SIPUT admin jika tenant dikenali di DB
+  res.redirect(302, `/siput/${subdomain}`);
+  return true;
 }
 
 async function startServer() {
@@ -320,62 +338,47 @@ async function startServer() {
   });
 
   app.delete("/api/delete-registration", async (req, res) => {
-  const id = (req.query.id as string) || (req.params as any).id;
-  const tenant = req.query.tenant as string;
-  
-  if (!id) return res.status(400).json({ error: "ID is required" });
-  if (!tenant) return res.status(400).json({ error: "tenant is required" });
+    const id = (req.query.id as string) || (req.params as { id?: string }).id;
+    const tenant = req.query.tenant as string;
 
-  // ... (lanjutkan dengan logika yang sama seperti di atas)
-});
+    if (!id) return res.status(400).json({ error: "ID is required" });
+    if (!tenant) return res.status(400).json({ error: "tenant is required" });
 
-  try {
-    // 1. Ambil data tenant
-    const { data: reg, error: fetchError } = await adminSupabase
-      .from('tenant')
-      .select('id, subdomain, auth_uid')
-      .eq('id', id)
-      .eq('tenant', tenant) // filter tenant
-      .single();
-
-    if (fetchError) {
-      return res.status(404).json({ error: "Pendaftaran tidak ditemukan untuk tenant ini" });
+    const adminSupabase = createAdminSupabase();
+    if (!adminSupabase) {
+      return res.status(500).json({ error: "Server configuration missing" });
     }
 
-    // 2. Hapus schools
-    if (reg?.subdomain && reg.subdomain !== '-') {
-      await adminSupabase
-        .from('schools')
-        .delete()
-        .eq('id', reg.subdomain)
-        .eq('tenant', tenant);
+    try {
+      const { data: reg, error: fetchError } = await adminSupabase
+        .from("tenant")
+        .select("id, subdomain, auth_uid")
+        .eq("id", id)
+        .single();
+
+      if (fetchError) {
+        return res.status(404).json({ error: "Pendaftaran tidak ditemukan" });
+      }
+
+      if (reg?.subdomain && reg.subdomain !== "-") {
+        await adminSupabase.from("schools").delete().eq("id", reg.subdomain);
+      }
+      await adminSupabase.from("schools").delete().eq("registration_id", id);
+
+      if (reg?.auth_uid) {
+        await adminSupabase.auth.admin.deleteUser(reg.auth_uid);
+      }
+
+      const { error: deleteError } = await adminSupabase.from("tenant").delete().eq("id", id);
+      if (deleteError) throw deleteError;
+
+      return res.status(200).json({ success: true, message: "Pendaftar berhasil dihapus permanen!" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal Server Error";
+      console.error("Delete registration error:", error);
+      return res.status(500).json({ error: message });
     }
-    await adminSupabase
-      .from('schools')
-      .delete()
-      .eq('registration_id', id)
-      .eq('tenant', tenant);
-
-    // 3. Hapus auth user jika ada
-    if (reg?.auth_uid) {
-      await adminSupabase.auth.admin.deleteUser(reg.auth_uid);
-    }
-
-    // 4. Hapus dari tenant
-    const { error: deleteError } = await adminSupabase
-      .from('tenant')
-      .delete()
-      .eq('id', id)
-      .eq('tenant', tenant);
-
-    if (deleteError) throw deleteError;
-
-    return res.status(200).json({ success: true, message: "Pendaftar berhasil dihapus permanen!" });
-  } catch (error: any) {
-    console.error("Delete registration error:", error);
-    return res.status(500).json({ error: error.message || "Internal Server Error" });
-  }
-});
+  });
 
   if (!isProduction) {
     const vite = await createViteServer({
@@ -436,7 +439,7 @@ async function startServer() {
           if (redirected) return;
         }
 
-        let pillar: "siput" | "lms" | null = null;
+        let pillar: "siput" | "lms" | "kuliner" | null = null;
         if (tenantSubdomain) {
           pillar = await resolveTenantPillarFromDatabase(tenantSubdomain);
         }

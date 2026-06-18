@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 import { supabaseKuliner } from '../../lib/supabase-kuliner';
-import { resolveTenantUuid } from '../../lib/tenant-lookup';
+import { resolveTenantUuidForRegistration } from '../../lib/tenant-lookup';
 import { fetchTotalPendaftarCount } from '../../lib/registration-stats';
 import {
   Users,
@@ -248,7 +248,7 @@ export default function ManajemenPendaftarSaaS({
 
       let tenantUuid: string | null = null;
       if (activating) {
-        tenantUuid = await resolveTenantUuid(activeTab, client);
+        tenantUuid = await resolveTenantUuidForRegistration(activeTab, client, item._raw);
         if (tenantUuid) {
           payload.tenant_id = tenantUuid;
           payload.tenant_master_id = tenantUuid;

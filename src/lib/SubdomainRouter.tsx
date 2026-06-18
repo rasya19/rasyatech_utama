@@ -10,7 +10,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { supabaseMaster } from './supabase-hub';
-import { getSubdomainFromHostname } from './subdomain-utils';
+import { parseTenantHostname } from './tenant-host-parser';
 import type { ProductType, MasterRegistration } from './types/products';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
@@ -36,38 +36,11 @@ const SubdomainRouterContext = createContext<SubdomainRouterState>(defaultState)
 // ─── Helper: detect subdomain from hostname ───────────────────────────────────
 
 function detectSubdomain(): string | null {
-  const hostname = window.location.hostname;
-
-  // Local dev / Cloud Run preview → always treat as main domain
-  if (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname.endsWith('.run.app') ||
-    hostname.endsWith('.vercel.app')
-  ) {
-    return null;
+  const parsed = parseTenantHostname(window.location.hostname);
+  if (parsed?.productHint) {
+    localStorage.setItem('current_product', parsed.productHint);
   }
-
-  // Format: tenant.siput.rsch.my.id (4 bagian)
-  const parts = hostname.split('.');
-  
-  if (parts.length >= 4) {
-    const tenant = parts[0];
-    const product = parts[1];
-    
-    if (product === 'siput' || product === 'lms') {
-      localStorage.setItem('current_product', product);
-      return tenant;
-    }
-  }
-  
-  // Main domain patterns
-  const isMainDomain =
-    parts[0] === 'rasyatech' ||
-    parts[0] === 'www' ||
-    parts.length < 3;
-
-  return isMainDomain ? null : parts[0];
+  return parsed?.tenantSlug ?? null;
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────

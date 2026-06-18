@@ -9,13 +9,23 @@ import ResetPassword from './components/ResetPassword';
 import SplashScreen from './components/SplashScreen';
 import MonitoringDashboard from './components/MasterAdmin/MonitoringDashboard';
 import FormPendaftaranSaaS from './components/FormPendaftaranSaaS';
+import DashboardSekolahCallback from './components/DashboardSekolahCallback';
+import TenantSubdomainGate from './components/TenantSubdomainGate';
+import TenantProductRoute from './components/TenantProductRoute';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { LandingDataProvider } from './lib/LandingDataContext';
 import { supabase } from './lib/supabase';
-import DashboardSekolahCallback from './components/DashboardSekolahCallback';
+import { isMainDomainHostname } from './lib/subdomain-utils';
+
+function LandingOrRedirect() {
+  const subdomain = useSubdomain();
+  if (subdomain && !isMainDomainHostname(window.location.hostname)) {
+    return <Navigate to="/admin" replace />;
+  }
+  return <RasyatechLanding />;
+}
 
 function AppRoutes() {
-  const subdomain = useSubdomain();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,37 +43,30 @@ function AppRoutes() {
   }, [navigate]);
 
   return (
-    <Routes>
-      {/* Landing Page */}
-      <Route path="/" element={<RasyatechLanding />} />
-      
-      {/* SuperAdmin/MasterAdmin */}
-      <Route path="/master-admin" element={<MasterAdmin />} />
-      
-      {/* Password Reset */}
-      <Route path="/reset-password" element={<ResetPassword />} />
-      
-      {/* Callback untuk magic link */}
-      <Route path="/dashboard-sekolah" element={<DashboardSekolahCallback />} />
-      
-      {/* Tenant Admin - SELALU tampilkan TenantDashboard */}
-      <Route path="/admin" element={<TenantDashboard />} />
-      
-      {/* Affiliate Portal */}
-      <Route path="/affiliate/portal" element={<AffiliatePortal />} />
-      
-      {/* Login Sekolah */}
-      <Route path="/login-sekolah" element={<SchoolLogin />} />
-      
-      {/* Monitoring */}
-      <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
-      
-      {/* Global SaaS Registration */}
-      <Route path="/daftar" element={<FormPendaftaranSaaS />} />
-      
-      {/* Catch-all */}
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+    <>
+      <TenantSubdomainGate />
+      <Routes>
+        <Route path="/" element={<LandingOrRedirect />} />
+
+        <Route path="/master-admin" element={<MasterAdmin />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/dashboard-sekolah" element={<DashboardSekolahCallback />} />
+
+        {/* Rute tenant per pilar produk */}
+        <Route path="/lms/:subdomain" element={<TenantProductRoute pillar="lms" />} />
+        <Route path="/siput/:subdomain" element={<TenantProductRoute pillar="siput" />} />
+        <Route path="/kuliner/:subdomain" element={<TenantProductRoute pillar="kuliner" />} />
+
+        {/* Legacy paths */}
+        <Route path="/admin" element={<TenantDashboard />} />
+        <Route path="/affiliate/portal" element={<AffiliatePortal />} />
+        <Route path="/login-sekolah" element={<SchoolLogin />} />
+        <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
+        <Route path="/daftar" element={<FormPendaftaranSaaS />} />
+
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </>
   );
 }
 
@@ -75,10 +78,10 @@ export default function App() {
       <LandingDataProvider>
         <Router>
           {showSplash && (
-            <SplashScreen 
+            <SplashScreen
               onComplete={() => {
                 setShowSplash(false);
-              }} 
+              }}
             />
           )}
           <AppRoutes />
