@@ -1,10 +1,10 @@
 /**
  * Parser hostname multi-tenant Rasyatech.
  * Mendukung:
- *   - pkbm-armilla.rsch.my.id          → LMS Kesetaraan (awalan PKBM)
- *   - kb-ceria.rsch.my.id              → SIPUT PAUD (awalan KB)
- *   - sps-amanah.rsch.my.id            → SIPUT PAUD (awalan SPS)
- *   - rasyatech.rsch.my.id             → landing utama (bukan tenant)
+ *   - pkbm-armilla.rsch.my.id / pkbmarmilla.rsch.my.id  → LMS
+ *   - kb-ceria.rsch.my.id / kbceria.rsch.my.id           → SIPUT PAUD
+ *   - tkarmillanusa.rsch.my.id                           → SIPUT (compact tanpa strip)
+ *   - rasyatech.rsch.my.id                               → landing utama (bukan tenant)
  */
 
 export type TenantProductPillar = 'lms' | 'siput' | 'kuliner';
@@ -13,10 +13,12 @@ export type TenantProductPillar = 'lms' | 'siput' | 'kuliner';
 export type SaasProductRoute = 'lms' | 'siput' | 'scanbite' | 'resto' | 'instafood';
 
 export type ParsedTenantHost = {
-  /** Slug lengkap dari hostname (mis. pkbm-armilla, tk-armillanusa). */
+  /** Slug lengkap dari hostname (mis. pkbm-armilla, tkarmillanusa). */
   tenantSlug: string;
-  /** Slug bersih tanpa awalan kelembagaan (mis. armilla, armillanusa) — untuk lookup DB. */
+  /** Slug bersih tanpa awalan kelembagaan — untuk lookup/display legacy. */
   cleanTenantSlug: string;
+  /** Slug route SPA (normalisasi DB, mis. tkarmillanusa). */
+  routeTenantSlug: string;
   /** Segmen produk di hostname, jika ada (siput, lms, scanbite, …) */
   productHint: string | null;
   pillar: TenantProductPillar;
@@ -69,6 +71,69 @@ const PRODUCT_ROUTE_MAP: Record<string, SaasProductRoute> = {
   instafood: 'instafood',
 };
 
+type InstitutionalEntry = {
+  hyphen: string;
+  compact: string;
+  pillar: 'lms' | 'siput';
+};
+
+/** Urutan: awalan terpanjang dulu agar pkbm tidak tertangkap sebagai pk. */
+const INSTITUTIONAL_ENTRIES: InstitutionalEntry[] = [
+  { hyphen: 'pkbm-', compact: 'pkbm', pillar: 'lms' },
+  { hyphen: 'skb-', compact: 'skb', pillar: 'lms' },
+  { hyphen: 'tk-', compact: 'tk', pillar: 'siput' },
+  { hyphen: 'kb-', compact: 'kb', pillar: 'siput' },
+  { hyphen: 'sps-', compact: 'sps', pillar: 'siput' },
+  { hyphen: 'tpa-', compact: 'tpa', pillar: 'siput' },
+  { hyphen: 'paud-', compact: 'paud', pillar: 'siput' },
+];
+
+/** Awalan kelembagaan Indonesia — LMS Kesetaraan (PKBM / SKB). */
+export const LMS_INSTITUTIONAL_MARKERS = ['pkbm-', 'skb-'] as const;
+
+/** Awalan kelembagaan Indonesia — SIPUT PAUD (TK, KB, SPS, TPA, PAUD). */
+export const SIPUT_INSTITUTIONAL_MARKERS = ['tk-', 'kb-', 'sps-', 'tpa-', 'paud-'] as const;
+
+/** Normalisasi slug hostname → format DB (huruf kecil, tanpa strip). */
+export function normalizeHostnameSubdomainSlug(slug: string): string {
+  return String(slug || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 32);
+}
+
+type DetectedInstitutional = {
+  pillar: 'lms' | 'siput';
+  hyphenMarker: string;
+  compactMarker: string;
+};
+
+function detectInstitutionalPrefix(slug: string): DetectedInstitutional | null {
+  const raw = slug.trim().toLowerCase();
+  const compact = normalizeHostnameSubdomainSlug(slug);
+  if (!raw && !compact) return null;
+
+  for (const entry of INSTITUTIONAL_ENTRIES) {
+    if (raw.startsWith(entry.hyphen)) {
+      return {
+        pillar: entry.pillar,
+        hyphenMarker: entry.hyphen,
+        compactMarker: entry.compact,
+      };
+    }
+    if (compact.startsWith(entry.compact) && compact.length > entry.compact.length) {
+      return {
+        pillar: entry.pillar,
+        hyphenMarker: entry.hyphen,
+        compactMarker: entry.compact,
+      };
+    }
+  }
+
+  return null;
+}
+
 export function productAppToRoute(product: string | null | undefined): SaasProductRoute {
   if (!product) return 'lms';
   const key = product.trim().toLowerCase();
@@ -106,49 +171,58 @@ export function getTenantBaseDomains(): string[] {
   return [...new Set([edu, kuliner, apex].map((d) => String(d).toLowerCase().replace(/^\.+/, '')))];
 }
 
-/** Awalan kelembagaan Indonesia — LMS Kesetaraan (PKBM / SKB). */
-export const LMS_INSTITUTIONAL_MARKERS = ['pkbm-', 'skb-'] as const;
-
-/** Awalan kelembagaan Indonesia — SIPUT PAUD (TK, KB, SPS, TPA, PAUD). */
-export const SIPUT_INSTITUTIONAL_MARKERS = ['tk-', 'kb-', 'sps-', 'tpa-', 'paud-'] as const;
-
 export function slugMatchesInstitutionalMarker(
   slug: string,
   markers: readonly string[]
 ): boolean {
-  const normalized = slug.trim().toLowerCase();
-  if (!normalized) return false;
-  return markers.some((marker) => normalized.startsWith(marker));
+  const detected = detectInstitutionalPrefix(slug);
+  if (!detected) return false;
+  const pillarMarkers =
+    detected.pillar === 'lms' ? LMS_INSTITUTIONAL_MARKERS : SIPUT_INSTITUTIONAL_MARKERS;
+  if (markers !== LMS_INSTITUTIONAL_MARKERS && markers !== SIPUT_INSTITUTIONAL_MARKERS) {
+    return markers.some((marker) => {
+      const raw = slug.trim().toLowerCase();
+      const compact = normalizeHostnameSubdomainSlug(slug);
+      const compactMarker = marker.replace(/-$/, '');
+      return raw.startsWith(marker) || compact.startsWith(compactMarker);
+    });
+  }
+  return pillarMarkers === markers;
 }
 
-/** Infer pillar dari slug subdomain (pkbm-*, kb-*, sps-*, dll.). */
+/** Infer pillar dari slug subdomain (pkbm-*, kb-*, tkarmillanusa, dll.). */
 export function inferPillarFromInstitutionalSlug(slug: string): TenantProductPillar | null {
-  if (slugMatchesInstitutionalMarker(slug, LMS_INSTITUTIONAL_MARKERS)) return 'lms';
-  if (slugMatchesInstitutionalMarker(slug, SIPUT_INSTITUTIONAL_MARKERS)) return 'siput';
-  return null;
+  return detectInstitutionalPrefix(slug)?.pillar ?? null;
 }
 
 /** Nilai `product_app` di tabel tenant master dari awalan kelembagaan. */
 export function inferProductAppFromInstitutionalSlug(slug: string): 'lms' | 'siput' | null {
-  const pillar = inferPillarFromInstitutionalSlug(slug);
-  if (pillar === 'lms') return 'lms';
-  if (pillar === 'siput') return 'siput';
-  return null;
+  return detectInstitutionalPrefix(slug)?.pillar ?? null;
 }
 
-/** Hapus awalan kelembagaan dari slug subdomain untuk lookup database. */
+/** Hapus awalan kelembagaan dari slug subdomain untuk lookup database legacy. */
 export function stripInstitutionalPrefixFromSlug(slug: string): string {
-  const normalized = slug.trim().toLowerCase();
-  const markers = [...LMS_INSTITUTIONAL_MARKERS, ...SIPUT_INSTITUTIONAL_MARKERS] as const;
+  const raw = slug.trim().toLowerCase();
+  const compact = normalizeHostnameSubdomainSlug(slug);
+  const detected = detectInstitutionalPrefix(slug);
 
-  for (const marker of markers) {
-    if (normalized.startsWith(marker)) {
-      const stripped = normalized.slice(marker.length).replace(/^-+/, '');
-      return stripped || normalized;
+  if (detected) {
+    if (raw.startsWith(detected.hyphenMarker)) {
+      const stripped = raw.slice(detected.hyphenMarker.length).replace(/^-+/, '');
+      return stripped || compact;
+    }
+    if (compact.startsWith(detected.compactMarker)) {
+      const stripped = compact.slice(detected.compactMarker.length);
+      return stripped || compact;
     }
   }
 
-  return normalized;
+  return compact || raw;
+}
+
+/** Slug untuk path internal SPA — selaras kolom `subdomain` di DB (compact). */
+export function routeTenantSlugFromHostnameSubdomain(slug: string): string {
+  return normalizeHostnameSubdomainSlug(slug) || slug.trim().toLowerCase();
 }
 
 /** Bangun subdomain penuh dengan awalan kelembagaan untuk DNS (mis. pkbm-armilla-nusa). */
@@ -160,11 +234,11 @@ export function buildInstitutionalSubdomain(
   if (!base) return cleanSlug;
 
   if (pillar === 'lms') {
-    if (slugMatchesInstitutionalMarker(base, LMS_INSTITUTIONAL_MARKERS)) return base;
+    if (detectInstitutionalPrefix(base)) return base;
     return `pkbm-${base}`;
   }
 
-  if (slugMatchesInstitutionalMarker(base, SIPUT_INSTITUTIONAL_MARKERS)) return base;
+  if (detectInstitutionalPrefix(base)) return base;
   return `kb-${base}`;
 }
 
@@ -241,16 +315,18 @@ function buildRewriteForRoute(
   hostnameSubdomain: string,
   pathname: string
 ): MiddlewareRewriteResult {
-  const cleanTenantSlug = stripInstitutionalPrefixFromSlug(hostnameSubdomain);
+  const routeTenantSlug = routeTenantSlugFromHostnameSubdomain(hostnameSubdomain);
   const prefix = routeToInternalPrefix(route);
   const suffix = pathname === '/' || pathname === '' ? '' : pathname;
   const targetPath =
-    pathname === '/' || pathname === '' ? `${prefix}/${cleanTenantSlug}` : `${prefix}/${cleanTenantSlug}${suffix}`;
+    pathname === '/' || pathname === ''
+      ? `${prefix}/${routeTenantSlug}`
+      : `${prefix}/${routeTenantSlug}${suffix}`;
 
   return {
     targetPath,
     hostnameSubdomain,
-    cleanTenantSlug,
+    cleanTenantSlug: routeTenantSlug,
     productRoute: route,
   };
 }
@@ -274,11 +350,11 @@ export function resolveMiddlewareRewriteTarget(
     return buildRewriteForRoute(productOverride, hostnameSubdomain, pathname);
   }
 
-  if (slugMatchesInstitutionalMarker(hostnameSubdomain, LMS_INSTITUTIONAL_MARKERS)) {
+  const institutional = detectInstitutionalPrefix(hostnameSubdomain);
+  if (institutional?.pillar === 'lms') {
     return buildRewriteForRoute('lms', hostnameSubdomain, pathname);
   }
-
-  if (slugMatchesInstitutionalMarker(hostnameSubdomain, SIPUT_INSTITUTIONAL_MARKERS)) {
+  if (institutional?.pillar === 'siput') {
     return buildRewriteForRoute('siput', hostnameSubdomain, pathname);
   }
 
@@ -309,12 +385,15 @@ export function isMainDomainHostname(hostname: string): boolean {
 /** Hostname punya subdomain tenant yang bisa di-route (heuristik + DB di middleware). */
 export function isTenantHostname(hostname: string): boolean {
   if (isMainDomainHostname(hostname)) return false;
-  return parseTenantHostname(hostname) != null;
+  if (parseTenantHostname(hostname) != null) return true;
+  return hostnameHasTenantSubdomain(hostname);
 }
 
 /** Subdomain terdeteksi di hostname produksi tapi produk/tenant tidak dikenali. */
 export function isUnresolvedTenantHostname(hostname: string): boolean {
-  return hostnameHasTenantSubdomain(hostname) && parseTenantHostname(hostname) == null;
+  if (isMainDomainHostname(hostname)) return false;
+  if (parseTenantHostname(hostname) != null) return false;
+  return hostnameHasTenantSubdomain(hostname);
 }
 
 export function inferPillarFromProduct(product: string | null): TenantProductPillar {
@@ -336,14 +415,16 @@ export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
   if (!hostnameSubdomain) return null;
 
   const productHint = extractProductHintFromHostname(h);
+  const institutional = detectInstitutionalPrefix(hostnameSubdomain);
+  const routeTenantSlug = routeTenantSlugFromHostnameSubdomain(hostnameSubdomain);
   const cleanTenantSlug = stripInstitutionalPrefixFromSlug(hostnameSubdomain);
 
   let route: SaasProductRoute | null = null;
   if (productHint) {
     route = productAppToRoute(productHint);
-  } else if (slugMatchesInstitutionalMarker(hostnameSubdomain, SIPUT_INSTITUTIONAL_MARKERS)) {
+  } else if (institutional?.pillar === 'siput') {
     route = 'siput';
-  } else if (slugMatchesInstitutionalMarker(hostnameSubdomain, LMS_INSTITUTIONAL_MARKERS)) {
+  } else if (institutional?.pillar === 'lms') {
     route = 'lms';
   }
 
@@ -355,10 +436,25 @@ export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
   return {
     tenantSlug: hostnameSubdomain,
     cleanTenantSlug,
+    routeTenantSlug,
     productHint,
     pillar,
     hostname: h,
   };
+}
+
+function resolveProductForRoute(
+  parsed: ParsedTenantHost,
+  productFromDb?: string | null
+): string | null {
+  if (productFromDb) return productFromDb;
+  if (parsed.productHint) return parsed.productHint;
+  const fromSlug = inferProductAppFromInstitutionalSlug(parsed.tenantSlug);
+  if (fromSlug) return fromSlug;
+  if (parsed.pillar === 'siput') return 'siput';
+  if (parsed.pillar === 'lms') return 'lms';
+  if (parsed.pillar === 'kuliner') return 'scanbite';
+  return null;
 }
 
 /** Path internal SPA untuk rewrite / redirect tenant. */
@@ -366,15 +462,19 @@ export function buildTenantRoutePath(
   parsed: ParsedTenantHost,
   productFromDb?: string | null
 ): string | null {
-  const product = productFromDb || parsed.productHint || null;
+  const product = resolveProductForRoute(parsed, productFromDb);
   if (!product) return null;
 
   const route = productAppToRoute(product);
-  const slug = parsed.cleanTenantSlug || parsed.tenantSlug;
+  const slug = parsed.routeTenantSlug || routeTenantSlugFromHostnameSubdomain(parsed.tenantSlug);
   return `${routeToInternalPrefix(route)}/${slug}`;
 }
 
 export function getSubdomainFromHostname(hostname: string): string | null {
   const parsed = parseTenantHostname(hostname);
-  return parsed?.cleanTenantSlug ?? parsed?.tenantSlug ?? null;
+  if (parsed) {
+    return parsed.routeTenantSlug || parsed.cleanTenantSlug || parsed.tenantSlug;
+  }
+  const slug = extractHostnameSubdomainSlug(hostname);
+  return slug ? routeTenantSlugFromHostnameSubdomain(slug) : null;
 }
