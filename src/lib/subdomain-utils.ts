@@ -23,6 +23,8 @@ export {
   slugMatchesInstitutionalMarker,
   LMS_INSTITUTIONAL_MARKERS,
   SIPUT_INSTITUTIONAL_MARKERS,
+  normalizeHostnameSubdomainSlug,
+  routeTenantSlugFromHostnameSubdomain,
 } from './tenant-host-parser';
 
 const SUBDOMAIN_MIN_LENGTH = 3;
