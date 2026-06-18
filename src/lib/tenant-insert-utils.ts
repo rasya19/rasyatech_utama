@@ -61,6 +61,18 @@ export function stripUndefinedPayloadFields(
   return out;
 }
 
+/** Regex hostname penuh (Scanbite/Kuliner): slug.domain.tld */
+export const TENANT_SUBDOMAIN_HOST_REGEX =
+  /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+
+export function validateSubdomainHost(hostname: string): string | null {
+  const host = String(hostname || '').trim().toLowerCase();
+  if (!TENANT_SUBDOMAIN_HOST_REGEX.test(host)) {
+    return `Format subdomain_host tidak valid: "${hostname}". Gunakan hostname penuh, mis. tokokopi.rsch.web.id`;
+  }
+  return null;
+}
+
 export function buildSubdomainHost(subdomain: string, tenantDomain: string): string {
   const domain = tenantDomain.replace(/^\.+/, '').toLowerCase();
   return `${normalizeTenantSubdomain(subdomain)}.${domain}`;
@@ -112,6 +124,39 @@ export function sanitizeTenantInsertPayload(
   }
   if ('kode_tenant' in cleaned) {
     cleaned.kode_tenant = subdomain;
+  }
+
+  return cleaned;
+}
+
+/**
+ * Sanitasi payload tenant Scanbite/Kuliner — hanya subdomain_host (tanpa kolom subdomain).
+ */
+export function sanitizeKulinerTenantInsertPayload(
+  row: Record<string, unknown>,
+  tenantDomain: string
+): Record<string, unknown> {
+  const cleaned = stripUndefinedPayloadFields(row);
+  delete cleaned.subdomain;
+
+  const slug = normalizeTenantSubdomain(
+    String(cleaned.slug || cleaned.kode_tenant || cleaned.subdomain_host || '')
+  );
+  const subdomainHost = String(cleaned.subdomain_host || '').includes('.')
+    ? String(cleaned.subdomain_host).trim().toLowerCase()
+    : buildSubdomainHost(slug, tenantDomain);
+
+  const validationError = validateSubdomainHost(subdomainHost);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  cleaned.subdomain_host = subdomainHost;
+  if ('slug' in cleaned) {
+    cleaned.slug = slug;
+  }
+  if ('kode_tenant' in cleaned) {
+    cleaned.kode_tenant = slug;
   }
 
   return cleaned;

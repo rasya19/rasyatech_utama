@@ -16,6 +16,7 @@ import {
   resolveProductApp,
   buildProvisioningSubdomain,
   sanitizeTenantInsertPayload,
+  sanitizeKulinerTenantInsertPayload,
 } from './tenant-insert-utils';
 import { getKulinerTenantDomain, getEduTenantDomain } from './tenant-url';
 
@@ -158,10 +159,12 @@ export async function provisionKulinerTenantOnApproval(
     throw new Error('Slug tenant kuliner tidak valid — periksa nama bisnis/kode_tenant pendaftar.');
   }
 
+  const subdomainHost = buildSubdomainHost(slug, tenantDomain);
+
   const { data: existing, error: lookupError } = await tenantClient
     .from('tenant')
     .select('id')
-    .or(`slug.eq.${slug},subdomain.eq.${slug}`)
+    .or(`slug.eq.${slug},subdomain_host.eq.${subdomainHost}`)
     .maybeSingle();
 
   if (lookupError) {
@@ -180,8 +183,7 @@ export async function provisionKulinerTenantOnApproval(
     tenant_name: cafeName,
     cafe_name: cafeName,
     slug,
-    subdomain: slug,
-    subdomain_host: buildSubdomainHost(slug, tenantDomain),
+    subdomain_host: subdomainHost,
     product_app: productApp,
     business_type: productApp,
     package_tier: resolvePackageTier(registrationRow),
@@ -206,7 +208,7 @@ export async function provisionKulinerTenantOnApproval(
     insertRow.tenant_id = registrationRow.tenant_id;
   }
 
-  const payload = sanitizeTenantInsertPayload(insertRow, tenantDomain);
+  const payload = sanitizeKulinerTenantInsertPayload(insertRow, tenantDomain);
   console.log('[provision-kuliner-tenant] INSERT DB produk:', productType, payload);
 
   const { data, error } = await tenantClient
