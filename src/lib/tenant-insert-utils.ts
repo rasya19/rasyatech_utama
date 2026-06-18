@@ -114,7 +114,9 @@ export function buildMainTenantInsertRow(
     subdomain: institutionalSubdomain,
     package_tier: packageTier,
     source: String(registrationRow.source || 'manajemen_pendaftar_approval'),
-    npsn: String(registrationRow.npsn || '-'),
+    npsn: registrationRow.npsn != null && String(registrationRow.npsn).trim() !== ''
+      ? String(registrationRow.npsn)
+      : '-',
     product_app: productApp,
     subdomain_host: `${institutionalSubdomain}.${domain}`,
     admin_name: String(registrationRow.admin_name || registrationRow.full_name || tenantName),

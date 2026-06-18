@@ -58,3 +58,31 @@ export function resolvePackageTierForProduct(
 export function getProductRedirectDomain(type: SaasProductType): string {
   return isKulinerDbProduct(type) ? 'rsch.web.id' : 'rsch.my.id';
 }
+
+/**
+ * Memetakan satu input formulir ke kolom `npsn` atau `tabel_count` sesuai produk.
+ * - LMS / SIPUT: nilai → npsn; tabel_count = null
+ * - SCANBITE / RESTO / INSTAFOOD: nilai → tabel_count (int); npsn = null
+ */
+export function resolveRegistrationNpsnAndTabelCount(
+  type: SaasProductType,
+  sharedInput: string
+): { npsn: string | null; tabel_count: number | null } {
+  const value = sharedInput.trim();
+
+  if (isKulinerDbProduct(type)) {
+    if (!value) {
+      return { npsn: null, tabel_count: null };
+    }
+    const parsed = parseInt(value, 10);
+    return {
+      npsn: null,
+      tabel_count: Number.isNaN(parsed) ? null : parsed,
+    };
+  }
+
+  return {
+    npsn: value || null,
+    tabel_count: null,
+  };
+}

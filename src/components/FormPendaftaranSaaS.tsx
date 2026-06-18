@@ -10,7 +10,9 @@ import {
   normalizeProductParam,
   toProductApp,
   isMainDbProduct,
+  isKulinerDbProduct,
   resolvePackageTierForProduct,
+  resolveRegistrationNpsnAndTabelCount,
   getProductRedirectDomain,
   type SaasProductType,
 } from '../lib/saas-product-options';
@@ -56,8 +58,6 @@ export default function FormPendaftaranSaaS() {
     business_name: '',
     product_type: currentProduct,
     package: '',
-    tables_count: '',
-    outlet_count: '',
     npsn: '',
   });
 
@@ -95,8 +95,7 @@ export default function FormPendaftaranSaaS() {
   const productType = formData.product_type as SaasProductType;
   const isLms = productType === 'lms';
   const isSchoolProduct = isMainDbProduct(productType);
-  const needsTablesCount = productType === 'scanbite' || productType === 'resto';
-  const needsOutletCount = productType === 'instafood';
+  const isKulinerProduct = isKulinerDbProduct(productType);
 
   const getProductLabel = (type: SaasProductType = productType) => {
     return SAAS_PRODUCT_OPTIONS.find((o) => o.value === type)?.label ?? 'Layanan Rasyatech';
@@ -139,11 +138,10 @@ export default function FormPendaftaranSaaS() {
       const productApp = toProductApp(productType);
       const businessName = formData.business_name.trim();
       const kodeTenant = generateSubdomain(businessName);
-      const tabelCount = needsTablesCount
-        ? parseInt(formData.tables_count || '0', 10) || 0
-        : needsOutletCount
-          ? parseInt(formData.outlet_count || '0', 10) || 0
-          : 0;
+      const { npsn, tabel_count } = resolveRegistrationNpsnAndTabelCount(
+        productType,
+        formData.npsn
+      );
 
       submittedPayload = {
         full_name: formData.full_name.trim(),
@@ -152,13 +150,13 @@ export default function FormPendaftaranSaaS() {
         business_name: businessName,
         product_type: productApp,
         selected_package: packageTier,
-        tabel_count: tabelCount,
         status: 'pending',
         business_type: productApp,
         kode_tenant: kodeTenant,
         tenant: productType,
         package_tier: packageTier,
-        npsn: formData.npsn.trim() || '-',
+        npsn,
+        tabel_count,
       };
 
       const client = isSchoolProduct ? supabase : supabaseKuliner;
@@ -345,6 +343,7 @@ export default function FormPendaftaranSaaS() {
                       ...formData,
                       product_type: e.target.value as SaasProductType,
                       package: '',
+                      npsn: '',
                     })
                   }
                   className="w-full bg-[#0A0F1E] border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all appearance-none"
@@ -463,68 +462,39 @@ export default function FormPendaftaranSaaS() {
                 </motion.p>
               )}
 
-              {needsTablesCount && (
+              {(isSchoolProduct || isKulinerProduct) && (
                 <motion.div
+                  key={`secondary-field-${productType}`}
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   className="space-y-2"
                 >
-                  <label className="block text-xs font-black text-blue-400 uppercase tracking-widest px-1">Estimasi Jumlah Meja / Spot</label>
-                  <div className="relative">
-                    <LayoutGrid className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500/50" />
-                    <input
-                      required
-                      type="number"
-                      value={formData.tables_count}
-                      onChange={(e) => setFormData({ ...formData, tables_count: e.target.value })}
-                      placeholder="Contoh: 25"
-                      className="w-full bg-[#0A0F1E] border border-blue-500/20 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
-                    />
-                  </div>
-                </motion.div>
-              )}
-
-              {needsOutletCount && (
-                <motion.div
-                  key="outlet-count"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-2"
-                >
-                  <label className="block text-xs font-black text-orange-400 uppercase tracking-widest px-1">
-                    Jumlah Outlet / Kurir Internal
+                  <label className="block text-xs font-black text-blue-400 uppercase tracking-widest px-1">
+                    {isSchoolProduct
+                      ? 'NPSN Sekolah / Kode Instansi (Jika Ada)'
+                      : productType === 'instafood'
+                        ? 'Jumlah Outlet / Kurir Internal'
+                        : 'Estimasi Jumlah Meja / Spot'}
                   </label>
                   <div className="relative">
-                    <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-500/50" />
+                    {isKulinerProduct && productType === 'instafood' ? (
+                      <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-500/50" />
+                    ) : (
+                      <Database className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500/50" />
+                    )}
                     <input
-                      required
-                      type="number"
-                      value={formData.outlet_count}
-                      onChange={(e) => setFormData({ ...formData, outlet_count: e.target.value })}
-                      placeholder="Contoh: 5"
-                      className="w-full bg-[#0A0F1E] border border-orange-500/20 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-orange-500/50 transition-all placeholder:text-slate-700"
-                    />
-                  </div>
-                </motion.div>
-              )}
-
-              {isSchoolProduct && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-2"
-                >
-                  <label className="block text-xs font-black text-blue-400 uppercase tracking-widest px-1">NPSN Sekolah / Kode Instansi (Jika Ada)</label>
-                  <div className="relative">
-                    <Database className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500/50" />
-                    <input
-                      type="text"
+                      type={isKulinerProduct ? 'number' : 'text'}
+                      min={isKulinerProduct ? 0 : undefined}
                       value={formData.npsn}
                       onChange={(e) => setFormData({ ...formData, npsn: e.target.value })}
-                      placeholder="Contoh: 201020xx"
+                      placeholder={
+                        isSchoolProduct
+                          ? 'Contoh: 201020xx'
+                          : productType === 'instafood'
+                            ? 'Contoh: 5'
+                            : 'Contoh: 25'
+                      }
                       className="w-full bg-[#0A0F1E] border border-blue-500/20 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
                     />
                   </div>
