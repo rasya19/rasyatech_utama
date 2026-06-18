@@ -371,15 +371,6 @@ export default function RasyatechLanding() {
                   border: '1px solid #f1f2f6'
                 }}
               >
-                <a 
-                  href="#daftar" 
-                  onClick={() => setShowDaftarDropdown(false)}
-                  style={{ display: 'block', padding: '12px 15px', color: 'var(--navy)', textDecoration: 'none', fontWeight: 700, borderRadius: '8px', marginBottom: '5px' }}
-                  onMouseOver={(e) => (e.currentTarget.style.background = '#f8f9fa')}
-                  onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
-                >
-                  🚀 Daftar Paket LMS
-                </a>
                 <Link 
                   to="/daftar"
                   onClick={() => setShowDaftarDropdown(false)}

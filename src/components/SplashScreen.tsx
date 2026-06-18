@@ -39,7 +39,7 @@ export default function SplashScreen({ onComplete }: { onComplete: () => void })
               
               <img
                 id="splash-logo"
-                src="/pwa-512x512.png"
+                src="/icon-512x512.png"
                 alt="RasyaTech Logo"
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-contain relative z-10"

@@ -9,13 +9,67 @@ import ResetPassword from './components/ResetPassword';
 import SplashScreen from './components/SplashScreen';
 import MonitoringDashboard from './components/MasterAdmin/MonitoringDashboard';
 import FormPendaftaranSaaS from './components/FormPendaftaranSaaS';
+import DashboardSekolahCallback from './components/DashboardSekolahCallback';
+import TenantSubdomainGate from './components/TenantSubdomainGate';
+import TenantProductRoute from './components/TenantProductRoute';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { LandingDataProvider } from './lib/LandingDataContext';
 import { supabase } from './lib/supabase';
-import DashboardSekolahCallback from './components/DashboardSekolahCallback';
+import { isTenantHostname, isUnresolvedTenantHostname, parseTenantHostname, buildTenantRoutePath } from './lib/subdomain-utils';
+import UnknownTenantHost from './components/UnknownTenantHost';
+
+function LandingOrRedirect() {
+  const hostname = window.location.hostname;
+
+  if (isUnresolvedTenantHostname(hostname)) {
+    return <UnknownTenantHost />;
+  }
+
+  if (isTenantHostname(hostname)) {
+    const parsed = parseTenantHostname(hostname);
+    const target = parsed ? buildTenantRoutePath(parsed) : null;
+    if (target) {
+      const currentPath = window.location.pathname;
+      if (currentPath !== target && !currentPath.startsWith(`${target}/`)) {
+        return <Navigate to={target} replace />;
+      }
+    } else {
+      return <UnknownTenantHost />;
+    }
+  }
+
+  return <RasyatechLanding />;
+}
+
+/** Domain utama → Master Admin; subdomain tenant → dashboard tenant. */
+function AdminEntry() {
+  const subdomain = useSubdomain();
+  const onTenantHost = isTenantHostname(window.location.hostname);
+
+  if (onTenantHost && subdomain) {
+    return <TenantDashboard />;
+  }
+
+  return <MasterAdmin />;
+}
+
+function TenantCatchAll() {
+  const hostname = window.location.hostname;
+  if (isUnresolvedTenantHostname(hostname)) {
+    return <UnknownTenantHost />;
+  }
+  if (isTenantHostname(hostname)) {
+    const parsed = parseTenantHostname(hostname);
+    const target = parsed ? buildTenantRoutePath(parsed) : null;
+    if (target) {
+      return <Navigate to={target} replace />;
+    }
+    return <UnknownTenantHost />;
+  }
+  return <Navigate to="/" replace />;
+}
 
 function AppRoutes() {
-  const subdomain = useSubdomain();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,37 +87,34 @@ function AppRoutes() {
   }, [navigate]);
 
   return (
-    <Routes>
-      {/* Landing Page */}
-      <Route path="/" element={<RasyatechLanding />} />
-      
-      {/* SuperAdmin/MasterAdmin */}
-      <Route path="/master-admin" element={<MasterAdmin />} />
-      
-      {/* Password Reset */}
-      <Route path="/reset-password" element={<ResetPassword />} />
-      
-      {/* Callback untuk magic link */}
-      <Route path="/dashboard-sekolah" element={<DashboardSekolahCallback />} />
-      
-      {/* Tenant Admin - SELALU tampilkan TenantDashboard */}
-      <Route path="/admin" element={<TenantDashboard />} />
-      
-      {/* Affiliate Portal */}
-      <Route path="/affiliate/portal" element={<AffiliatePortal />} />
-      
-      {/* Login Sekolah */}
-      <Route path="/login-sekolah" element={<SchoolLogin />} />
-      
-      {/* Monitoring */}
-      <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
-      
-      {/* Global SaaS Registration */}
-      <Route path="/daftar" element={<FormPendaftaranSaaS />} />
-      
-      {/* Catch-all */}
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+    <>
+      <TenantSubdomainGate />
+      <Routes>
+        <Route path="/" element={<LandingOrRedirect />} />
+
+        <Route path="/master-admin" element={<Navigate to="/admin" replace />} />
+        <Route path="/admin" element={<AdminEntry />} />
+
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/dashboard-sekolah" element={<DashboardSekolahCallback />} />
+
+        <Route path="/_lms/:subdomain/*" element={<TenantProductRoute pillar="lms" />} />
+        <Route path="/_siput/:subdomain/*" element={<TenantProductRoute pillar="siput" />} />
+        <Route path="/_scanbite/:subdomain/*" element={<TenantProductRoute pillar="scanbite" />} />
+        <Route path="/_resto/:subdomain/*" element={<TenantProductRoute pillar="resto" />} />
+        <Route path="/_instafood/:subdomain/*" element={<TenantProductRoute pillar="instafood" />} />
+        <Route path="/lms/:subdomain" element={<TenantProductRoute pillar="lms" />} />
+        <Route path="/siput/:subdomain" element={<TenantProductRoute pillar="siput" />} />
+        <Route path="/kuliner/:subdomain" element={<TenantProductRoute pillar="kuliner" />} />
+
+        <Route path="/affiliate/portal" element={<AffiliatePortal />} />
+        <Route path="/login-sekolah" element={<SchoolLogin />} />
+        <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
+        <Route path="/daftar" element={<FormPendaftaranSaaS />} />
+
+        <Route path="*" element={<TenantCatchAll />} />
+      </Routes>
+    </>
   );
 }
 
@@ -75,10 +126,10 @@ export default function App() {
       <LandingDataProvider>
         <Router>
           {showSplash && (
-            <SplashScreen 
+            <SplashScreen
               onComplete={() => {
                 setShowSplash(false);
-              }} 
+              }}
             />
           )}
           <AppRoutes />

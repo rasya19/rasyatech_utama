@@ -10,7 +10,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { supabaseMaster } from './supabase-hub';
-import { getSubdomainFromHostname } from './subdomain-utils';
+import { parseTenantHostname, inferProductAppFromInstitutionalSlug } from './tenant-host-parser';
 import type { ProductType, MasterRegistration } from './types/products';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
@@ -36,38 +36,11 @@ const SubdomainRouterContext = createContext<SubdomainRouterState>(defaultState)
 // ─── Helper: detect subdomain from hostname ───────────────────────────────────
 
 function detectSubdomain(): string | null {
-  const hostname = window.location.hostname;
-
-  // Local dev / Cloud Run preview → always treat as main domain
-  if (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname.endsWith('.run.app') ||
-    hostname.endsWith('.vercel.app')
-  ) {
-    return null;
+  const parsed = parseTenantHostname(window.location.hostname);
+  if (parsed?.productHint) {
+    localStorage.setItem('current_product', parsed.productHint);
   }
-
-  // Format: tenant.siput.rsch.my.id (4 bagian)
-  const parts = hostname.split('.');
-  
-  if (parts.length >= 4) {
-    const tenant = parts[0];
-    const product = parts[1];
-    
-    if (product === 'siput' || product === 'lms') {
-      localStorage.setItem('current_product', product);
-      return tenant;
-    }
-  }
-  
-  // Main domain patterns
-  const isMainDomain =
-    parts[0] === 'rasyatech' ||
-    parts[0] === 'www' ||
-    parts.length < 3;
-
-  return isMainDomain ? null : parts[0];
+  return parsed?.cleanTenantSlug ?? parsed?.tenantSlug ?? null;
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -76,9 +49,11 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SubdomainRouterState>(defaultState);
 
   useEffect(() => {
-    const subdomain = detectSubdomain();
+    const parsed = parseTenantHostname(window.location.hostname);
+    const cleanSlug = parsed?.cleanTenantSlug ?? parsed?.tenantSlug ?? null;
+    const fullSlug = parsed?.tenantSlug ?? cleanSlug;
 
-    if (!subdomain) {
+    if (!cleanSlug) {
       setState({ subdomain: null, productType: null, tenant: null, loading: false, error: null });
       return;
     }
@@ -87,45 +62,86 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
 
     const resolve = async () => {
       try {
-        const { data, error } = await supabaseMaster
-          .from('tenant')
-          .select('*')
-          .eq('subdomain', subdomain)
-          .maybeSingle();
+        let data: Record<string, unknown> | null = null;
+        let error: { message: string } | null = null;
+
+        if (fullSlug && fullSlug !== cleanSlug) {
+          const fullResult = await supabaseMaster
+            .from('tenant')
+            .select('*')
+            .eq('subdomain', fullSlug)
+            .maybeSingle();
+          data = fullResult.data;
+          error = fullResult.error;
+        }
+
+        if (!data) {
+          const cleanResult = await supabaseMaster
+            .from('tenant')
+            .select('*')
+            .eq('subdomain', cleanSlug)
+            .maybeSingle();
+          data = cleanResult.data;
+          error = cleanResult.error;
+        }
 
         if (cancelled) return;
-
         if (error) throw error;
 
         if (!data) {
+          const inferredFromHost =
+            parsed?.pillar === 'siput'
+              ? 'siput'
+              : parsed?.pillar === 'kuliner'
+                ? 'scanbite'
+                : parsed?.pillar === 'lms'
+                  ? 'lms'
+                  : inferProductAppFromInstitutionalSlug(fullSlug || cleanSlug);
+
+          if (inferredFromHost) {
+            setState({
+              subdomain: cleanSlug,
+              productType: inferredFromHost as ProductType,
+              tenant: null,
+              loading: false,
+              error: null,
+            });
+            return;
+          }
+
           setState({
-            subdomain,
+            subdomain: cleanSlug,
             productType: null,
             tenant: null,
             loading: false,
-            error: `Subdomain "${subdomain}" tidak ditemukan.`,
+            error: `Subdomain "${cleanSlug}" tidak ditemukan.`,
           });
           return;
         }
 
-        const productType = (data.product_app as ProductType) || inferProductFromData(data);
+        const productType =
+          (data.product_app as ProductType) ||
+          inferProductAppFromInstitutionalSlug(fullSlug || cleanSlug) ||
+          inferProductFromData(data);
 
         setState({
-          subdomain,
+          subdomain: cleanSlug,
           productType,
-          tenant: data as MasterRegistration,
+          tenant: data as unknown as MasterRegistration,
           loading: false,
           error: null,
         });
       } catch (err: unknown) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : 'Gagal memuat data tenant.';
-        setState({ subdomain, productType: null, tenant: null, loading: false, error: msg });
+        setState({ subdomain: cleanSlug, productType: null, tenant: null, loading: false, error: msg });
       }
     };
 
     resolve();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -148,6 +164,10 @@ export function useSubdomain(): string | null {
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
 function inferProductFromData(data: Record<string, unknown>): ProductType {
+  const subdomain = String(data.subdomain || '');
+  const fromSlug = inferProductAppFromInstitutionalSlug(subdomain);
+  if (fromSlug) return fromSlug;
+
   const productApp = String(data.product_app || '');
   if (productApp === 'siput') return 'siput';
   if (productApp === 'lms') return 'lms';

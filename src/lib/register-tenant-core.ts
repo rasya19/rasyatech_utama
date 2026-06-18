@@ -91,7 +91,7 @@ export async function registerTenant(
     admin_email: payload.admin_email,
     whatsapp: payload.whatsapp,
     npsn: payload.npsn || '-',
-    package_tier: payload.package_tier || 'standard',
+    package_tier: payload.package_tier || 'basic',
     meta_data: meta,
     status: 'pending',
     source: payload.source || 'gerbang_pendaftaran',

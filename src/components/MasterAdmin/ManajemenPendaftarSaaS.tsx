@@ -2,6 +2,26 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 import { supabaseKuliner } from '../../lib/supabase-kuliner';
+import { fetchTotalPendaftarCount } from '../../lib/registration-stats';
+import {
+  isMainDbTab,
+  isKulinerTab,
+  buildRegistrationStatusPayload,
+  buildLocalStatusPatch,
+  type PendaftarProductTab,
+} from '../../lib/pendaftar-mutations';
+import {
+  provisionMainTenantOnApproval,
+  provisionKulinerTenantOnApproval,
+  linkMainRegistrationTenantId,
+  deriveSlugFromRegistration,
+} from '../../lib/provision-tenant-on-approval';
+import {
+  logSupabaseInsertError,
+  normalizeTenantSubdomain,
+  buildProvisioningSubdomain,
+} from '../../lib/tenant-insert-utils';
+import { sendTenantApprovalNotification } from '../../lib/notifications';
 import {
   Users,
   MessageCircle,
@@ -16,7 +36,7 @@ import {
   Trash2,
 } from 'lucide-react';
 
-type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
+type ProductType = PendaftarProductTab;
 
 interface Pendaftar {
   id: string;
@@ -27,6 +47,9 @@ interface Pendaftar {
   product_type: ProductType;
   package?: string;
   status: 'pending' | 'active' | 'verified';
+  is_approved?: boolean;
+  tenant_id?: string | null;
+  tenant_master_id?: string | null;
   meta_data: Record<string, unknown>;
   created_at: string;
   /** Baris mentah dari Supabase — untuk update status dinamis */
@@ -41,16 +64,14 @@ const TABS = [
   { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
 ] as const;
 
-function isMainDbTab(tab: ProductType): boolean {
-  return tab === 'lms' || tab === 'siput';
-}
-
 function getDbClient(tab: ProductType) {
   return isMainDbTab(tab) ? supabase : supabaseKuliner;
 }
 
 function getProductTypeValue(row: Record<string, unknown>): string {
-  return String(row.product_type || row.product_name || row.business_type || '').toLowerCase();
+  return String(
+    row.product_app || row.product_type || row.product_name || row.business_type || ''
+  ).toLowerCase();
 }
 
 function matchesActiveTab(row: Record<string, unknown>, tab: ProductType): boolean {
@@ -78,13 +99,41 @@ function matchesActiveTab(row: Record<string, unknown>, tab: ProductType): boole
   }
 }
 
+function isTruthyApproved(value: unknown): boolean {
+  return value === true || value === 1 || String(value).toLowerCase() === 'true';
+}
+
+/** Toleran terhadap status string/boolean dari berbagai skema Supabase. */
+function isVerified(item: Pick<Pendaftar, 'status' | 'is_approved' | '_raw'>): boolean {
+  const statusValues = [
+    item.status,
+    item._raw?.status,
+  ]
+    .map((v) => String(v ?? '').toLowerCase())
+    .filter(Boolean);
+
+  if (statusValues.some((s) => s === 'verified' || s === 'active' || s === 'approved')) {
+    return true;
+  }
+
+  if (isTruthyApproved(item.is_approved) || isTruthyApproved(item._raw?.is_approved)) {
+    return true;
+  }
+
+  if (item._raw?.approved === true || String(item._raw?.approved).toLowerCase() === 'true') {
+    return true;
+  }
+
+  return false;
+}
+
 function resolveUiStatus(row: Record<string, unknown>): Pendaftar['status'] {
-  if (row.is_approved === true || row.is_approved === 'true' || row.is_approved === 1) {
-    return 'active';
+  if (isTruthyApproved(row.is_approved)) {
+    return 'verified';
   }
   const status = String(row.status || '').toLowerCase();
-  if (status === 'verified' || status === 'active') return 'active';
-  if (row.approved === true) return 'active';
+  if (status === 'verified' || status === 'active' || status === 'approved') return 'verified';
+  if (row.approved === true || String(row.approved).toLowerCase() === 'true') return 'verified';
   return 'pending';
 }
 
@@ -98,10 +147,13 @@ function mapRowToPendaftar(row: Record<string, unknown>, tab: ProductType): Pend
     product_type: tab,
     package: String(row.paket_langganan || row.selected_package || row.package_tier || 'silver'),
     status: resolveUiStatus(row),
+    is_approved: isTruthyApproved(row.is_approved),
+    tenant_id: row.tenant_id ? String(row.tenant_id) : null,
+    tenant_master_id: row.tenant_master_id ? String(row.tenant_master_id) : null,
     meta_data: {
       npsn: row.npsn ?? null,
-      tables_count: row.table_count ?? row.tables_count ?? 0,
-      outlet_count: row.outlet_count ?? 0,
+      tables_count: row.tabel_count ?? row.table_count ?? row.tables_count ?? 0,
+      outlet_count: row.outlet_count ?? row.tabel_count ?? 0,
     },
     created_at: String(row.created_at || ''),
     _raw: row,
@@ -115,16 +167,42 @@ function sortByCreatedAtDesc<T extends { created_at?: string }>(items: T[]): T[]
   );
 }
 
-function rowHasIsApprovedColumn(row: Record<string, unknown>): boolean {
-  return Object.prototype.hasOwnProperty.call(row, 'is_approved');
+/** ID asli dari baris Supabase (bigint/UUID) — jangan pakai filter tenant pada update/delete. */
+function getRegistrationRowId(item: Pick<Pendaftar, 'id' | '_raw'>): string | number {
+  const rawId = item._raw?.id;
+  if (typeof rawId === 'number') return rawId;
+  if (typeof rawId === 'string' && rawId.trim() !== '') {
+    const asNumber = Number(rawId);
+    if (!Number.isNaN(asNumber) && String(asNumber) === rawId) return asNumber;
+    return rawId;
+  }
+  const asNumber = Number(item.id);
+  if (!Number.isNaN(asNumber) && String(asNumber) === item.id) return asNumber;
+  return item.id;
 }
 
-export default function ManajemenPendaftarSaaS() {
+interface ManajemenPendaftarSaaSProps {
+  onTotalPendaftarChange?: (count: number) => void;
+}
+
+export default function ManajemenPendaftarSaaS({
+  onTotalPendaftarChange,
+}: ManajemenPendaftarSaaSProps) {
   const [activeTab, setActiveTab] = useState<ProductType>('lms');
   const [data, setData] = useState<Pendaftar[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const refreshTotalPendaftar = useCallback(async () => {
+    if (!onTotalPendaftarChange) return;
+    try {
+      const total = await fetchTotalPendaftarCount();
+      onTotalPendaftarChange(total);
+    } catch (err) {
+      console.warn('[ManajemenPendaftarSaaS] gagal hitung total pendaftar:', err);
+    }
+  }, [onTotalPendaftarChange]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -154,6 +232,7 @@ export default function ManajemenPendaftarSaaS() {
       const mapped = sortByCreatedAtDesc(filtered.map((row) => mapRowToPendaftar(row, activeTab)));
 
       setData(mapped);
+      await refreshTotalPendaftar();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Gagal memuat data pendaftar';
       setError(message);
@@ -161,68 +240,190 @@ export default function ManajemenPendaftarSaaS() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, refreshTotalPendaftar]);
 
   useEffect(() => {
     fetchData();
   }, [activeTab, fetchData]);
 
-  const handleUpdateStatus = async (id: string, newStatus: 'active' | 'verified') => {
-    setUpdatingId(id);
-    try {
-      const client = activeTab === 'lms' ? supabase : supabaseKuliner;
-      
-      const targetItem = data.find(item => item.id === id);
-      const updatePayload: any = {};
+  useEffect(() => {
+    refreshTotalPendaftar();
+  }, [refreshTotalPendaftar]);
 
-      // Cek struktur kolom secara dinamis
-      if (targetItem && 'is_approved' in targetItem) {
-        updatePayload.is_approved = true;
-      } else {
-        updatePayload.status = newStatus;
+  const handleUpdateStatus = async (item: Pendaftar) => {
+    const rowId = getRegistrationRowId(item);
+    setUpdatingId(item.id);
+    const activating = !isVerified(item);
+    const client = getDbClient(activeTab);
+
+    try {
+      const { payload, selectColumns } = await buildRegistrationStatusPayload(
+        activeTab,
+        activating,
+        client,
+        item._raw
+      );
+
+      const { data: updatedRows, error: updateError } = await client
+        .from('registrations')
+        .update(payload)
+        .eq('id', rowId)
+        .select(selectColumns);
+
+      if (updateError) throw updateError;
+      if (!updatedRows?.length) {
+        throw new Error('Tidak ada baris yang diperbarui. Periksa ID pendaftar atau kebijakan RLS Supabase.');
       }
 
-      const { error: err } = await client
-        .from('registrations')
-        .update(updatePayload)
-        .eq('id', id);
+      const updated = updatedRows[0] as unknown as Record<string, unknown>;
+      let patch = buildLocalStatusPatch(activeTab, activating, updated);
 
-      if (err) throw err;
-      
-      // 🔥 KUNCI PERBAIKAN: Paksa state lokal memperbarui kolom 'status' DAN 'is_approved' secara bersamaan
-      setData(prev => prev.map(item => 
-        item.id === id 
-          ? { 
-              ...item, 
-              status: newStatus, // Mengubah status string menjadi 'verified'/'active'
-              is_approved: true  // Mengubah status boolean menjadi true
-            } 
-          : item
-      ));
+      if (activating) {
+        let provisionTenantId: string | null = patch.tenant_id ?? null;
 
-      alert('Status pendaftar berhasil diperbarui!');
-    } catch (err: any) {
+        try {
+          if (isMainDbTab(activeTab)) {
+            const provision = await provisionMainTenantOnApproval(activeTab, {
+              ...item._raw,
+              ...updated,
+            });
+            if (provision.tenantId) {
+              await linkMainRegistrationTenantId(client, rowId, provision.tenantId);
+              provisionTenantId = provision.tenantId;
+              patch = {
+                ...patch,
+                tenant_id: provision.tenantId,
+                tenant_master_id: provision.tenantId,
+              };
+            }
+          } else {
+            const provision = await provisionKulinerTenantOnApproval(activeTab, {
+              ...item._raw,
+              ...updated,
+            });
+            provisionTenantId = provision.tenantId;
+            if (provision.tenantId) {
+              await client
+                .from('registrations')
+                .update({ tenant_id: provision.tenantId })
+                .eq('id', rowId);
+            }
+          }
+        } catch (provisionErr) {
+          logSupabaseInsertError(
+            'ManajemenPendaftarSaaS.handleUpdateStatus.provision',
+            provisionErr,
+            { ...item._raw, tab: activeTab }
+          );
+          const msg =
+            provisionErr instanceof Error ? provisionErr.message : 'Gagal membuat tenant.';
+          alert(`Status diperbarui, tetapi provisioning tenant gagal: ${msg}`);
+        }
+
+        if (provisionTenantId) {
+          patch = {
+            ...patch,
+            tenant_id: provisionTenantId,
+            tenant_master_id: provisionTenantId,
+          };
+        }
+
+        try {
+          const mergedRow = { ...item._raw, ...updated };
+          let kodeTenant = normalizeTenantSubdomain(
+            String(mergedRow.kode_tenant || '').trim() ||
+              deriveSlugFromRegistration(mergedRow)
+          );
+
+          if (isMainDbTab(activeTab)) {
+            kodeTenant = buildProvisioningSubdomain(kodeTenant, activeTab);
+          }
+          const product = String(
+            mergedRow.product_type || mergedRow.business_type || mergedRow.tenant || activeTab
+          );
+
+          await sendTenantApprovalNotification({
+            fullName: item.full_name,
+            businessName: item.business_name,
+            product,
+            kodeTenant,
+            email: item.email !== '-' ? item.email : undefined,
+            whatsapp: item.whatsapp,
+          });
+        } catch (notifyErr) {
+          console.warn('[ManajemenPendaftarSaaS] notifikasi approval:', notifyErr);
+        }
+      }
+
+      setData((prev) =>
+        prev.map((row) =>
+          row.id === item.id
+            ? {
+                ...row,
+                status: patch.status,
+                is_approved: patch.is_approved,
+                tenant_id: patch.tenant_id ?? row.tenant_id,
+                tenant_master_id: patch.tenant_master_id ?? row.tenant_master_id,
+                _raw: {
+                  ...row._raw,
+                  status: patch.status,
+                  is_approved: patch.is_approved,
+                  ...(patch.tenant != null ? { tenant: patch.tenant } : {}),
+                  ...(patch.tenant_id != null ? { tenant_id: patch.tenant_id } : {}),
+                  ...(patch.tenant_master_id != null
+                    ? { tenant_master_id: patch.tenant_master_id }
+                    : {}),
+                },
+              }
+            : row
+        )
+      );
+
+      if (activating) {
+        alert(
+          isKulinerTab(activeTab)
+            ? 'Status pendaftar disetujui dan tenant kuliner telah diproses.'
+            : patch.tenant_id
+              ? 'Status pendaftar disetujui dan tenant LMS/SIPUT berhasil dibuat.'
+              : 'Status diperbarui. Tenant belum terbuat — periksa log konsol untuk detail INSERT.'
+        );
+      } else {
+        alert('Status pendaftar berhasil diperbarui!');
+      }
+    } catch (err: unknown) {
       console.error('Update operation error:', err);
-      alert('Gagal memperbarui status: ' + (err.message || 'Terjadi kesalahan'));
+      const message = err instanceof Error ? err.message : 'Gagal memperbarui status pendaftar.';
+      alert(message);
     } finally {
       setUpdatingId(null);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (item: Pendaftar) => {
     if (!window.confirm('Yakin ingin menghapus data ini?')) return;
 
+    const rowId = getRegistrationRowId(item);
+    const client = getDbClient(activeTab);
+
     try {
-      const client = getDbClient(activeTab);
-      const { error: deleteError } = await client.from('registrations').delete().eq('id', id);
+      const { data: deletedRows, error: deleteError } = await client
+        .from('registrations')
+        .delete()
+        .eq('id', rowId)
+        .select('id');
 
       if (deleteError) throw deleteError;
+      if (!deletedRows?.length) {
+        throw new Error('Tidak ada baris yang dihapus. Periksa ID pendaftar atau kebijakan RLS Supabase.');
+      }
 
+      setData((prev) => prev.filter((row) => row.id !== item.id));
+      await refreshTotalPendaftar();
       alert('Data berhasil dihapus.');
-      await fetchData();
     } catch (err: unknown) {
-      console.error('Error saat menghapus:', err);
-      alert('Gagal menghapus data.');
+      console.error('[ManajemenPendaftarSaaS] delete error:', err);
+      const message = err instanceof Error ? err.message : 'Gagal menghapus data.';
+      alert(message);
     }
   };
 
@@ -378,6 +579,7 @@ export default function ManajemenPendaftarSaaS() {
                 <tbody>
                   {data.map((item) => {
                     const created = formatCreatedAt(item.created_at);
+                    const verified = isVerified(item);
                     return (
                       <tr
                         key={item.id}
@@ -419,7 +621,7 @@ export default function ManajemenPendaftarSaaS() {
                           </span>
                         </td>
                         <td className="py-6 px-4 text-center">
-                          {item.status === 'active' || item.status === 'verified' ? (
+                          {verified ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
                               <CheckCircle2 className="w-3 h-3" />
                               Aktif
@@ -447,14 +649,14 @@ export default function ManajemenPendaftarSaaS() {
                               onClick={() => handleUpdateStatus(item)}
                               disabled={updatingId === item.id}
                               className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                                item.status === 'active' || item.status === 'verified'
+                                verified
                                   ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
                                   : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
                               }`}
                             >
                               {updatingId === item.id ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : item.status === 'active' || item.status === 'verified' ? (
+                              ) : verified ? (
                                 'Nonaktifkan'
                               ) : (
                                 'Setujui'
@@ -462,7 +664,7 @@ export default function ManajemenPendaftarSaaS() {
                             </button>
 
                             <button
-                              onClick={() => handleDelete(item.id)}
+                              onClick={() => handleDelete(item)}
                               className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
                               title="Hapus Data"
                             >
