@@ -51,7 +51,31 @@ async function queryTenantIdBySubdomain(
 
   if (error) {
     if (error.message.includes('Could not find the table')) return null;
+    if (error.message.includes('column') && error.message.includes('subdomain')) {
+      return null;
+    }
     console.warn('[tenant-lookup] query tenant by subdomain:', error.message);
+    return null;
+  }
+
+  return data?.id ? String(data.id) : null;
+}
+
+/** Lookup tenant Kuliner (eks sb_settings) via kolom `slug`. */
+async function queryTenantIdBySlug(
+  client: SupabaseClient,
+  slug: string
+): Promise<string | null> {
+  const { data, error } = await client
+    .from('tenant')
+    .select('id')
+    .eq('slug', slug.trim().toLowerCase())
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (error.message.includes('Could not find the table')) return null;
+    console.warn('[tenant-lookup] query tenant by slug:', error.message);
     return null;
   }
 
@@ -116,26 +140,38 @@ export async function resolveTenantUuid(
 }
 
 /**
- * Lookup UUID tenant untuk satu baris pendaftar — prioritas subdomain spesifik tenant.
+ * Lookup UUID tenant untuk satu baris pendaftar — prioritas subdomain/slug spesifik tenant.
  */
 export async function resolveTenantUuidForRegistration(
   activeTab: TenantProductTab,
   registrationClient: SupabaseClient,
   registrationRow?: Record<string, unknown>
 ): Promise<string | null> {
-  const subdomain = String(registrationRow?.subdomain || '').trim().toLowerCase();
+  const subdomain = String(
+    registrationRow?.subdomain || registrationRow?.slug || ''
+  )
+    .trim()
+    .toLowerCase();
 
   if (subdomain && subdomain !== '-') {
-    const fromRegDb = await queryTenantIdBySubdomain(registrationClient, subdomain);
-    if (fromRegDb) {
-      console.log('[tenant-lookup] UUID via subdomain (registration DB):', fromRegDb);
-      return fromRegDb;
-    }
+    if (registrationClient === supabaseKuliner) {
+      const fromKulinerSlug = await queryTenantIdBySlug(registrationClient, subdomain);
+      if (fromKulinerSlug) {
+        console.log('[tenant-lookup] UUID via slug (kuliner DB):', fromKulinerSlug);
+        return fromKulinerSlug;
+      }
+    } else {
+      const fromRegDb = await queryTenantIdBySubdomain(registrationClient, subdomain);
+      if (fromRegDb) {
+        console.log('[tenant-lookup] UUID via subdomain (registration DB):', fromRegDb);
+        return fromRegDb;
+      }
 
-    const fromMain = await queryTenantIdBySubdomain(supabase, subdomain);
-    if (fromMain) {
-      console.log('[tenant-lookup] UUID via subdomain (main DB):', fromMain);
-      return fromMain;
+      const fromMain = await queryTenantIdBySubdomain(supabase, subdomain);
+      if (fromMain) {
+        console.log('[tenant-lookup] UUID via subdomain (main DB):', fromMain);
+        return fromMain;
+      }
     }
   }
 
@@ -145,7 +181,6 @@ export async function resolveTenantUuidForRegistration(
     return fromTab;
   }
 
-  // Kuliner: coba tabel tenant di Supabase Kuliner bila ada
   if (registrationClient === supabaseKuliner) {
     const fromKulinerProduct = await resolveFromClient(supabaseKuliner, activeTab);
     if (fromKulinerProduct) return fromKulinerProduct;

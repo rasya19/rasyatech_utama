@@ -11,6 +11,11 @@ import {
   type PendaftarProductTab,
 } from '../../lib/pendaftar-mutations';
 import {
+  provisionMainTenantOnApproval,
+  provisionKulinerTenantOnApproval,
+  linkMainRegistrationTenantId,
+} from '../../lib/provision-tenant-on-approval';
+import {
   Users,
   MessageCircle,
   CheckCircle2,
@@ -262,7 +267,37 @@ export default function ManajemenPendaftarSaaS({
       }
 
       const updated = updatedRows[0] as unknown as Record<string, unknown>;
-      const patch = buildLocalStatusPatch(activeTab, activating, updated);
+      let patch = buildLocalStatusPatch(activeTab, activating, updated);
+
+      if (activating) {
+        try {
+          if (isMainDbTab(activeTab)) {
+            const provision = await provisionMainTenantOnApproval(
+              client,
+              activeTab,
+              { ...item._raw, ...updated }
+            );
+            if (provision.tenantId && !patch.tenant_id) {
+              await linkMainRegistrationTenantId(client, rowId, provision.tenantId);
+              patch = {
+                ...patch,
+                tenant_id: provision.tenantId,
+                tenant_master_id: provision.tenantId,
+              };
+            }
+          } else {
+            await provisionKulinerTenantOnApproval(client, {
+              ...item._raw,
+              ...updated,
+            });
+          }
+        } catch (provisionErr) {
+          console.error('[ManajemenPendaftarSaaS] provision tenant:', provisionErr);
+          const msg =
+            provisionErr instanceof Error ? provisionErr.message : 'Gagal membuat tenant.';
+          alert(`Status diperbarui, tetapi provisioning tenant gagal: ${msg}`);
+        }
+      }
 
       setData((prev) =>
         prev.map((row) =>
@@ -288,12 +323,14 @@ export default function ManajemenPendaftarSaaS({
         )
       );
 
-      if (
-        activating &&
-        !isKulinerTab(activeTab) &&
-        !patch.tenant_id
-      ) {
-        alert('Status diperbarui. UUID tenant belum tersedia di tabel tenant untuk produk ini.');
+      if (activating) {
+        alert(
+          isKulinerTab(activeTab)
+            ? 'Status pendaftar disetujui dan tenant kuliner telah diproses.'
+            : patch.tenant_id
+              ? 'Status pendaftar disetujui dan tenant LMS/SIPUT telah diproses.'
+              : 'Status diperbarui. UUID tenant belum tersedia — periksa subdomain atau RLS tabel tenant.'
+        );
       } else {
         alert('Status pendaftar berhasil diperbarui!');
       }
