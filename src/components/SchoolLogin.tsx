@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getProductClient } from '../lib/supabase-hub';
 import { parseTenantHostname } from '../lib/tenant-host-parser';
 
 type SchoolLoginProps = {
@@ -25,6 +26,12 @@ export default function SchoolLogin({ portal = 'default', tenantSubdomain }: Sch
     );
   }, [tenantSubdomain]);
 
+  const authClient = useMemo(() => {
+    if (resolvedPortal === 'siput') return getProductClient('siput');
+    if (resolvedPortal === 'lms') return getProductClient('lms');
+    return supabase;
+  }, [resolvedPortal]);
+
   const defaultTenant =
     resolvedPortal === 'siput' ? 'siput' : resolvedPortal === 'lms' ? 'lms_kesetaraan' : 'scanbite_live';
 
@@ -42,7 +49,7 @@ export default function SchoolLogin({ portal = 'default', tenantSubdomain }: Sch
     setError('');
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await authClient.auth.signInWithPassword({
         email,
         password,
       });
@@ -50,7 +57,7 @@ export default function SchoolLogin({ portal = 'default', tenantSubdomain }: Sch
       if (signInError) throw signInError;
 
       if (data.user) {
-        const { error: updateError } = await supabase.auth.updateUser({
+        const { error: updateError } = await authClient.auth.updateUser({
           data: { tenant, tenant_subdomain: resolvedSubdomain || undefined },
         });
         if (updateError) {
