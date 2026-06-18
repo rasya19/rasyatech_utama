@@ -478,3 +478,35 @@ export function getSubdomainFromHostname(hostname: string): string | null {
   const slug = extractHostnameSubdomainSlug(hostname);
   return slug ? routeTenantSlugFromHostnameSubdomain(slug) : null;
 }
+
+const INTERNAL_TENANT_PATH_PREFIXES = [
+  '/_lms/',
+  '/_siput/',
+  '/_scanbite/',
+  '/_resto/',
+  '/_instafood/',
+  '/lms/',
+  '/siput/',
+  '/kuliner/',
+] as const;
+
+export function isInternalTenantPath(pathname: string): boolean {
+  return INTERNAL_TENANT_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+/** Pilar produk untuk TenantProductRoute dari hasil parse hostname. */
+export function resolveTenantProductPillarFromParsed(
+  parsed: ParsedTenantHost
+): SaasProductRoute | 'kuliner' {
+  if (parsed.productHint) {
+    return productAppToRoute(parsed.productHint);
+  }
+  if (parsed.pillar === 'siput') return 'siput';
+  if (parsed.pillar === 'lms') return 'lms';
+  return 'scanbite';
+}
+
+export function shouldSkipLandingSplash(hostname: string, pathname: string): boolean {
+  if (isTenantHostname(hostname)) return true;
+  return isInternalTenantPath(pathname);
+}

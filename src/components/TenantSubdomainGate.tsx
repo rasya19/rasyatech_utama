@@ -1,10 +1,9 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { parseTenantHostname, buildTenantRoutePath } from '../lib/tenant-host-parser';
+import { parseTenantHostname, isInternalTenantPath } from '../lib/tenant-host-parser';
 
 /**
- * Client-side fallback bila middleware edge tidak mengubah pathname browser.
- * Redirect hostname tenant → /_lms|/_siput/[cleanSlug]
+ * Pada hostname tenant: sembunyikan path internal /_siput/... di bilah URL → tetap `/`.
  */
 export default function TenantSubdomainGate() {
   const navigate = useNavigate();
@@ -14,29 +13,23 @@ export default function TenantSubdomainGate() {
     const parsed = parseTenantHostname(window.location.hostname);
     if (!parsed) return;
 
-    const alreadyRouted =
-      location.pathname.startsWith('/_lms/') ||
-      location.pathname.startsWith('/_siput/') ||
-      location.pathname.startsWith('/_scanbite/') ||
-      location.pathname.startsWith('/_resto/') ||
-      location.pathname.startsWith('/_instafood/') ||
-      location.pathname.startsWith('/lms/') ||
-      location.pathname.startsWith('/siput/') ||
-      location.pathname.startsWith('/kuliner/') ||
+    const reservedPaths =
       location.pathname === '/admin' ||
-      location.pathname === '/login-sekolah';
+      location.pathname.startsWith('/admin/') ||
+      location.pathname === '/reset-password' ||
+      location.pathname === '/login-sekolah' ||
+      location.pathname === '/daftar';
 
-    if (alreadyRouted) return;
+    if (reservedPaths) return;
 
-    const target = buildTenantRoutePath(parsed);
-    if (!target) return;
-    if (location.pathname === target || location.pathname.startsWith(`${target}/`)) return;
-
-    console.log('[TenantSubdomainGate] redirect', {
-      hostname: window.location.hostname,
-      target,
-    });
-    navigate(target, { replace: true });
+    if (isInternalTenantPath(location.pathname)) {
+      console.log('[TenantSubdomainGate] clean URL', {
+        hostname: window.location.hostname,
+        from: location.pathname,
+        to: '/',
+      });
+      navigate('/', { replace: true });
+    }
   }, [location.pathname, navigate]);
 
   return null;

@@ -25,6 +25,9 @@ export {
   SIPUT_INSTITUTIONAL_MARKERS,
   normalizeHostnameSubdomainSlug,
   routeTenantSlugFromHostnameSubdomain,
+  isInternalTenantPath,
+  resolveTenantProductPillarFromParsed,
+  shouldSkipLandingSplash,
 } from './tenant-host-parser';
 
 const SUBDOMAIN_MIN_LENGTH = 3;
