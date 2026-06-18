@@ -65,7 +65,7 @@ export function slugMatchesInstitutionalMarker(
 ): boolean {
   const normalized = slug.trim().toLowerCase();
   if (!normalized) return false;
-  return markers.some((marker) => normalized.startsWith(marker) || normalized.includes(marker));
+  return markers.some((marker) => normalized.startsWith(marker));
 }
 
 /** Infer pillar dari slug subdomain (pkbm-*, kb-*, sps-*, dll.). */
@@ -96,6 +96,107 @@ export function stripInstitutionalPrefixFromSlug(slug: string): string {
   }
 
   return normalized;
+}
+
+/** Bangun subdomain penuh dengan awalan kelembagaan untuk DNS (mis. pkbm-armilla-nusa). */
+export function buildInstitutionalSubdomain(
+  cleanSlug: string,
+  pillar: 'lms' | 'siput'
+): string {
+  const base = cleanSlug.trim().toLowerCase().replace(/^-+/, '');
+  if (!base) return cleanSlug;
+
+  if (pillar === 'lms') {
+    if (slugMatchesInstitutionalMarker(base, LMS_INSTITUTIONAL_MARKERS)) return base;
+    return `pkbm-${base}`;
+  }
+
+  if (slugMatchesInstitutionalMarker(base, SIPUT_INSTITUTIONAL_MARKERS)) return base;
+  return `kb-${base}`;
+}
+
+export function extractHostnameSubdomainSlug(hostname: string): string | null {
+  const h = hostname.split(':')[0].toLowerCase();
+  const base = getTenantBaseDomain();
+  const parts = h.split('.');
+  const baseParts = base.split('.');
+
+  if (parts.slice(-baseParts.length).join('.') !== base) {
+    return parts.length >= 3 ? parts[0] : null;
+  }
+
+  const prefix = parts.slice(0, parts.length - baseParts.length);
+  if (prefix.length !== 1) return null;
+  return prefix[0];
+}
+
+export type MiddlewareRewriteResult = {
+  targetPath: string;
+  hostnameSubdomain: string;
+  cleanTenantSlug: string;
+  pillar: TenantProductPillar;
+};
+
+/**
+ * Tentukan path rewrite internal untuk hostname tenant (dipakai edge middleware & client fallback).
+ * Contoh: pkbm-armilla-nusa.rsch.my.id + / → /_lms/armilla-nusa
+ */
+export function resolveMiddlewareRewriteTarget(
+  hostname: string,
+  pathname: string
+): MiddlewareRewriteResult | null {
+  if (isMainDomainHostname(hostname) || isApexLandingHostname(hostname)) {
+    return null;
+  }
+
+  const hostnameSubdomain = extractHostnameSubdomainSlug(hostname);
+  if (!hostnameSubdomain) return null;
+
+  const cleanTenantSlug = stripInstitutionalPrefixFromSlug(hostnameSubdomain);
+  const suffix = pathname === '/' || pathname === '' ? '' : pathname;
+
+  if (slugMatchesInstitutionalMarker(hostnameSubdomain, LMS_INSTITUTIONAL_MARKERS)) {
+    return {
+      targetPath: `/_lms/${cleanTenantSlug}${suffix}`,
+      hostnameSubdomain,
+      cleanTenantSlug,
+      pillar: 'lms',
+    };
+  }
+
+  if (slugMatchesInstitutionalMarker(hostnameSubdomain, SIPUT_INSTITUTIONAL_MARKERS)) {
+    return {
+      targetPath: `/_siput/${cleanTenantSlug}${suffix}`,
+      hostnameSubdomain,
+      cleanTenantSlug,
+      pillar: 'siput',
+    };
+  }
+
+  const parsed = parseTenantHostname(hostname);
+  if (!parsed) return null;
+
+  const slug = parsed.cleanTenantSlug || parsed.tenantSlug;
+  const routePrefix =
+    parsed.pillar === 'siput'
+      ? `/_siput/${slug}`
+      : parsed.pillar === 'kuliner'
+        ? `/kuliner/${slug}`
+        : `/_lms/${slug}`;
+
+  return {
+    targetPath: pathname === '/' || pathname === '' ? routePrefix : `${routePrefix}${suffix}`,
+    hostnameSubdomain: parsed.tenantSlug,
+    cleanTenantSlug: slug,
+    pillar: parsed.pillar,
+  };
+}
+
+/** Apex domain tanpa subdomain — landing utama. */
+export function isApexLandingHostname(hostname: string): boolean {
+  const h = hostname.split(':')[0].toLowerCase();
+  const base = getTenantBaseDomain();
+  return h === base || h === `www.${base}`;
 }
 
 export function getTenantBaseDomain(): string {

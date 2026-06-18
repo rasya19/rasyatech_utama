@@ -15,13 +15,25 @@ import TenantProductRoute from './components/TenantProductRoute';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { LandingDataProvider } from './lib/LandingDataContext';
 import { supabase } from './lib/supabase';
-import { isMainDomainHostname } from './lib/subdomain-utils';
+import { isMainDomainHostname, parseTenantHostname, buildTenantRoutePath } from './lib/subdomain-utils';
 
 function LandingOrRedirect() {
   const subdomain = useSubdomain();
-  if (subdomain && !isMainDomainHostname(window.location.hostname)) {
+  const hostname = window.location.hostname;
+  const parsed = parseTenantHostname(hostname);
+
+  if (parsed) {
+    const target = buildTenantRoutePath(parsed);
+    const currentPath = window.location.pathname;
+    if (currentPath !== target && !currentPath.startsWith(`${target}/`)) {
+      return <Navigate to={target} replace />;
+    }
+  }
+
+  if (subdomain && !isMainDomainHostname(hostname)) {
     return <Navigate to="/admin" replace />;
   }
+
   return <RasyatechLanding />;
 }
 

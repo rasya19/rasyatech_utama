@@ -49,9 +49,11 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SubdomainRouterState>(defaultState);
 
   useEffect(() => {
-    const subdomain = detectSubdomain();
+    const parsed = parseTenantHostname(window.location.hostname);
+    const cleanSlug = parsed?.cleanTenantSlug ?? parsed?.tenantSlug ?? null;
+    const fullSlug = parsed?.tenantSlug ?? cleanSlug;
 
-    if (!subdomain) {
+    if (!cleanSlug) {
       setState({ subdomain: null, productType: null, tenant: null, loading: false, error: null });
       return;
     }
@@ -60,22 +62,46 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
 
     const resolve = async () => {
       try {
-        const { data, error } = await supabaseMaster
-          .from('tenant')
-          .select('*')
-          .eq('subdomain', subdomain)
-          .maybeSingle();
+        let data: Record<string, unknown> | null = null;
+        let error: { message: string } | null = null;
+
+        if (fullSlug && fullSlug !== cleanSlug) {
+          const fullResult = await supabaseMaster
+            .from('tenant')
+            .select('*')
+            .eq('subdomain', fullSlug)
+            .maybeSingle();
+          data = fullResult.data;
+          error = fullResult.error;
+        }
+
+        if (!data) {
+          const cleanResult = await supabaseMaster
+            .from('tenant')
+            .select('*')
+            .eq('subdomain', cleanSlug)
+            .maybeSingle();
+          data = cleanResult.data;
+          error = cleanResult.error;
+        }
 
         if (cancelled) return;
-
         if (error) throw error;
 
         if (!data) {
-          const inferredProduct = inferProductAppFromInstitutionalSlug(subdomain);
-          if (inferredProduct) {
+          const inferredFromHost =
+            parsed?.pillar === 'siput'
+              ? 'siput'
+              : parsed?.pillar === 'kuliner'
+                ? 'scanbite'
+                : parsed?.pillar === 'lms'
+                  ? 'lms'
+                  : inferProductAppFromInstitutionalSlug(fullSlug || cleanSlug);
+
+          if (inferredFromHost) {
             setState({
-              subdomain,
-              productType: inferredProduct,
+              subdomain: cleanSlug,
+              productType: inferredFromHost as ProductType,
               tenant: null,
               loading: false,
               error: null,
@@ -84,36 +110,38 @@ export function SubdomainRouterProvider({ children }: { children: ReactNode }) {
           }
 
           setState({
-            subdomain,
+            subdomain: cleanSlug,
             productType: null,
             tenant: null,
             loading: false,
-            error: `Subdomain "${subdomain}" tidak ditemukan.`,
+            error: `Subdomain "${cleanSlug}" tidak ditemukan.`,
           });
           return;
         }
 
         const productType =
           (data.product_app as ProductType) ||
-          inferProductAppFromInstitutionalSlug(subdomain) ||
+          inferProductAppFromInstitutionalSlug(fullSlug || cleanSlug) ||
           inferProductFromData(data);
 
         setState({
-          subdomain,
+          subdomain: cleanSlug,
           productType,
-          tenant: data as MasterRegistration,
+          tenant: data as unknown as MasterRegistration,
           loading: false,
           error: null,
         });
       } catch (err: unknown) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : 'Gagal memuat data tenant.';
-        setState({ subdomain, productType: null, tenant: null, loading: false, error: msg });
+        setState({ subdomain: cleanSlug, productType: null, tenant: null, loading: false, error: msg });
       }
     };
 
     resolve();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (

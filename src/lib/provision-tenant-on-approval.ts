@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PendaftarProductTab } from './pendaftar-mutations';
-import { inferProductAppFromInstitutionalSlug } from './tenant-host-parser';
+import { inferProductAppFromInstitutionalSlug, buildInstitutionalSubdomain } from './tenant-host-parser';
 
 const TENANT_DOMAIN = import.meta.env.VITE_TENANT_DOMAIN || 'rsch.my.id';
 
@@ -64,6 +64,17 @@ function registrationDisplayName(row: Record<string, unknown>, fallback: string)
   );
 }
 
+function resolvePackageTier(row: Record<string, unknown>): string {
+  const tier = String(
+    row.package_tier ||
+      row.paket_langganan ||
+      row.selected_package ||
+      row.package ||
+      'standard'
+  ).trim();
+  return tier || 'standard';
+}
+
 /**
  * INSERT baris tenant di Main DB (LMS / SIPUT) setelah approval registrations.
  */
@@ -72,15 +83,19 @@ export async function provisionMainTenantOnApproval(
   tab: PendaftarProductTab,
   registrationRow: Record<string, unknown>
 ): Promise<ProvisionResult> {
-  const slug = deriveSlugFromRegistration(registrationRow);
-  if (!slug) {
+  const cleanSlug = deriveSlugFromRegistration(registrationRow);
+  if (!cleanSlug) {
     throw new Error('Subdomain tidak valid — isi nama instansi/bisnis pada pendaftaran.');
   }
+
+  const pillar = tab === 'siput' ? 'siput' : 'lms';
+  const institutionalSubdomain = buildInstitutionalSubdomain(cleanSlug, pillar);
+  const packageTier = resolvePackageTier(registrationRow);
 
   const { data: existing, error: lookupError } = await client
     .from('tenant')
     .select('id')
-    .eq('subdomain', slug)
+    .or(`subdomain.eq.${institutionalSubdomain},subdomain.eq.${cleanSlug}`)
     .maybeSingle();
 
   if (lookupError) {
@@ -88,11 +103,11 @@ export async function provisionMainTenantOnApproval(
   }
 
   if (existing?.id) {
-    return { tenantId: String(existing.id), slug, created: false, skipped: true };
+    return { tenantId: String(existing.id), slug: institutionalSubdomain, created: false, skipped: true };
   }
 
-  const tenantName = registrationDisplayName(registrationRow, slug);
-  const inferredProduct = inferProductAppFromInstitutionalSlug(slug);
+  const tenantName = registrationDisplayName(registrationRow, cleanSlug);
+  const inferredProduct = inferProductAppFromInstitutionalSlug(institutionalSubdomain);
   const productApp =
     inferredProduct ||
     (tab === 'siput'
@@ -105,18 +120,13 @@ export async function provisionMainTenantOnApproval(
   const insertRow: Record<string, unknown> = {
     tenant_name: tenantName,
     product_app: productApp,
-    subdomain: slug,
-    subdomain_host: `${slug}.${domain}`,
+    subdomain: institutionalSubdomain,
+    subdomain_host: `${institutionalSubdomain}.${domain}`,
     admin_name: String(registrationRow.admin_name || registrationRow.full_name || tenantName),
     admin_email: String(registrationRow.admin_email || registrationRow.email || ''),
     whatsapp: String(registrationRow.whatsapp || registrationRow.whatsapp_number || ''),
     npsn: String(registrationRow.npsn || '-'),
-    package_tier: String(
-      registrationRow.paket_langganan ||
-        registrationRow.selected_package ||
-        registrationRow.package_tier ||
-        'standard'
-    ),
+    package_tier: packageTier,
     status: 'verified',
     source: 'manajemen_pendaftar_approval',
     created_at: now,
@@ -136,7 +146,7 @@ export async function provisionMainTenantOnApproval(
 
   return {
     tenantId: data?.id ? String(data.id) : null,
-    slug,
+    slug: institutionalSubdomain,
     created: true,
   };
 }

@@ -1,16 +1,14 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { parseTenantHostname, buildTenantRoutePath } from '../lib/tenant-host-parser';
-import { useSubdomainRouter } from '../lib/SubdomainRouter';
 
 /**
- * Client-side fallback bila middleware edge tidak jalan (dev lokal / preview).
- * Redirect `/` pada hostname tenant → /lms|/siput|/kuliner/[subdomain]
+ * Client-side fallback bila middleware edge tidak mengubah pathname browser.
+ * Redirect hostname tenant → /_lms|/_siput/[cleanSlug]
  */
 export default function TenantSubdomainGate() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { productType, loading } = useSubdomainRouter();
 
   useEffect(() => {
     const parsed = parseTenantHostname(window.location.hostname);
@@ -19,6 +17,7 @@ export default function TenantSubdomainGate() {
     const alreadyRouted =
       location.pathname.startsWith('/_lms/') ||
       location.pathname.startsWith('/_siput/') ||
+      location.pathname.startsWith('/_scanbite/') ||
       location.pathname.startsWith('/lms/') ||
       location.pathname.startsWith('/siput/') ||
       location.pathname.startsWith('/kuliner/') ||
@@ -26,17 +25,16 @@ export default function TenantSubdomainGate() {
       location.pathname === '/login-sekolah';
 
     if (alreadyRouted) return;
-    if (location.pathname !== '/' && location.pathname !== '') return;
-    if (loading) return;
 
-    const target = buildTenantRoutePath(parsed, productType);
+    const target = buildTenantRoutePath(parsed);
+    if (location.pathname === target || location.pathname.startsWith(`${target}/`)) return;
+
     console.log('[TenantSubdomainGate] redirect', {
       hostname: window.location.hostname,
-      productType,
       target,
     });
     navigate(target, { replace: true });
-  }, [location.pathname, loading, navigate, productType]);
+  }, [location.pathname, navigate]);
 
   return null;
 }
