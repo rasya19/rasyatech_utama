@@ -15,9 +15,24 @@ import TenantProductRoute from './components/TenantProductRoute';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { LandingDataProvider } from './lib/LandingDataContext';
 import { supabase } from './lib/supabase';
-import { isTenantHostname, isUnresolvedTenantHostname, parseTenantHostname, buildTenantRoutePath } from './lib/subdomain-utils';
+import {
+  isTenantHostname,
+  isUnresolvedTenantHostname,
+  parseTenantHostname,
+  resolveTenantProductPillarFromParsed,
+  shouldSkipLandingSplash,
+} from './lib/subdomain-utils';
 import UnknownTenantHost from './components/UnknownTenantHost';
 
+type TenantProductPillar = 'lms' | 'siput' | 'scanbite' | 'resto' | 'instafood' | 'kuliner';
+
+function mapParsedPillar(parsed: NonNullable<ReturnType<typeof parseTenantHostname>>): TenantProductPillar {
+  const pillar = resolveTenantProductPillarFromParsed(parsed);
+  if (pillar === 'scanbite' || pillar === 'resto' || pillar === 'instafood') return pillar;
+  return pillar;
+}
+
+/** Subdomain tenant → portal produk langsung di `/` (bukan landing Rasyatech). */
 function LandingOrRedirect() {
   const hostname = window.location.hostname;
 
@@ -27,15 +42,10 @@ function LandingOrRedirect() {
 
   if (isTenantHostname(hostname)) {
     const parsed = parseTenantHostname(hostname);
-    const target = parsed ? buildTenantRoutePath(parsed) : null;
-    if (target) {
-      const currentPath = window.location.pathname;
-      if (currentPath !== target && !currentPath.startsWith(`${target}/`)) {
-        return <Navigate to={target} replace />;
-      }
-    } else {
+    if (!parsed) {
       return <UnknownTenantHost />;
     }
+    return <TenantProductRoute pillar={mapParsedPillar(parsed)} />;
   }
 
   return <RasyatechLanding />;
@@ -59,12 +69,7 @@ function TenantCatchAll() {
     return <UnknownTenantHost />;
   }
   if (isTenantHostname(hostname)) {
-    const parsed = parseTenantHostname(hostname);
-    const target = parsed ? buildTenantRoutePath(parsed) : null;
-    if (target) {
-      return <Navigate to={target} replace />;
-    }
-    return <UnknownTenantHost />;
+    return <Navigate to="/" replace />;
   }
   return <Navigate to="/" replace />;
 }
@@ -119,7 +124,10 @@ function AppRoutes() {
 }
 
 export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return !shouldSkipLandingSplash(window.location.hostname, window.location.pathname);
+  });
 
   return (
     <SubdomainProvider>
