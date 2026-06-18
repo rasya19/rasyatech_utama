@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { resolveTenantUuidForRegistration, type TenantProductTab } from './tenant-lookup';
 
 export type PendaftarProductTab =
   | 'lms'
@@ -57,21 +56,10 @@ export async function buildRegistrationStatusPayload(
     };
   }
 
-  if (activating) {
-    const tenantUuid = await resolveTenantUuidForRegistration(
-      tab as TenantProductTab,
-      client,
-      registrationRow
-    );
-    if (tenantUuid) {
-      payload.tenant_id = tenantUuid;
-      payload.tenant_master_id = tenantUuid;
-    }
-  }
-
+  // LMS/SIPUT: tenant_id diisi setelah provisioning INSERT — hindari lookup & kolom tenant_master_id prematur
   return {
     payload,
-    selectColumns: 'id, tenant_id, tenant_master_id, status, is_approved',
+    selectColumns: 'id, status, is_approved',
   };
 }
 

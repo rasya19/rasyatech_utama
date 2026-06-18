@@ -1,6 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PendaftarProductTab } from './pendaftar-mutations';
-import { inferProductAppFromInstitutionalSlug, buildInstitutionalSubdomain } from './tenant-host-parser';
+import { buildInstitutionalSubdomain } from './tenant-host-parser';
+import {
+  buildMainTenantInsertRow,
+  logSupabaseInsertError,
+  isMissingColumnError,
+  DEFAULT_PACKAGE_TIER,
+  resolvePackageTier,
+  registrationDisplayName,
+} from './tenant-insert-utils';
 
 const TENANT_DOMAIN = import.meta.env.VITE_TENANT_DOMAIN || 'rsch.my.id';
 
@@ -53,27 +61,7 @@ function sanitizeSlug(input: string): string {
   return slug.slice(0, 48);
 }
 
-function registrationDisplayName(row: Record<string, unknown>, fallback: string): string {
-  return String(
-    row.school_name ||
-      row.business_name ||
-      row.tenant_name ||
-      row.full_name ||
-      row.admin_name ||
-      fallback
-  );
-}
-
-function resolvePackageTier(row: Record<string, unknown>): string {
-  const tier = String(
-    row.package_tier ||
-      row.paket_langganan ||
-      row.selected_package ||
-      row.package ||
-      'standard'
-  ).trim();
-  return tier || 'standard';
-}
+export { DEFAULT_PACKAGE_TIER, resolvePackageTier };
 
 /**
  * INSERT baris tenant di Main DB (LMS / SIPUT) setelah approval registrations.
@@ -90,7 +78,12 @@ export async function provisionMainTenantOnApproval(
 
   const pillar = tab === 'siput' ? 'siput' : 'lms';
   const institutionalSubdomain = buildInstitutionalSubdomain(cleanSlug, pillar);
-  const packageTier = resolvePackageTier(registrationRow);
+  const insertRow = buildMainTenantInsertRow(
+    tab,
+    registrationRow,
+    institutionalSubdomain,
+    TENANT_DOMAIN
+  );
 
   const { data: existing, error: lookupError } = await client
     .from('tenant')
@@ -106,42 +99,20 @@ export async function provisionMainTenantOnApproval(
     return { tenantId: String(existing.id), slug: institutionalSubdomain, created: false, skipped: true };
   }
 
-  const tenantName = registrationDisplayName(registrationRow, cleanSlug);
-  const inferredProduct = inferProductAppFromInstitutionalSlug(institutionalSubdomain);
-  const productApp =
-    inferredProduct ||
-    (tab === 'siput'
-      ? 'siput'
-      : String(registrationRow.product_type || registrationRow.product_name || 'lms').toLowerCase());
-
-  const now = new Date().toISOString();
-  const domain = TENANT_DOMAIN.replace(/^\.+/, '');
-
-  const insertRow: Record<string, unknown> = {
-    tenant_name: tenantName,
-    product_app: productApp,
-    subdomain: institutionalSubdomain,
-    subdomain_host: `${institutionalSubdomain}.${domain}`,
-    admin_name: String(registrationRow.admin_name || registrationRow.full_name || tenantName),
-    admin_email: String(registrationRow.admin_email || registrationRow.email || ''),
-    whatsapp: String(registrationRow.whatsapp || registrationRow.whatsapp_number || ''),
-    npsn: String(registrationRow.npsn || '-'),
-    package_tier: packageTier,
-    status: 'verified',
-    source: 'manajemen_pendaftar_approval',
-    created_at: now,
-    updated_at: now,
-  };
-
   const regId = registrationRow.id;
   if (isUuid(regId)) {
     insertRow.registration_id = regId;
   }
 
+  console.log('[provision-main-tenant] INSERT payload:', insertRow);
+
   const { data, error } = await client.from('tenant').insert([insertRow]).select('id').single();
 
   if (error) {
-    throw new Error(`Gagal membuat tenant (Main DB): ${error.message}`);
+    logSupabaseInsertError('provision-main-tenant', error, insertRow);
+    throw new Error(
+      `Gagal membuat tenant (Main DB): ${error.message} | kolom terkirim: ${Object.keys(insertRow).join(', ')}`
+    );
   }
 
   return {
@@ -192,9 +163,12 @@ export async function provisionKulinerTenantOnApproval(
     insertRow.tenant_id = candidateTenantId;
   }
 
+  console.log('[provision-kuliner-tenant] INSERT payload:', insertRow);
+
   const { data, error } = await client.from('tenant').insert([insertRow]).select('id').single();
 
   if (error) {
+    logSupabaseInsertError('provision-kuliner-tenant', error, insertRow);
     throw new Error(`Gagal membuat tenant (Kuliner DB): ${error.message}`);
   }
 
@@ -205,18 +179,31 @@ export async function provisionKulinerTenantOnApproval(
   };
 }
 
-/** Tautkan UUID tenant baru ke baris registrations (Main DB). */
+/** Tautkan UUID tenant baru ke baris registrations (Main DB) — aman jika kolom opsional tidak ada. */
 export async function linkMainRegistrationTenantId(
   client: SupabaseClient,
   registrationId: string | number,
   tenantId: string
 ): Promise<void> {
-  const { error } = await client
+  const { error: tenantIdError } = await client
     .from('registrations')
-    .update({ tenant_id: tenantId, tenant_master_id: tenantId })
+    .update({ tenant_id: tenantId })
     .eq('id', registrationId);
 
-  if (error) {
-    console.warn('[provision-main-tenant] link registration:', error.message);
+  if (tenantIdError) {
+    logSupabaseInsertError('link-registration tenant_id', tenantIdError, { tenant_id: tenantId });
+    throw new Error(`Gagal menautkan tenant_id: ${tenantIdError.message}`);
+  }
+
+  const { error: masterError } = await client
+    .from('registrations')
+    .update({ tenant_master_id: tenantId })
+    .eq('id', registrationId);
+
+  if (masterError && !isMissingColumnError(masterError.message, 'tenant_master_id')) {
+    logSupabaseInsertError('link-registration tenant_master_id', masterError, {
+      tenant_master_id: tenantId,
+    });
+    console.warn('[provision-main-tenant] tenant_master_id tidak diupdate:', masterError.message);
   }
 }

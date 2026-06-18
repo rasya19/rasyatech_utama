@@ -15,6 +15,7 @@ import {
   provisionKulinerTenantOnApproval,
   linkMainRegistrationTenantId,
 } from '../../lib/provision-tenant-on-approval';
+import { logSupabaseInsertError } from '../../lib/tenant-insert-utils';
 import {
   Users,
   MessageCircle,
@@ -270,6 +271,8 @@ export default function ManajemenPendaftarSaaS({
       let patch = buildLocalStatusPatch(activeTab, activating, updated);
 
       if (activating) {
+        let provisionTenantId: string | null = patch.tenant_id ?? null;
+
         try {
           if (isMainDbTab(activeTab)) {
             const provision = await provisionMainTenantOnApproval(
@@ -277,8 +280,9 @@ export default function ManajemenPendaftarSaaS({
               activeTab,
               { ...item._raw, ...updated }
             );
-            if (provision.tenantId && !patch.tenant_id) {
+            if (provision.tenantId) {
               await linkMainRegistrationTenantId(client, rowId, provision.tenantId);
+              provisionTenantId = provision.tenantId;
               patch = {
                 ...patch,
                 tenant_id: provision.tenantId,
@@ -286,16 +290,29 @@ export default function ManajemenPendaftarSaaS({
               };
             }
           } else {
-            await provisionKulinerTenantOnApproval(client, {
+            const provision = await provisionKulinerTenantOnApproval(client, {
               ...item._raw,
               ...updated,
             });
+            provisionTenantId = provision.tenantId;
           }
         } catch (provisionErr) {
-          console.error('[ManajemenPendaftarSaaS] provision tenant:', provisionErr);
+          logSupabaseInsertError(
+            'ManajemenPendaftarSaaS.handleUpdateStatus.provision',
+            provisionErr,
+            { ...item._raw, tab: activeTab }
+          );
           const msg =
             provisionErr instanceof Error ? provisionErr.message : 'Gagal membuat tenant.';
           alert(`Status diperbarui, tetapi provisioning tenant gagal: ${msg}`);
+        }
+
+        if (provisionTenantId) {
+          patch = {
+            ...patch,
+            tenant_id: provisionTenantId,
+            tenant_master_id: provisionTenantId,
+          };
         }
       }
 
@@ -328,8 +345,8 @@ export default function ManajemenPendaftarSaaS({
           isKulinerTab(activeTab)
             ? 'Status pendaftar disetujui dan tenant kuliner telah diproses.'
             : patch.tenant_id
-              ? 'Status pendaftar disetujui dan tenant LMS/SIPUT telah diproses.'
-              : 'Status diperbarui. UUID tenant belum tersedia — periksa subdomain atau RLS tabel tenant.'
+              ? 'Status pendaftar disetujui dan tenant LMS/SIPUT berhasil dibuat.'
+              : 'Status diperbarui. Tenant belum terbuat — periksa log konsol untuk detail INSERT.'
         );
       } else {
         alert('Status pendaftar berhasil diperbarui!');
