@@ -3,7 +3,6 @@ import type { PendaftarProductTab } from './pendaftar-mutations';
 import { kulinerTenantString } from './pendaftar-mutations';
 import { getProductClient } from './supabase-hub';
 import type { ProductType } from './types/products';
-import { buildInstitutionalSubdomain } from './tenant-host-parser';
 import {
   buildMainTenantInsertRow,
   logSupabaseInsertError,
@@ -15,6 +14,8 @@ import {
   stripUndefinedPayloadFields,
   buildSubdomainHost,
   resolveProductApp,
+  buildProvisioningSubdomain,
+  sanitizeTenantInsertPayload,
 } from './tenant-insert-utils';
 import { getKulinerTenantDomain, getEduTenantDomain } from './tenant-url';
 
@@ -85,22 +86,19 @@ export async function provisionMainTenantOnApproval(
     throw new Error('Subdomain tidak valid — isi nama instansi/bisnis pada pendaftaran.');
   }
 
-  const pillar = tab === 'siput' ? 'siput' : 'lms';
-  const institutionalSubdomain = normalizeTenantSubdomain(
-    buildInstitutionalSubdomain(cleanSlug, pillar)
-  );
+  const provisioningSubdomain = buildProvisioningSubdomain(cleanSlug, tab);
 
   const insertRow = buildMainTenantInsertRow(
     tab,
     registrationRow,
-    institutionalSubdomain,
+    provisioningSubdomain,
     tenantDomain
   );
 
   const { data: existing, error: lookupError } = await tenantClient
     .from('tenant')
     .select('id')
-    .or(`subdomain.eq.${institutionalSubdomain},subdomain.eq.${cleanSlug}`)
+    .or(`subdomain.eq.${provisioningSubdomain},subdomain.eq.${cleanSlug}`)
     .maybeSingle();
 
   if (lookupError) {
@@ -110,7 +108,7 @@ export async function provisionMainTenantOnApproval(
   if (existing?.id) {
     return {
       tenantId: String(existing.id),
-      slug: institutionalSubdomain,
+      slug: provisioningSubdomain,
       created: false,
       skipped: true,
     };
@@ -121,7 +119,7 @@ export async function provisionMainTenantOnApproval(
     insertRow.registration_id = regId;
   }
 
-  const payload = stripUndefinedPayloadFields(insertRow);
+  const payload = sanitizeTenantInsertPayload(insertRow, tenantDomain);
   console.log('[provision-main-tenant] INSERT DB produk:', productType, payload);
 
   const { data, error } = await tenantClient
@@ -139,7 +137,7 @@ export async function provisionMainTenantOnApproval(
 
   return {
     tenantId: data?.id ? String(data.id) : null,
-    slug: institutionalSubdomain,
+    slug: provisioningSubdomain,
     created: true,
   };
 }
@@ -208,16 +206,17 @@ export async function provisionKulinerTenantOnApproval(
     insertRow.tenant_id = registrationRow.tenant_id;
   }
 
-  console.log('[provision-kuliner-tenant] INSERT DB produk:', productType, insertRow);
+  const payload = sanitizeTenantInsertPayload(insertRow, tenantDomain);
+  console.log('[provision-kuliner-tenant] INSERT DB produk:', productType, payload);
 
   const { data, error } = await tenantClient
     .from('tenant')
-    .insert([insertRow])
+    .insert([payload])
     .select('id')
     .single();
 
   if (error) {
-    logSupabaseInsertError('provision-kuliner-tenant', error, insertRow);
+    logSupabaseInsertError('provision-kuliner-tenant', error, payload);
     throw new Error(`Gagal membuat tenant (${productType}): ${error.message}`);
   }
 

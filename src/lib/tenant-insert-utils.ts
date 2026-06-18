@@ -1,6 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { PendaftarProductTab } from './pendaftar-mutations';
-import { buildInstitutionalSubdomain, inferProductAppFromInstitutionalSlug } from './tenant-host-parser';
+import { inferProductAppFromInstitutionalSlug } from './tenant-host-parser';
 
 export const DEFAULT_PACKAGE_TIER = 'basic';
 
@@ -64,6 +64,57 @@ export function stripUndefinedPayloadFields(
 export function buildSubdomainHost(subdomain: string, tenantDomain: string): string {
   const domain = tenantDomain.replace(/^\.+/, '').toLowerCase();
   return `${normalizeTenantSubdomain(subdomain)}.${domain}`;
+}
+
+/**
+ * Subdomain final untuk provisioning — huruf kecil, tanpa strip.
+ * SIPUT: tkarmillanusa (dari TK-Armilla-Nusa) atau kb{nama} jika belum ada awalan.
+ * LMS: pkbm{nama} atau skb{nama} jika belum ada awalan.
+ */
+export function buildProvisioningSubdomain(
+  cleanSlug: string,
+  tab: PendaftarProductTab
+): string {
+  const base = normalizeTenantSubdomain(cleanSlug);
+  if (!base) return '';
+
+  if (tab === 'siput') {
+    if (/^(kb|tk|sps|tpa|paud)/.test(base)) {
+      return base;
+    }
+    return normalizeTenantSubdomain(`kb${base}`);
+  }
+
+  if (/^(pkbm|skb)/.test(base)) {
+    return base;
+  }
+  return normalizeTenantSubdomain(`pkbm${base}`);
+}
+
+/** Paksa subdomain + subdomain_host konsisten tepat sebelum INSERT. */
+export function sanitizeTenantInsertPayload(
+  row: Record<string, unknown>,
+  tenantDomain: string
+): Record<string, unknown> {
+  const cleaned = stripUndefinedPayloadFields(row);
+  const subdomain = normalizeTenantSubdomain(
+    String(cleaned.subdomain || cleaned.slug || cleaned.kode_tenant || '')
+  );
+  const validationError = validateTenantSubdomain(subdomain);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  cleaned.subdomain = subdomain;
+  cleaned.subdomain_host = buildSubdomainHost(subdomain, tenantDomain);
+  if ('slug' in cleaned) {
+    cleaned.slug = subdomain;
+  }
+  if ('kode_tenant' in cleaned) {
+    cleaned.kode_tenant = subdomain;
+  }
+
+  return cleaned;
 }
 
 export function isMissingColumnError(message: string, column: string): boolean {
@@ -196,6 +247,5 @@ export function buildInstitutionalSubdomainForTab(
   cleanSlug: string,
   tab: PendaftarProductTab
 ): string {
-  const pillar = tab === 'siput' ? 'siput' : 'lms';
-  return normalizeTenantSubdomain(buildInstitutionalSubdomain(cleanSlug, pillar));
+  return buildProvisioningSubdomain(cleanSlug, tab);
 }

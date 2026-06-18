@@ -14,14 +14,14 @@ import {
   provisionMainTenantOnApproval,
   provisionKulinerTenantOnApproval,
   linkMainRegistrationTenantId,
+  deriveSlugFromRegistration,
 } from '../../lib/provision-tenant-on-approval';
-import { logSupabaseInsertError, normalizeTenantSubdomain } from '../../lib/tenant-insert-utils';
-import { sendTenantApprovalNotification } from '../../lib/notifications';
-import { deriveSlugFromRegistration } from '../../lib/provision-tenant-on-approval';
 import {
-  buildInstitutionalSubdomain,
-  stripInstitutionalPrefixFromSlug,
-} from '../../lib/tenant-host-parser';
+  logSupabaseInsertError,
+  normalizeTenantSubdomain,
+  buildProvisioningSubdomain,
+} from '../../lib/tenant-insert-utils';
+import { sendTenantApprovalNotification } from '../../lib/notifications';
 import {
   Users,
   MessageCircle,
@@ -336,13 +336,7 @@ export default function ManajemenPendaftarSaaS({
           );
 
           if (isMainDbTab(activeTab)) {
-            const pillar = activeTab === 'siput' ? 'siput' : 'lms';
-            kodeTenant = normalizeTenantSubdomain(
-              buildInstitutionalSubdomain(
-                stripInstitutionalPrefixFromSlug(kodeTenant),
-                pillar
-              )
-            );
+            kodeTenant = buildProvisioningSubdomain(kodeTenant, activeTab);
           }
           const product = String(
             mergedRow.product_type || mergedRow.business_type || mergedRow.tenant || activeTab
