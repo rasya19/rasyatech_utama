@@ -66,6 +66,8 @@ function AppRoutes() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/dashboard-sekolah" element={<DashboardSekolahCallback />} />
 
+        <Route path="/_lms/:subdomain/*" element={<TenantProductRoute pillar="lms" />} />
+        <Route path="/_siput/:subdomain/*" element={<TenantProductRoute pillar="siput" />} />
         <Route path="/lms/:subdomain" element={<TenantProductRoute pillar="lms" />} />
         <Route path="/siput/:subdomain" element={<TenantProductRoute pillar="siput" />} />
         <Route path="/kuliner/:subdomain" element={<TenantProductRoute pillar="kuliner" />} />

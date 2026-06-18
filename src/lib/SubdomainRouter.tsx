@@ -40,7 +40,7 @@ function detectSubdomain(): string | null {
   if (parsed?.productHint) {
     localStorage.setItem('current_product', parsed.productHint);
   }
-  return parsed?.tenantSlug ?? null;
+  return parsed?.cleanTenantSlug ?? parsed?.tenantSlug ?? null;
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────

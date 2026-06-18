@@ -17,6 +17,8 @@ export default function TenantSubdomainGate() {
     if (!parsed) return;
 
     const alreadyRouted =
+      location.pathname.startsWith('/_lms/') ||
+      location.pathname.startsWith('/_siput/') ||
       location.pathname.startsWith('/lms/') ||
       location.pathname.startsWith('/siput/') ||
       location.pathname.startsWith('/kuliner/') ||

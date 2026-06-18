@@ -118,11 +118,13 @@ async function handleTenantRootRedirect(
   console.log("[server][tenant-redirect]", { hostname, subdomain, pillar });
 
   if (pillar === "siput") {
-    res.redirect(302, `/siput/${subdomain}`);
+    const slug = parsed?.cleanTenantSlug ?? subdomain;
+    res.redirect(302, `/_siput/${slug}`);
     return true;
   }
   if (pillar === "lms") {
-    res.redirect(302, `/lms/${subdomain}`);
+    const slug = parsed?.cleanTenantSlug ?? subdomain;
+    res.redirect(302, `/_lms/${slug}`);
     return true;
   }
   if (pillar === "kuliner") {
@@ -131,7 +133,8 @@ async function handleTenantRootRedirect(
   }
 
   // Fallback: arahkan ke SIPUT admin jika tenant dikenali di DB
-  res.redirect(302, `/siput/${subdomain}`);
+  const fallbackSlug = parsed?.cleanTenantSlug ?? subdomain;
+  res.redirect(302, `/_siput/${fallbackSlug}`);
   return true;
 }
 

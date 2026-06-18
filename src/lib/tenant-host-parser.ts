@@ -10,7 +10,10 @@
 export type TenantProductPillar = 'lms' | 'siput' | 'kuliner';
 
 export type ParsedTenantHost = {
+  /** Slug lengkap dari hostname (mis. pkbm-armilla, tk-armillanusa). */
   tenantSlug: string;
+  /** Slug bersih tanpa awalan kelembagaan (mis. armilla, armillanusa) — untuk lookup DB. */
+  cleanTenantSlug: string;
   /** Segmen produk di hostname, jika ada (siput, lms, scanbite, …) */
   productHint: string | null;
   pillar: TenantProductPillar;
@@ -78,6 +81,21 @@ export function inferProductAppFromInstitutionalSlug(slug: string): 'lms' | 'sip
   if (pillar === 'lms') return 'lms';
   if (pillar === 'siput') return 'siput';
   return null;
+}
+
+/** Hapus awalan kelembagaan dari slug subdomain untuk lookup database. */
+export function stripInstitutionalPrefixFromSlug(slug: string): string {
+  const normalized = slug.trim().toLowerCase();
+  const markers = [...LMS_INSTITUTIONAL_MARKERS, ...SIPUT_INSTITUTIONAL_MARKERS] as const;
+
+  for (const marker of markers) {
+    if (normalized.startsWith(marker)) {
+      const stripped = normalized.slice(marker.length).replace(/^-+/, '');
+      return stripped || normalized;
+    }
+  }
+
+  return normalized;
 }
 
 export function getTenantBaseDomain(): string {
@@ -160,6 +178,7 @@ export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
       console.log('[tenant-host-parser] legacy host (non-base domain):', h, '→', legacySlug);
       return {
         tenantSlug: legacySlug,
+        cleanTenantSlug: stripInstitutionalPrefixFromSlug(legacySlug),
         productHint: null,
         pillar: inferPillarFromInstitutionalSlug(legacySlug) ?? 'lms',
         hostname: h,
@@ -188,6 +207,8 @@ export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
 
   if (!tenantSlug || PORTAL_SLUGS.has(tenantSlug)) return null;
 
+  const cleanTenantSlug = stripInstitutionalPrefixFromSlug(tenantSlug);
+
   const pillar =
     productHint != null
       ? inferPillarFromProduct(productHint)
@@ -196,11 +217,12 @@ export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
   console.log('[tenant-host-parser] tenant detected:', {
     hostname: h,
     tenantSlug,
+    cleanTenantSlug,
     productHint,
     pillar,
   });
 
-  return { tenantSlug, productHint, pillar, hostname: h };
+  return { tenantSlug, cleanTenantSlug, productHint, pillar, hostname: h };
 }
 
 /** Path internal SPA untuk rewrite / redirect tenant. */
@@ -213,11 +235,14 @@ export function buildTenantRoutePath(
     ? inferPillarFromProduct(product)
     : inferPillarFromInstitutionalSlug(parsed.tenantSlug) ?? parsed.pillar;
 
-  if (pillar === 'siput') return `/siput/${parsed.tenantSlug}`;
-  if (pillar === 'kuliner') return `/kuliner/${parsed.tenantSlug}`;
-  return `/lms/${parsed.tenantSlug}`;
+  const slug = parsed.cleanTenantSlug || parsed.tenantSlug;
+
+  if (pillar === 'siput') return `/_siput/${slug}`;
+  if (pillar === 'kuliner') return `/kuliner/${slug}`;
+  return `/_lms/${slug}`;
 }
 
 export function getSubdomainFromHostname(hostname: string): string | null {
-  return parseTenantHostname(hostname)?.tenantSlug ?? null;
+  const parsed = parseTenantHostname(hostname);
+  return parsed?.cleanTenantSlug ?? parsed?.tenantSlug ?? null;
 }

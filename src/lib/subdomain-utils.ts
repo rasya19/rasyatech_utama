@@ -9,6 +9,7 @@ export {
   inferPillarFromProduct,
   inferPillarFromInstitutionalSlug,
   inferProductAppFromInstitutionalSlug,
+  stripInstitutionalPrefixFromSlug,
   slugMatchesInstitutionalMarker,
   LMS_INSTITUTIONAL_MARKERS,
   SIPUT_INSTITUTIONAL_MARKERS,
