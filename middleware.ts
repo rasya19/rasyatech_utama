@@ -25,6 +25,11 @@ export default function middleware(request: Request) {
   });
 
   if (!parsed) {
+    if (url.pathname === '/master-admin' || url.pathname.startsWith('/master-admin/')) {
+      const redirectUrl = new URL(request.url);
+      redirectUrl.pathname = url.pathname.replace(/^\/master-admin/, '/admin') || '/admin';
+      return Response.redirect(redirectUrl, 308);
+    }
     return;
   }
 

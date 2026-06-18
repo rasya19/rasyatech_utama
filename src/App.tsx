@@ -25,6 +25,18 @@ function LandingOrRedirect() {
   return <RasyatechLanding />;
 }
 
+/** Domain utama → Master Admin; subdomain tenant → dashboard tenant. */
+function AdminEntry() {
+  const subdomain = useSubdomain();
+  const onMainDomain = isMainDomainHostname(window.location.hostname);
+
+  if (!onMainDomain && subdomain) {
+    return <TenantDashboard />;
+  }
+
+  return <MasterAdmin />;
+}
+
 function AppRoutes() {
   const navigate = useNavigate();
 
@@ -48,17 +60,16 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<LandingOrRedirect />} />
 
-        <Route path="/master-admin" element={<MasterAdmin />} />
+        <Route path="/master-admin" element={<Navigate to="/admin" replace />} />
+        <Route path="/admin" element={<AdminEntry />} />
+
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/dashboard-sekolah" element={<DashboardSekolahCallback />} />
 
-        {/* Rute tenant per pilar produk */}
         <Route path="/lms/:subdomain" element={<TenantProductRoute pillar="lms" />} />
         <Route path="/siput/:subdomain" element={<TenantProductRoute pillar="siput" />} />
         <Route path="/kuliner/:subdomain" element={<TenantProductRoute pillar="kuliner" />} />
 
-        {/* Legacy paths */}
-        <Route path="/admin" element={<TenantDashboard />} />
         <Route path="/affiliate/portal" element={<AffiliatePortal />} />
         <Route path="/login-sekolah" element={<SchoolLogin />} />
         <Route path="/admin/monitoring" element={<MonitoringDashboard />} />

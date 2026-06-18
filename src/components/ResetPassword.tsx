@@ -49,7 +49,7 @@ export default function ResetPassword() {
       // Wait for 3 seconds, sign out, then redirect
       setTimeout(async () => {
         await supabase.auth.signOut();
-        navigate('/master-admin');
+        navigate('/admin');
       }, 3000);
     } catch (err: any) {
       setError(err.message || 'Gagal memperbarui password.');

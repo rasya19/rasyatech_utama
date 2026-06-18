@@ -2,8 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 import { supabaseKuliner } from '../../lib/supabase-kuliner';
-import { resolveTenantUuidForRegistration } from '../../lib/tenant-lookup';
 import { fetchTotalPendaftarCount } from '../../lib/registration-stats';
+import {
+  isMainDbTab,
+  isKulinerTab,
+  buildRegistrationStatusPayload,
+  buildLocalStatusPatch,
+  type PendaftarProductTab,
+} from '../../lib/pendaftar-mutations';
 import {
   Users,
   MessageCircle,
@@ -18,7 +24,7 @@ import {
   Trash2,
 } from 'lucide-react';
 
-type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
+type ProductType = PendaftarProductTab;
 
 interface Pendaftar {
   id: string;
@@ -45,10 +51,6 @@ const TABS = [
   { id: 'siput', label: 'SIPUT', icon: '🐌', color: 'text-sky-400' },
   { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
 ] as const;
-
-function isMainDbTab(tab: ProductType): boolean {
-  return tab === 'lms' || tab === 'siput';
-}
 
 function getDbClient(tab: ProductType) {
   return isMainDbTab(tab) ? supabase : supabaseKuliner;
@@ -241,72 +243,60 @@ export default function ManajemenPendaftarSaaS({
     const client = getDbClient(activeTab);
 
     try {
-      const payload: Record<string, unknown> = {
-        is_approved: activating,
-        status: activating ? 'verified' : 'pending',
-      };
+      const { payload, selectColumns } = await buildRegistrationStatusPayload(
+        activeTab,
+        activating,
+        client,
+        item._raw
+      );
 
-      let tenantUuid: string | null = null;
-      if (activating) {
-        tenantUuid = await resolveTenantUuidForRegistration(activeTab, client, item._raw);
-        if (tenantUuid) {
-          payload.tenant_id = tenantUuid;
-          payload.tenant_master_id = tenantUuid;
-        } else {
-          console.warn(
-            `[ManajemenPendaftarSaaS] UUID tenant tidak ditemukan untuk produk "${activeTab}" — status tetap diperbarui tanpa FK.`
-          );
-        }
-      }
-
-      // Hanya filter by id — jangan .eq('tenant', ...) karena id sudah unik global di tabel.
       const { data: updatedRows, error: updateError } = await client
         .from('registrations')
         .update(payload)
         .eq('id', rowId)
-        .select('id, tenant_id, tenant_master_id, status, is_approved');
+        .select(selectColumns);
 
       if (updateError) throw updateError;
       if (!updatedRows?.length) {
         throw new Error('Tidak ada baris yang diperbarui. Periksa ID pendaftar atau kebijakan RLS Supabase.');
       }
 
-      const updated = updatedRows[0] as Record<string, unknown>;
-      const resolvedTenantId = updated.tenant_id
-        ? String(updated.tenant_id)
-        : tenantUuid;
-      const resolvedTenantMasterId = updated.tenant_master_id
-        ? String(updated.tenant_master_id)
-        : tenantUuid;
+      const updated = updatedRows[0] as unknown as Record<string, unknown>;
+      const patch = buildLocalStatusPatch(activeTab, activating, updated);
 
       setData((prev) =>
         prev.map((row) =>
           row.id === item.id
             ? {
                 ...row,
-                status: activating ? 'verified' : 'pending',
-                is_approved: activating,
-                tenant_id: activating ? resolvedTenantId : row.tenant_id,
-                tenant_master_id: activating ? resolvedTenantMasterId : row.tenant_master_id,
+                status: patch.status,
+                is_approved: patch.is_approved,
+                tenant_id: patch.tenant_id ?? row.tenant_id,
+                tenant_master_id: patch.tenant_master_id ?? row.tenant_master_id,
                 _raw: {
                   ...row._raw,
-                  status: activating ? 'verified' : 'pending',
-                  is_approved: activating,
-                  tenant_id: activating ? resolvedTenantId : row._raw.tenant_id,
-                  tenant_master_id: activating
-                    ? resolvedTenantMasterId
-                    : row._raw.tenant_master_id,
+                  status: patch.status,
+                  is_approved: patch.is_approved,
+                  ...(patch.tenant != null ? { tenant: patch.tenant } : {}),
+                  ...(patch.tenant_id != null ? { tenant_id: patch.tenant_id } : {}),
+                  ...(patch.tenant_master_id != null
+                    ? { tenant_master_id: patch.tenant_master_id }
+                    : {}),
                 },
               }
             : row
         )
       );
 
-      alert(
-        activating && !resolvedTenantId
-          ? 'Status diperbarui. UUID tenant belum tersedia di tabel tenant untuk produk ini.'
-          : 'Status pendaftar berhasil diperbarui!'
-      );
+      if (
+        activating &&
+        !isKulinerTab(activeTab) &&
+        !patch.tenant_id
+      ) {
+        alert('Status diperbarui. UUID tenant belum tersedia di tabel tenant untuk produk ini.');
+      } else {
+        alert('Status pendaftar berhasil diperbarui!');
+      }
     } catch (err: unknown) {
       console.error('Update operation error:', err);
       const message = err instanceof Error ? err.message : 'Gagal memperbarui status pendaftar.';
@@ -320,11 +310,9 @@ export default function ManajemenPendaftarSaaS({
     if (!window.confirm('Yakin ingin menghapus data ini?')) return;
 
     const rowId = getRegistrationRowId(item);
+    const client = getDbClient(activeTab);
 
     try {
-      const client = getDbClient(activeTab);
-
-      // Hanya filter by id — jangan .eq('tenant', ...) karena id sudah unik global di tabel.
       const { data: deletedRows, error: deleteError } = await client
         .from('registrations')
         .delete()
@@ -340,7 +328,7 @@ export default function ManajemenPendaftarSaaS({
       await refreshTotalPendaftar();
       alert('Data berhasil dihapus.');
     } catch (err: unknown) {
-      console.error('Error saat menghapus:', err);
+      console.error('[ManajemenPendaftarSaaS] delete error:', err);
       const message = err instanceof Error ? err.message : 'Gagal menghapus data.';
       alert(message);
     }

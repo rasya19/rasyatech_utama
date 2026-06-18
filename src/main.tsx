@@ -14,10 +14,7 @@ createRoot(document.getElementById('root')!).render(
 
 // PWA Service Worker Registration - DIPISAH SCOPE NYA
 if ('serviceWorker' in navigator) {
-  const path = window.location.pathname;
-  const scope = path.startsWith('/master-admin') 
-    ? '/master-admin/' 
-    : '/admin/'; // default admin
+  const scope = '/admin/';
     
   navigator.serviceWorker.register('/sw.js', { scope }) // ← pake variabel scope, bukan '/'
     .then(reg => {
