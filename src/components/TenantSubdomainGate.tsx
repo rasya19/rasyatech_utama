@@ -29,6 +29,7 @@ export default function TenantSubdomainGate() {
     if (alreadyRouted) return;
 
     const target = buildTenantRoutePath(parsed);
+    if (!target) return;
     if (location.pathname === target || location.pathname.startsWith(`${target}/`)) return;
 
     console.log('[TenantSubdomainGate] redirect', {

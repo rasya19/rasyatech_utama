@@ -1,7 +1,12 @@
 /**
  * Vercel Edge Middleware — bypass aset statis + rewrite subdomain tenant.
+ * Hostname tidak dikenal → 404 (bukan redirect ke LMS / .vercel.app).
  */
-import { isApexLandingHostname } from './src/lib/tenant-host-parser';
+import {
+  isApexLandingHostname,
+  isDevPreviewHostname,
+  hostnameHasTenantSubdomain,
+} from './src/lib/tenant-host-parser';
 import { resolveMiddlewareRewriteWithDb } from './src/lib/middleware-tenant-lookup';
 
 const STATIC_FILE_PATTERN =
@@ -55,6 +60,49 @@ function logMiddlewareDecision(
   }
 }
 
+function unknownTenantHtml(hostname: string): string {
+  const safeHost = hostname.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>404 — Tenant Tidak Ditemukan</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: #0A0F1E; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 24px; }
+    .card { max-width: 480px; text-align: center; background: #151C30; border: 1px solid #1e293b;
+      border-radius: 24px; padding: 40px 32px; }
+    h1 { font-size: 4rem; margin: 0 0 8px; color: #f43f5e; }
+    h2 { margin: 0 0 12px; font-size: 1.25rem; }
+    p { color: #94a3b8; font-size: 0.9rem; line-height: 1.6; }
+    code { color: #fff; background: #0f172a; padding: 2px 8px; border-radius: 6px; }
+    a { display: inline-block; margin-top: 24px; padding: 12px 24px; background: #2563eb;
+      color: #fff; text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>404</h1>
+    <h2>Tenant Tidak Ditemukan</h2>
+    <p>Hostname <code>${safeHost}</code> tidak terdaftar di ekosistem Rasyatech atau subdomain belum aktif.</p>
+    <p>Periksa URL tenant Anda atau hubungi support jika pendaftaran sudah disetujui.</p>
+    <a href="https://rasyatech.com">Kembali ke Beranda</a>
+  </div>
+</body>
+</html>`;
+}
+
+function unknownTenantResponse(hostname: string): Response {
+  return new Response(unknownTenantHtml(hostname), {
+    status: 404,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 function middlewareRewrite(
   request: Request,
   targetPath: string,
@@ -101,6 +149,11 @@ export default async function middleware(request: Request) {
     return Response.redirect(redirectUrl, 308);
   }
 
+  if (isDevPreviewHostname(hostname)) {
+    logMiddlewareDecision(hostname, pathname, '(passthrough — dev preview, tanpa rewrite tenant)');
+    return;
+  }
+
   if (isApexLandingHostname(hostname)) {
     logMiddlewareDecision(hostname, pathname, '(passthrough — apex landing)');
     return;
@@ -112,7 +165,11 @@ export default async function middleware(request: Request) {
 
   const resolved = await resolveMiddlewareRewriteWithDb(hostname, pathname);
   if (!resolved) {
-    logMiddlewareDecision(hostname, pathname, '(passthrough — hostname bukan tenant)');
+    if (hostnameHasTenantSubdomain(hostname)) {
+      logMiddlewareDecision(hostname, pathname, '(404 — tenant tidak dikenal)');
+      return unknownTenantResponse(hostname);
+    }
+    logMiddlewareDecision(hostname, pathname, '(passthrough — hostname non-tenant)');
     return;
   }
 

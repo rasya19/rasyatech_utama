@@ -15,33 +15,27 @@ import TenantProductRoute from './components/TenantProductRoute';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { LandingDataProvider } from './lib/LandingDataContext';
 import { supabase } from './lib/supabase';
-import { isTenantHostname, parseTenantHostname, buildTenantRoutePath } from './lib/subdomain-utils';
-
-function TenantHome() {
-  const hostname = window.location.hostname;
-  const parsed = parseTenantHostname(hostname);
-
-  if (parsed) {
-    const target = buildTenantRoutePath(parsed);
-    return <Navigate to={target} replace />;
-  }
-
-  return <RasyatechLanding />;
-}
+import { isTenantHostname, isUnresolvedTenantHostname, parseTenantHostname, buildTenantRoutePath } from './lib/subdomain-utils';
+import UnknownTenantHost from './components/UnknownTenantHost';
 
 function LandingOrRedirect() {
   const hostname = window.location.hostname;
 
+  if (isUnresolvedTenantHostname(hostname)) {
+    return <UnknownTenantHost />;
+  }
+
   if (isTenantHostname(hostname)) {
     const parsed = parseTenantHostname(hostname);
-    if (parsed) {
-      const target = buildTenantRoutePath(parsed);
+    const target = parsed ? buildTenantRoutePath(parsed) : null;
+    if (target) {
       const currentPath = window.location.pathname;
       if (currentPath !== target && !currentPath.startsWith(`${target}/`)) {
         return <Navigate to={target} replace />;
       }
+    } else {
+      return <UnknownTenantHost />;
     }
-    return <TenantHome />;
   }
 
   return <RasyatechLanding />;
@@ -61,11 +55,16 @@ function AdminEntry() {
 
 function TenantCatchAll() {
   const hostname = window.location.hostname;
+  if (isUnresolvedTenantHostname(hostname)) {
+    return <UnknownTenantHost />;
+  }
   if (isTenantHostname(hostname)) {
     const parsed = parseTenantHostname(hostname);
-    if (parsed) {
-      return <Navigate to={buildTenantRoutePath(parsed)} replace />;
+    const target = parsed ? buildTenantRoutePath(parsed) : null;
+    if (target) {
+      return <Navigate to={target} replace />;
     }
+    return <UnknownTenantHost />;
   }
   return <Navigate to="/" replace />;
 }

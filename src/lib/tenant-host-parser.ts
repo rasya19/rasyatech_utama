@@ -168,8 +168,23 @@ export function buildInstitutionalSubdomain(
   return `kb-${base}`;
 }
 
+export function isDevPreviewHostname(hostname: string): boolean {
+  const h = hostname.split(':')[0].toLowerCase();
+  return (
+    h === 'localhost' ||
+    h === '127.0.0.1' ||
+    h.endsWith('.vercel.app') ||
+    h.endsWith('.run.app') ||
+    h.includes('asia-southeast1.run.app')
+  );
+}
+
 export function extractHostnameSubdomainSlug(hostname: string): string | null {
   const h = hostname.split(':')[0].toLowerCase();
+
+  if (isDevPreviewHostname(h)) {
+    return null;
+  }
 
   for (const base of getTenantBaseDomains()) {
     const parts = h.split('.');
@@ -190,17 +205,14 @@ export function extractHostnameSubdomainSlug(hostname: string): string | null {
     }
   }
 
-  if (!isApexLandingHostname(h)) {
-    const parts = h.split('.');
-    if (parts.length >= 3) {
-      const legacySlug = parts[0];
-      if (legacySlug && !PORTAL_SLUGS.has(legacySlug) && !PRODUCT_SEGMENTS.has(legacySlug)) {
-        return legacySlug;
-      }
-    }
-  }
-
   return null;
+}
+
+export function hostnameHasTenantSubdomain(hostname: string): boolean {
+  if (isDevPreviewHostname(hostname) || isApexLandingHostname(hostname)) {
+    return false;
+  }
+  return extractHostnameSubdomainSlug(hostname) != null;
 }
 
 export function extractProductHintFromHostname(hostname: string): string | null {
@@ -275,30 +287,7 @@ export function resolveMiddlewareRewriteTarget(
     return buildRewriteForRoute(productAppToRoute(productHint), hostnameSubdomain, pathname);
   }
 
-  const parsed = parseTenantHostname(hostname);
-  if (parsed?.productHint) {
-    return buildRewriteForRoute(
-      productAppToRoute(parsed.productHint),
-      hostnameSubdomain,
-      pathname
-    );
-  }
-
-  if (parsed?.pillar === 'siput') {
-    return buildRewriteForRoute('siput', hostnameSubdomain, pathname);
-  }
-
-  if (parsed?.pillar === 'kuliner') {
-    return buildRewriteForRoute('scanbite', hostnameSubdomain, pathname);
-  }
-
-  const host = hostname.split(':')[0].toLowerCase();
-  const kulinerDomain = getTenantBaseDomains().find((d) => d.includes('web.id'));
-  if (kulinerDomain && host.endsWith(kulinerDomain)) {
-    return buildRewriteForRoute('scanbite', hostnameSubdomain, pathname);
-  }
-
-  return buildRewriteForRoute('lms', hostnameSubdomain, pathname);
+  return null;
 }
 
 /** Apex domain tanpa subdomain — landing utama (sangat ketat). */
@@ -313,25 +302,19 @@ export function getTenantBaseDomain(): string {
 
 /** Host dev / landing apex — BUKAN subdomain tenant. */
 export function isMainDomainHostname(hostname: string): boolean {
-  const h = hostname.split(':')[0].toLowerCase();
-
-  if (
-    h === 'localhost' ||
-    h === '127.0.0.1' ||
-    h.endsWith('.vercel.app') ||
-    h.endsWith('.run.app') ||
-    h.includes('asia-southeast1.run.app')
-  ) {
-    return true;
-  }
-
-  return isApexLandingHostname(h);
+  if (isDevPreviewHostname(hostname)) return true;
+  return isApexLandingHostname(hostname);
 }
 
-/** Hostname milik tenant (bukan apex / dev). */
+/** Hostname punya subdomain tenant yang bisa di-route (heuristik + DB di middleware). */
 export function isTenantHostname(hostname: string): boolean {
   if (isMainDomainHostname(hostname)) return false;
-  return extractHostnameSubdomainSlug(hostname) != null;
+  return parseTenantHostname(hostname) != null;
+}
+
+/** Subdomain terdeteksi di hostname produksi tapi produk/tenant tidak dikenali. */
+export function isUnresolvedTenantHostname(hostname: string): boolean {
+  return hostnameHasTenantSubdomain(hostname) && parseTenantHostname(hostname) == null;
 }
 
 export function inferPillarFromProduct(product: string | null): TenantProductPillar {
@@ -345,7 +328,7 @@ export function inferPillarFromProduct(product: string | null): TenantProductPil
 export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
   const h = hostname.split(':')[0].toLowerCase();
 
-  if (isApexLandingHostname(h)) {
+  if (isApexLandingHostname(h) || isDevPreviewHostname(h)) {
     return null;
   }
 
@@ -354,15 +337,17 @@ export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
 
   const productHint = extractProductHintFromHostname(h);
   const cleanTenantSlug = stripInstitutionalPrefixFromSlug(hostnameSubdomain);
-  const route = productHint
-    ? productAppToRoute(productHint)
-    : slugMatchesInstitutionalMarker(hostnameSubdomain, SIPUT_INSTITUTIONAL_MARKERS)
-      ? 'siput'
-      : slugMatchesInstitutionalMarker(hostnameSubdomain, LMS_INSTITUTIONAL_MARKERS)
-        ? 'lms'
-        : getTenantBaseDomains().some((d) => d.includes('web.id') && h.endsWith(d))
-          ? 'scanbite'
-          : 'lms';
+
+  let route: SaasProductRoute | null = null;
+  if (productHint) {
+    route = productAppToRoute(productHint);
+  } else if (slugMatchesInstitutionalMarker(hostnameSubdomain, SIPUT_INSTITUTIONAL_MARKERS)) {
+    route = 'siput';
+  } else if (slugMatchesInstitutionalMarker(hostnameSubdomain, LMS_INSTITUTIONAL_MARKERS)) {
+    route = 'lms';
+  }
+
+  if (!route) return null;
 
   const pillar: TenantProductPillar =
     route === 'siput' ? 'siput' : route === 'lms' ? 'lms' : 'kuliner';
@@ -380,18 +365,11 @@ export function parseTenantHostname(hostname: string): ParsedTenantHost | null {
 export function buildTenantRoutePath(
   parsed: ParsedTenantHost,
   productFromDb?: string | null
-): string {
+): string | null {
   const product = productFromDb || parsed.productHint || null;
-  const route = product
-    ? productAppToRoute(product)
-    : parsed.pillar === 'siput'
-      ? 'siput'
-      : parsed.pillar === 'kuliner'
-        ? 'scanbite'
-        : inferPillarFromInstitutionalSlug(parsed.tenantSlug) === 'siput'
-          ? 'siput'
-          : 'lms';
+  if (!product) return null;
 
+  const route = productAppToRoute(product);
   const slug = parsed.cleanTenantSlug || parsed.tenantSlug;
   return `${routeToInternalPrefix(route)}/${slug}`;
 }
