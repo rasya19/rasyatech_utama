@@ -6,6 +6,16 @@ import { supabase } from '../lib/supabase';
 import { supabaseKuliner } from '../lib/supabase-kuliner';
 import { DEFAULT_PACKAGE_TIER, logSupabaseInsertError } from '../lib/tenant-insert-utils';
 import {
+  SAAS_PRODUCT_OPTIONS,
+  normalizeProductParam,
+  toProductApp,
+  isMainDbProduct,
+  isKulinerDbProduct,
+  resolvePackageTierForProduct,
+  getProductRedirectDomain,
+  type SaasProductType,
+} from '../lib/saas-product-options';
+import {
   Building2,
   Mail,
   MessageSquare,
@@ -17,12 +27,9 @@ import {
   ChevronLeft,
   LayoutGrid,
   School,
-  Database
+  Database,
+  Store,
 } from 'lucide-react';
-
-type ProductType = 'lms' | 'siput' | 'scanbite';
-
-const SAAS_PRODUCTS: ProductType[] = ['lms', 'siput', 'scanbite'];
 
 // Helper: generate subdomain dari business_name
 const generateSubdomain = (businessName: string) => {
@@ -41,13 +48,7 @@ export default function FormPendaftaranSaaS() {
   const [countdown, setCountdown] = useState(6);
 
   const productParam = searchParams.get('product');
-  const normalizedParam =
-    productParam === 'Instafood' || productParam === 'restoran_asli'
-      ? 'scanbite'
-      : (productParam as ProductType);
-  const currentProduct: ProductType = SAAS_PRODUCTS.includes(normalizedParam)
-    ? normalizedParam
-    : 'lms';
+  const currentProduct = normalizeProductParam(productParam);
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -60,34 +61,14 @@ export default function FormPendaftaranSaaS() {
     outlet_count: '',
     npsn: '',
     school_name: '',
-    subdomain: '',
-    admin_email: '',
-    password: ''
   });
 
-  // Fungsi redirect dinamis
-  const getProductRedirectDetails = (type: string, businessName: string) => {
+  const getProductRedirectDetails = (type: SaasProductType, businessName: string) => {
     const slug = generateSubdomain(businessName);
-    let baseDomain = '';
-
-    switch (type) {
-      case 'lms':
-        baseDomain = 'rsch.my.id';
-        break;
-      case 'siput':
-        baseDomain = 'rsch.my.id';
-        break;
-      case 'scanbite':
-        baseDomain = 'rsch.web.id';
-        break;
-      default:
-        baseDomain = 'rsch.my.id';
-    }
-
-    const url = `https://${slug}.${baseDomain}`;
+    const baseDomain = getProductRedirectDomain(type);
     return {
       name: getProductLabel(type),
-      url: url
+      url: `https://${slug}.${baseDomain}`,
     };
   };
 
@@ -113,24 +94,31 @@ export default function FormPendaftaranSaaS() {
     setFormData(prev => ({ ...prev, product_type: currentProduct }));
   }, [currentProduct]);
 
-  const isCulinary = formData.product_type === 'scanbite';
-  const isSchoolProduct = formData.product_type === 'lms' || formData.product_type === 'siput';
+  const productType = formData.product_type as SaasProductType;
+  const isLms = productType === 'lms';
+  const isSchoolProduct = isMainDbProduct(productType);
+  const isCulinary = isKulinerDbProduct(productType);
+  const needsTablesCount = productType === 'scanbite' || productType === 'resto';
+  const needsOutletCount = productType === 'instafood';
 
-  const getProductLabel = (type: string = formData.product_type) => {
-    switch (type) {
-      case 'lms': return 'Rasya LMS PKBM';
-      case 'scanbite': return 'ScanBite (Cafe & Barista)';
-      case 'siput': return 'SIPUT (Sistem Informasi PAUD Terpadu)';
-      default: return 'Layanan Rasyatech';
-    }
+  const getProductLabel = (type: SaasProductType = productType) => {
+    return SAAS_PRODUCT_OPTIONS.find((o) => o.value === type)?.label ?? 'Layanan Rasyatech';
   };
 
-  const getProductDescription = (type: string = formData.product_type) => {
+  const getProductDescription = (type: SaasProductType = productType) => {
     switch (type) {
-      case 'lms': return 'Learning Management System terpadu untuk PKBM, LKP, dan Satuan Pendidikan Non-Formal.';
-      case 'scanbite': return 'Solusi pemindaian menu makanan cerdas untuk efisiensi operasional cafe.';
-      case 'siput': return 'Aplikasi manajemen data murid, guru, dan kelas untuk PAUD/TK';
-      default: return 'Silakan isi formulir di bawah untuk memulai pendaftaran.';
+      case 'lms':
+        return 'Learning Management System terpadu untuk PKBM, LKP, dan Satuan Pendidikan Non-Formal.';
+      case 'siput':
+        return 'Aplikasi manajemen data murid, guru, dan kelas untuk PAUD/TK.';
+      case 'scanbite':
+        return 'Solusi pemindaian menu makanan cerdas untuk efisiensi operasional cafe.';
+      case 'resto':
+        return 'Point of Sales (POS) handal dengan manajemen stok dan pelaporan komprehensif.';
+      case 'instafood':
+        return 'Manajemen menu digital dan integrasi kurir internal untuk bisnis kuliner modern.';
+      default:
+        return 'Silakan isi formulir di bawah untuk memulai pendaftaran.';
     }
   };
 
@@ -142,16 +130,22 @@ export default function FormPendaftaranSaaS() {
     let submittedPayload: Record<string, unknown> = {};
 
     try {
-      const packageTier = formData.package.trim() || DEFAULT_PACKAGE_TIER;
+      if (isLms && !formData.package.trim()) {
+        throw new Error('Paket langganan wajib dipilih untuk produk LMS.');
+      }
+
+      const packageTier = resolvePackageTierForProduct(
+        productType,
+        formData.package,
+        DEFAULT_PACKAGE_TIER
+      );
       const subdomain = generateSubdomain(formData.business_name);
       const tenantName = formData.business_name.trim();
-      const productApp = formData.product_type;
+      const productApp = toProductApp(productType);
 
       const baseData = {
         full_name: formData.full_name,
         email: formData.email,
-        admin_email: formData.email,
-        admin_name: formData.full_name,
         whatsapp_number: formData.whatsapp,
         whatsapp: formData.whatsapp,
         business_name: tenantName,
@@ -165,7 +159,7 @@ export default function FormPendaftaranSaaS() {
         paket_langganan: packageTier,
         source: 'gerbang_pendaftaran',
         status: 'pending',
-        tenant: productApp,
+        tenant: productType,
       };
 
       if (isSchoolProduct) {
@@ -180,6 +174,7 @@ export default function FormPendaftaranSaaS() {
           business_type: productApp,
           selected_package: packageTier,
           table_count: parseInt(formData.tables_count || '0', 10) || 0,
+          outlet_count: parseInt(formData.outlet_count || '0', 10) || 0,
         };
         const { error: culinaryError } = await supabaseKuliner
           .from('registrations')
@@ -306,9 +301,12 @@ export default function FormPendaftaranSaaS() {
 
           <div className="p-8 bg-[#151C30]/50 border border-slate-800 rounded-[32px] backdrop-blur-xl">
             <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-              {formData.product_type === 'lms' && <School className="w-5 h-5 text-blue-400" />}
-              {formData.product_type === 'scanbite' && <LayoutGrid className="w-5 h-5 text-emerald-400" />}
-              {formData.product_type === 'siput' && <Database className="w-5 h-5 text-emerald-500" />}
+              {productType === 'lms' && <School className="w-5 h-5 text-blue-400" />}
+              {(productType === 'scanbite' || productType === 'resto') && (
+                <LayoutGrid className="w-5 h-5 text-emerald-400" />
+              )}
+              {productType === 'instafood' && <Store className="w-5 h-5 text-orange-400" />}
+              {productType === 'siput' && <Database className="w-5 h-5 text-emerald-500" />}
               {getProductLabel()}
             </h3>
             <p className="text-slate-400 italic">
@@ -358,13 +356,19 @@ export default function FormPendaftaranSaaS() {
                   required
                   value={formData.product_type}
                   onChange={(e) =>
-                    setFormData({ ...formData, product_type: e.target.value as ProductType, package: '' })
+                    setFormData({
+                      ...formData,
+                      product_type: e.target.value as SaasProductType,
+                      package: '',
+                    })
                   }
                   className="w-full bg-[#0A0F1E] border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all appearance-none"
                 >
-                  <option value="lms">LMS (Kesetaraan / PKBM)</option>
-                  <option value="siput">SIPUT (PAUD)</option>
-                  <option value="scanbite">SCANBITE (Kuliner)</option>
+                  {SAAS_PRODUCT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -419,7 +423,7 @@ export default function FormPendaftaranSaaS() {
 
               <div className="space-y-2">
                 <label className="block text-xs font-black text-slate-500 uppercase tracking-widest px-1">
-                  {formData.product_type === 'lms' || formData.product_type === 'siput' ? 'Nama Sekolah / Instansi' : 'Nama Bisnis / Restoran'}
+                  {isSchoolProduct ? 'Nama Sekolah / Instansi' : 'Nama Bisnis / Restoran'}
                 </label>
                 <div className="relative">
                   <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-600" />
@@ -428,33 +432,53 @@ export default function FormPendaftaranSaaS() {
                     type="text"
                     value={formData.business_name}
                     onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
-                    placeholder={formData.product_type === 'lms' || formData.product_type === 'siput' ? 'PKBM Melati' : 'RM Padang Asli'}
+                    placeholder={isSchoolProduct ? 'PKBM Melati' : 'RM Padang Asli'}
                     className="w-full bg-[#0A0F1E] border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest px-1">
-                Paket Langganan
-              </label>
-              <select
-                value={formData.package}
-                onChange={(e) => setFormData({ ...formData, package: e.target.value })}
-                className="w-full bg-[#0A0F1E] border border-slate-800 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
-              >
-                <option value="">Basic (default)</option>
-                <option value="basic">Basic</option>
-                <option value="silver">Silver</option>
-                <option value="gold">Gold</option>
-                <option value="platinum">Platinum</option>
-              </select>
-            </div>
-
-            {/* Dynamic Fields Section */}
             <AnimatePresence mode="wait">
-              {formData.product_type === 'scanbite' && (
+              {isLms && (
+                <motion.div
+                  key="lms-package"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-2"
+                >
+                  <label className="block text-xs font-black text-blue-400 uppercase tracking-widest px-1">
+                    Paket Langganan LMS <span className="text-rose-400">*</span>
+                  </label>
+                  <select
+                    required
+                    value={formData.package}
+                    onChange={(e) => setFormData({ ...formData, package: e.target.value })}
+                    className="w-full bg-[#0A0F1E] border border-blue-500/20 rounded-2xl py-4 px-4 text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
+                  >
+                    <option value="">-- Pilih Paket LMS --</option>
+                    <option value="basic">Basic</option>
+                    <option value="silver">Silver</option>
+                    <option value="gold">Gold</option>
+                    <option value="platinum">Platinum</option>
+                  </select>
+                </motion.div>
+              )}
+
+              {!isLms && (
+                <motion.p
+                  key="free-tier-hint"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-xs text-slate-500 px-1"
+                >
+                  Paket untuk {getProductLabel()}: <span className="text-emerald-400 font-bold">FREE</span>{' '}
+                  (otomatis)
+                </motion.p>
+              )}
+
+              {needsTablesCount && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -471,6 +495,31 @@ export default function FormPendaftaranSaaS() {
                       onChange={(e) => setFormData({ ...formData, tables_count: e.target.value })}
                       placeholder="Contoh: 25"
                       className="w-full bg-[#0A0F1E] border border-blue-500/20 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500/50 transition-all placeholder:text-slate-700"
+                    />
+                  </div>
+                </motion.div>
+              )}
+
+              {needsOutletCount && (
+                <motion.div
+                  key="outlet-count"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-2"
+                >
+                  <label className="block text-xs font-black text-orange-400 uppercase tracking-widest px-1">
+                    Jumlah Outlet / Kurir Internal
+                  </label>
+                  <div className="relative">
+                    <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-500/50" />
+                    <input
+                      required
+                      type="number"
+                      value={formData.outlet_count}
+                      onChange={(e) => setFormData({ ...formData, outlet_count: e.target.value })}
+                      placeholder="Contoh: 5"
+                      className="w-full bg-[#0A0F1E] border border-orange-500/20 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-orange-500/50 transition-all placeholder:text-slate-700"
                     />
                   </div>
                 </motion.div>

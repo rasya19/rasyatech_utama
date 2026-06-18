@@ -48,6 +48,11 @@ export function logSupabaseInsertError(
 }
 
 export function resolvePackageTier(row: Record<string, unknown>): string {
+  const product = String(row.product_app || row.product_type || '').toUpperCase();
+  if (product && product !== 'LMS') {
+    return 'free';
+  }
+
   const tier = String(
     row.package_tier ||
       row.paket_langganan ||
@@ -63,16 +68,21 @@ export function resolveProductApp(
   registrationRow: Record<string, unknown>,
   subdomain: string
 ): string {
-  const fromInstitutional = inferProductAppFromInstitutionalSlug(subdomain);
-  if (fromInstitutional) return fromInstitutional;
-
-  if (tab === 'siput') return 'siput';
-  if (tab === 'lms') return 'lms';
-  if (tab === 'scanbite') return 'scanbite';
-
-  return String(registrationRow.product_app || registrationRow.product_type || 'lms')
+  const fromRow = String(registrationRow.product_app || registrationRow.product_type || '')
     .trim()
-    .toLowerCase();
+    .toUpperCase();
+  if (fromRow) return fromRow;
+
+  const fromInstitutional = inferProductAppFromInstitutionalSlug(subdomain);
+  if (fromInstitutional) return fromInstitutional.toUpperCase();
+
+  if (tab === 'siput') return 'SIPUT';
+  if (tab === 'lms') return 'LMS';
+  if (tab === 'scanbite') return 'SCANBITE';
+  if (tab === 'restoran_asli') return 'RESTO';
+  if (tab === 'instafoto') return 'INSTAFOOD';
+
+  return 'LMS';
 }
 
 export function registrationDisplayName(row: Record<string, unknown>, fallback: string): string {

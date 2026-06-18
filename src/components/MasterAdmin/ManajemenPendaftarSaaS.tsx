@@ -63,7 +63,9 @@ function getDbClient(tab: ProductType) {
 }
 
 function getProductTypeValue(row: Record<string, unknown>): string {
-  return String(row.product_type || row.product_name || row.business_type || '').toLowerCase();
+  return String(
+    row.product_app || row.product_type || row.product_name || row.business_type || ''
+  ).toLowerCase();
 }
 
 function matchesActiveTab(row: Record<string, unknown>, tab: ProductType): boolean {
