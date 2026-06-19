@@ -17,6 +17,7 @@ import {
   buildProvisioningSubdomain,
   sanitizeTenantInsertPayload,
   sanitizeKulinerTenantInsertPayload,
+  insertRowAdaptive,
 } from './tenant-insert-utils';
 import { getKulinerTenantDomain, getEduTenantDomain } from './tenant-url';
 
@@ -123,18 +124,12 @@ export async function provisionMainTenantOnApproval(
   const payload = sanitizeTenantInsertPayload(insertRow, tenantDomain);
   console.log('[provision-main-tenant] INSERT DB produk:', productType, payload);
 
-  const { data, error } = await tenantClient
-    .from('tenant')
-    .insert([payload])
-    .select('id')
-    .single();
-
-  if (error) {
-    logSupabaseInsertError('provision-main-tenant', error, payload);
-    throw new Error(
-      `Gagal membuat tenant (${productType}): ${error.message} | kolom: ${Object.keys(payload).join(', ')}`
-    );
-  }
+  const data = await insertRowAdaptive(
+    tenantClient,
+    'tenant',
+    payload,
+    'provision-main-tenant'
+  );
 
   return {
     tenantId: data?.id ? String(data.id) : null,

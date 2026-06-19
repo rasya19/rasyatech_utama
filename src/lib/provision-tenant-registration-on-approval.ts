@@ -6,6 +6,7 @@ import {
   logSupabaseInsertError,
   normalizeTenantSubdomain,
   stripUndefinedPayloadFields,
+  insertRowAdaptive,
 } from './tenant-insert-utils';
 import {
   deriveSlugFromRegistration,
@@ -235,14 +236,12 @@ export async function provisionTenantRegistrationOnApproval(
     provisioningSubdomain
   );
 
-  const { error: insertError } = await tenantClient
-    .from('registrations')
-    .insert([registrationPayload]);
-
-  if (insertError) {
-    logSupabaseInsertError('provision-tenant-registration.insert', insertError, registrationPayload);
-    throw new Error(`Gagal insert registrations di DB tenant: ${insertError.message}`);
-  }
+  await insertRowAdaptive(
+    tenantClient,
+    'registrations',
+    registrationPayload,
+    'provision-tenant-registration'
+  );
 
   return {
     tenant,
