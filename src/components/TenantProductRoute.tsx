@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import TenantDashboard from './TenantDashboard';
 import SchoolLogin from './SchoolLogin';
+import ExternalProductLoginRedirect from './ExternalProductLoginRedirect';
 import { parseTenantHostname } from '../lib/tenant-host-parser';
+import { resolveExternalProductFromPillar } from '../lib/product-external-urls';
 
 type TenantProductPillar = 'lms' | 'siput' | 'scanbite' | 'resto' | 'instafood' | 'kuliner';
 
@@ -46,6 +48,13 @@ export default function TenantProductRoute({ pillar }: TenantProductRouteProps) 
       <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-600">
         Subdomain tenant tidak ditemukan.
       </div>
+    );
+  }
+
+  const externalProduct = resolveExternalProductFromPillar(pillar);
+  if (externalProduct) {
+    return (
+      <ExternalProductLoginRedirect product={externalProduct} tenantSubdomain={subdomain} />
     );
   }
 
