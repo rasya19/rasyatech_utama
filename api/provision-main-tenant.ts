@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { PendaftarProductTab } from '../src/lib/pendaftar-mutations';
-import { provisionMainTenantOnApprovalServer } from '../src/lib/provision-tenant-server';
-import { provisionKulinerTenantOnApprovalServer } from '../src/lib/provision-tenant-server';
+import type { PendaftarProductTab } from './_lib/pendaftar-mutations';
+import { provisionMainTenantOnApprovalServer } from './_lib/provision-tenant-server';
+import { provisionKulinerTenantOnApprovalServer } from './_lib/provision-tenant-server';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') {
@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? await provisionMainTenantOnApprovalServer(productTab, registrationRow)
         : await provisionKulinerTenantOnApprovalServer(productTab, registrationRow);
 
-    return res.status(200).json(result);
+    return res.status(201).json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal error';
     console.error('[api/provision-main-tenant]', message);

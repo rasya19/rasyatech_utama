@@ -1,0 +1,67 @@
+import type { SaasProductApp, SaasProductType } from './saas-product-options';
+import { getSaasProductPortalUrl } from './saas-products';
+
+export type ExternalProductKey = 'siput' | 'lms';
+
+function readEnv(key: string, fallback: string): string {
+  if (typeof import.meta !== 'undefined') {
+    const value = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.[key];
+    if (value?.trim()) return value.trim();
+  }
+  if (typeof process !== 'undefined' && process.env?.[key]) {
+    return String(process.env[key]).trim();
+  }
+  return fallback;
+}
+
+function getProductAppBaseUrl(product: ExternalProductKey): string {
+  if (product === 'siput') {
+    return readEnv('VITE_SIPUT_APP_URL', getSaasProductPortalUrl('siput'));
+  }
+  return readEnv('VITE_LMS_APP_URL', getSaasProductPortalUrl('lms'));
+}
+
+function getProductLoginPath(product: ExternalProductKey): string {
+  if (product === 'siput') {
+    return readEnv('VITE_SIPUT_TENANT_LOGIN_PATH', '/login');
+  }
+  return readEnv('VITE_LMS_TENANT_LOGIN_PATH', '/login');
+}
+
+/**
+ * URL login aplikasi produk asli (SIPUT / LMS) dengan konteks tenant.
+ * Contoh: https://siput.rsch.my.id/login?tenant=tkarmillanusa&subdomain=tkarmillanusa
+ */
+export function buildExternalProductTenantLoginUrl(
+  product: ExternalProductKey,
+  tenantSubdomain: string
+): string {
+  const base = getProductAppBaseUrl(product).replace(/\/$/, '');
+  const path = getProductLoginPath(product).replace(/^\/?/, '/');
+  const slug = tenantSubdomain.trim().toLowerCase();
+
+  const url = new URL(`${base}${path}`);
+  const tenantParam = readEnv('VITE_TENANT_QUERY_PARAM', 'tenant');
+  url.searchParams.set(tenantParam, slug);
+  url.searchParams.set('subdomain', slug);
+  url.searchParams.set('kode_tenant', slug);
+  return url.toString();
+}
+
+export function shouldUseExternalProductApp(
+  product: SaasProductApp | SaasProductType | string
+): product is ExternalProductKey {
+  const key = String(product).toLowerCase();
+  return key === 'siput' || key === 'lms';
+}
+
+export function resolveExternalProductFromPillar(
+  pillar: string
+): ExternalProductKey | null {
+  if (pillar === 'siput') return 'siput';
+  if (pillar === 'lms') return 'lms';
+  return null;
+}
+
+/** @deprecated Pakai `product-external-urls-edge.ts` di middleware. */
+export { buildExternalProductTenantLoginUrlEdge } from './product-external-urls-edge';

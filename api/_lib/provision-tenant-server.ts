@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PendaftarProductTab } from './pendaftar-mutations';
 import { kulinerTenantString } from './pendaftar-mutations';
 import { getSupabaseAdmin, type SupabaseAdminProduct } from './supabase-clients';
-import type { ProductType } from './types/products';
+import type { ProductType } from './products';
 import {
   buildMainTenantInsertRow,
   logSupabaseInsertError,
@@ -20,7 +20,7 @@ import { getKulinerTenantDomain, getEduTenantDomain } from './tenant-url';
 import {
   deriveSlugFromRegistration,
   type ProvisionResult,
-} from './provision-tenant-on-approval';
+} from './provision-slug';
 
 function tabToAdminProduct(tab: PendaftarProductTab): SupabaseAdminProduct {
   return tab === 'siput' ? 'siput' : 'lms';

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { TenantProductDbTab } from '../src/lib/create-tenant-client';
-import { provisionTenantRegistrationOnApprovalServer } from '../src/lib/provision-tenant-registration-server';
+import type { TenantProductDbTab } from './_lib/provision-registration-shared';
+import { provisionTenantRegistrationOnApprovalServer } from './_lib/provision-tenant-registration-server';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') {
@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       tab as TenantProductDbTab,
       registrationRow
     );
-    return res.status(200).json(result);
+    return res.status(201).json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal error';
     console.error('[api/provision-tenant-registration]', message);
