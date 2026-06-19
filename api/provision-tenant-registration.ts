@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { supabaseAdminSiput } from './_lib/supabaseSiput';
 import type { TenantProductDbTab } from './_lib/provision-registration-shared';
 import { provisionTenantRegistrationOnApprovalServer } from './_lib/provision-tenant-registration-server';
 
@@ -23,14 +24,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    if (tab === 'siput') {
+      // Validasi koneksi DB SIPUT sebelum provisioning (service role terpisah dari master/LMS)
+      supabaseAdminSiput();
+    }
+
     const result = await provisionTenantRegistrationOnApprovalServer(
       tab as TenantProductDbTab,
       registrationRow
     );
     return res.status(201).json(result);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Internal error';
-    console.error('[api/provision-tenant-registration]', message);
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error('[api/provision-tenant-registration] FAILED:', {
+      message,
+      stack,
+      tab,
+      registrationId: registrationRow?.id,
+      email: registrationRow?.email,
+      error,
+    });
     return res.status(500).json({ error: message });
   }
 }

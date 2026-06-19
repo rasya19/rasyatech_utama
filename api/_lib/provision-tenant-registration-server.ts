@@ -1,4 +1,4 @@
-import type { PendaftarProductTab } from './pendaftar-mutations';
+import { getSupabaseAdminSiput } from './supabaseSiput';
 import { getSupabaseAdmin } from './supabase-clients';
 import {
   buildProvisioningSubdomain,
@@ -69,7 +69,7 @@ export async function provisionTenantRegistrationOnApprovalServer(
   tab: TenantProductDbTab,
   registrationRow: Record<string, unknown>
 ): Promise<TenantRegistrationProvisionResult> {
-  const tenantClient = getSupabaseAdmin(tab);
+  const tenantClient = tab === 'siput' ? getSupabaseAdminSiput() : getSupabaseAdmin(tab);
   const cleanSlug = normalizeTenantSubdomain(deriveSlugFromRegistration(registrationRow));
   const provisioningSubdomain = buildProvisioningSubdomain(cleanSlug, tab);
 

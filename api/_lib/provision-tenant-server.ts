@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PendaftarProductTab } from './pendaftar-mutations';
 import { kulinerTenantString } from './pendaftar-mutations';
-import { getSupabaseAdmin, type SupabaseAdminProduct } from './supabase-clients';
+import { getSupabaseAdminSiput } from './supabaseSiput';
+import { getSupabaseAdmin } from './supabase-clients';
 import type { ProductType } from './products';
 import {
   buildMainTenantInsertRow,
@@ -21,10 +22,6 @@ import {
   deriveSlugFromRegistration,
   type ProvisionResult,
 } from './provision-slug';
-
-function tabToAdminProduct(tab: PendaftarProductTab): SupabaseAdminProduct {
-  return tab === 'siput' ? 'siput' : 'lms';
-}
 
 function tabToProductType(tab: PendaftarProductTab): ProductType {
   switch (tab) {
@@ -49,8 +46,11 @@ function isUuid(value: unknown): boolean {
 }
 
 function getTenantAdminClient(tab: PendaftarProductTab): SupabaseClient {
-  if (tab === 'siput' || tab === 'lms') {
-    return getSupabaseAdmin(tabToAdminProduct(tab));
+  if (tab === 'siput') {
+    return getSupabaseAdminSiput();
+  }
+  if (tab === 'lms') {
+    return getSupabaseAdmin('lms');
   }
   return getSupabaseAdmin('kuliner');
 }
