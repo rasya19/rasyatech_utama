@@ -10,6 +10,11 @@ import {
 import { provisionTenantAuthUser } from "./_lib/provision-tenant-auth-server";
 import { provisionMainTenantOnApprovalServer, provisionKulinerTenantOnApprovalServer } from "./_lib/provision-tenant-server";
 import { provisionTenantRegistrationOnApprovalServer } from "./_lib/provision-tenant-registration-server";
+import {
+  logProvisioningEnvCheck,
+  logProvisioningError,
+  serializeProvisioningError,
+} from "./_lib/provision-debug";
 
 const app = express();
 
@@ -94,7 +99,10 @@ app.post("/api/provision-main-tenant", async (req, res) => {
 });
 
 app.post("/api/provision-tenant-registration", async (req, res) => {
+  console.log("[BE] Raw request body:", req.body || {});
   const { tab, registrationRow } = req.body || {};
+  logProvisioningEnvCheck(String(tab || "unknown"));
+
   if (tab !== "lms" && tab !== "siput") {
     return res.status(400).json({ error: "tab harus lms atau siput" });
   }
@@ -110,9 +118,16 @@ app.post("/api/provision-tenant-registration", async (req, res) => {
     const result = await provisionTenantRegistrationOnApprovalServer(tab, registrationRow);
     return res.status(201).json(result);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Internal error";
-    console.error("[api/index provision-tenant-registration]", message, error);
-    return res.status(500).json({ error: message, step: "provision-tenant-registration" });
+    logProvisioningError("api/index provision-tenant-registration", error);
+    const detail = serializeProvisioningError(error);
+    return res.status(500).json({
+      error: "Provisioning gagal",
+      detail: detail.message,
+      step: "provision-tenant-registration",
+      code: detail.code,
+      hint: detail.hint,
+      details: detail.details,
+    });
   }
 });
 

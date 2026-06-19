@@ -77,6 +77,16 @@ export async function provisionMainTenantOnApprovalServer(
     tenantDomain
   );
 
+  console.log('[BE] Mau insert tenant ke DB produk:', {
+    tab,
+    productType,
+    table: 'tenant',
+    slug: provisioningSubdomain,
+    cleanSlug,
+    npsn: registrationRow.npsn,
+    paket: insertRow.package_tier,
+  });
+
   const { data: existing, error: lookupError } = await tenantClient
     .from('tenant')
     .select('id')

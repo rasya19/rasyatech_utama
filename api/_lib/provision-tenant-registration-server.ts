@@ -17,6 +17,7 @@ import {
   type TenantProductDbTab,
   type TenantRegistrationProvisionResult,
 } from './provision-registration-shared';
+import { logProvisioningError } from './provision-debug';
 
 function resolveRegistrationEmail(row: Record<string, unknown>): string {
   const email = String(row.email || row.admin_email || '').trim();
@@ -73,10 +74,25 @@ export async function provisionTenantRegistrationOnApprovalServer(
   const cleanSlug = normalizeTenantSubdomain(deriveSlugFromRegistration(registrationRow));
   const provisioningSubdomain = buildProvisioningSubdomain(cleanSlug, tab);
 
+  console.log('[BE] Mau provisioning tenant (server):', {
+    tab,
+    cleanSlug,
+    slug: provisioningSubdomain,
+    email: registrationRow.email,
+    npsn: registrationRow.npsn,
+    paket:
+      registrationRow.package_tier ||
+      registrationRow.selected_package ||
+      registrationRow.paket_langganan,
+  });
+
   let tenant;
   try {
+    console.log('[BE] Langkah 1/3 — insert tenant, slug:', provisioningSubdomain);
     tenant = await provisionMainTenantOnApprovalServer(tab, registrationRow);
+    console.log('[BE] Langkah 1/3 OK — tenant:', tenant);
   } catch (error) {
+    logProvisioningError('step-tenant-insert', error);
     throw new Error(`[tenant] ${formatStepError(error)}`);
   }
 
@@ -87,6 +103,7 @@ export async function provisionTenantRegistrationOnApprovalServer(
 
   let authResult;
   try {
+    console.log('[BE] Langkah 2/3 — buat auth user, email:', email);
     authResult = await provisionTenantAuthUser({
       product: tab,
       email,
@@ -98,7 +115,13 @@ export async function provisionTenantRegistrationOnApprovalServer(
         business_name: String(registrationRow.business_name || registrationRow.school_name || '').trim(),
       },
     });
+    console.log('[BE] Langkah 2/3 OK — auth:', {
+      userId: authResult.userId,
+      created: authResult.created,
+      magicLinkSent: authResult.magicLinkSent,
+    });
   } catch (error) {
+    logProvisioningError('step-auth-create', error);
     throw new Error(`[auth] ${formatStepError(error)}`);
   }
 
@@ -118,13 +141,16 @@ export async function provisionTenantRegistrationOnApprovalServer(
   );
 
   try {
+    console.log('[BE] Langkah 3/3 — insert registrations, tenant_id:', tenant.tenantId);
     await insertRowAdaptive(
       tenantClient,
       'registrations',
       registrationPayload,
       'provision-tenant-registration'
     );
+    console.log('[BE] Langkah 3/3 OK — registrations inserted');
   } catch (error) {
+    logProvisioningError('step-registrations-insert', error);
     throw new Error(`[registrations] ${formatStepError(error)}`);
   }
 

@@ -279,6 +279,25 @@ export default function ManajemenPendaftarSaaS({
     const masterClient = getDbClient(activeTab);
     const mergedRow = { ...item._raw };
 
+    const cleanSlug = normalizeTenantSubdomain(deriveSlugFromRegistration(mergedRow));
+    const slug = buildProvisioningSubdomain(cleanSlug, activeTab);
+
+    console.log('[FE] SETUJUI — mulai provisioning:', {
+      tab: activeTab,
+      rowId,
+      tenantId: mergedRow.tenant_id ?? mergedRow.tenant_master_id ?? null,
+      slug,
+      npsn: mergedRow.npsn,
+      paket: mergedRow.package_tier ?? mergedRow.selected_package ?? mergedRow.paket_langganan,
+      email: item.email,
+      business_name: item.business_name,
+    });
+
+    if (!slug) {
+      console.error('[FE] SLUG KOSONG!', { activeTab, mergedRow, cleanSlug });
+      throw new Error('Subdomain/slug kosong — tidak bisa provisioning tenant.');
+    }
+
     const provision = await provisionTenantRegistrationOnApproval(activeTab, mergedRow);
 
     const { error: deleteError } = await masterClient
