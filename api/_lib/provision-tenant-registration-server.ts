@@ -1,4 +1,4 @@
-import { getSupabaseAdminSiput } from './supabaseSiput';
+import { getSupabaseAdminSiput } from './_lib/supabaseSiput.js'
 import { getSupabaseAdmin } from './supabase-clients';
 import {
   buildProvisioningSubdomain,
