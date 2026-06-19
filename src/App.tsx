@@ -21,6 +21,7 @@ import {
   parseTenantHostname,
   resolveTenantProductPillarFromParsed,
   shouldSkipLandingSplash,
+  isRasyatechPortalHostname,
 } from './lib/subdomain-utils';
 import UnknownTenantHost from './components/UnknownTenantHost';
 
@@ -51,12 +52,16 @@ function LandingOrRedirect() {
   return <RasyatechLanding />;
 }
 
-/** Domain utama → Master Admin; subdomain tenant → dashboard tenant. */
+/** Domain utama / portal Rasyatech → Master Admin; subdomain tenant → dashboard tenant. */
 function AdminEntry() {
+  const hostname = window.location.hostname;
   const subdomain = useSubdomain();
-  const onTenantHost = isTenantHostname(window.location.hostname);
 
-  if (onTenantHost && subdomain) {
+  if (isRasyatechPortalHostname(hostname)) {
+    return <MasterAdmin />;
+  }
+
+  if (isTenantHostname(hostname) && subdomain) {
     return <TenantDashboard />;
   }
 

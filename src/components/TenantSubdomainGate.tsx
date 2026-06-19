@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { parseTenantHostname, isInternalTenantPath } from '../lib/tenant-host-parser';
+import { parseTenantHostname, isInternalTenantPath, isMasterAdminPath } from '../lib/tenant-host-parser';
 
 /**
  * Pada hostname tenant: sembunyikan path internal /_siput/... di bilah URL → tetap `/`.
@@ -13,9 +13,9 @@ export default function TenantSubdomainGate() {
     const parsed = parseTenantHostname(window.location.hostname);
     if (!parsed) return;
 
+    if (isMasterAdminPath(location.pathname)) return;
+
     const reservedPaths =
-      location.pathname === '/admin' ||
-      location.pathname.startsWith('/admin/') ||
       location.pathname === '/reset-password' ||
       location.pathname === '/login-sekolah' ||
       location.pathname === '/daftar';

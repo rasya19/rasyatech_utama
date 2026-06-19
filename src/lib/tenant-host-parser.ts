@@ -382,6 +382,38 @@ export function isMainDomainHostname(hostname: string): boolean {
   return isApexLandingHostname(hostname);
 }
 
+/**
+ * Host portal utama Rasyatech (landing + master admin).
+ * Termasuk apex (rsch.my.id) dan subdomain portal (rasyatech.rsch.my.id).
+ */
+export function isRasyatechPortalHostname(hostname: string): boolean {
+  if (isMainDomainHostname(hostname)) return true;
+
+  const h = hostname.split(':')[0].toLowerCase();
+  for (const base of getTenantBaseDomains()) {
+    const parts = h.split('.');
+    const baseParts = base.split('.');
+    if (parts.slice(-baseParts.length).join('.') !== base) continue;
+
+    const prefix = parts.slice(0, parts.length - baseParts.length);
+    if (prefix.length === 1 && PORTAL_SLUGS.has(prefix[0])) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/** Path yang hanya untuk master admin Rasyatech — jangan rewrite ke tenant. */
+export function isMasterAdminPath(pathname: string): boolean {
+  return (
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
+    pathname === '/master-admin' ||
+    pathname.startsWith('/master-admin/')
+  );
+}
+
 /** Hostname punya subdomain tenant yang bisa di-route (heuristik + DB di middleware). */
 export function isTenantHostname(hostname: string): boolean {
   if (isMainDomainHostname(hostname)) return false;
