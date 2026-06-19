@@ -123,7 +123,7 @@ export async function provisionTenantRegistrationOnApproval(
     }
   }
 
-  if (!response.ok) {
+  if (!response.ok || body.ok === false) {
     const detail =
       body.detail ||
       body.error ||
@@ -140,5 +140,6 @@ export async function provisionTenantRegistrationOnApproval(
     throw new Error(String(detail || `Provisioning gagal (HTTP ${response.status}).`));
   }
 
-  return body as TenantRegistrationProvisionResult;
+  const data = body.data ?? body;
+  return data as TenantRegistrationProvisionResult;
 }
