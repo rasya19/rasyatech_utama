@@ -242,12 +242,16 @@ export default function ManajemenPendaftarSaaS({
       if (fetchError) throw fetchError;
 
       const rows = (rawRows as Record<string, unknown>[]) || [];
+      // Di dalam fetchData
       const filtered = rows.filter((row) => matchesActiveTab(row, activeTab));
+
+      if (process.env.NODE_ENV === 'development') {
       console.log('[FE] fetchData - total rows:', rows.length);
       console.log('[FE] fetchData - filtered rows:', filtered.length);
       console.log('[FE] fetchData - filtered data:', filtered);
-      const mapped = sortByCreatedAtDesc(filtered.map((row) => mapRowToPendaftar(row, activeTab)));
+}
 
+const mapped = sortByCreatedAtDesc(filtered.map((row) => mapRowToPendaftar(row, activeTab)));
       setData(mapped);
       await refreshTotalPendaftar();
     } catch (err: unknown) {
