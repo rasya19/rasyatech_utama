@@ -184,6 +184,10 @@ export default async function middleware(request: Request) {
     logMiddlewareDecision(hostname, pathname, '(passthrough — hostname non-tenant)');
     return;
   }
+  if (resolved.productRoute === 'siput' && (pathname === '/' || pathname === '')) {
+    // GANTI string ini dengan path route asli komponen Login Admin Sekolah Anda
+    resolved.targetPath = '/auth/admin-login'; 
+  }
 
   return middlewareRewrite(
     request,
