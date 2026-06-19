@@ -33,9 +33,19 @@ function mapParsedPillar(parsed: NonNullable<ReturnType<typeof parseTenantHostna
   return pillar;
 }
 
-/** Subdomain tenant → portal produk langsung di `/` (bukan landing Rasyatech). */
 function LandingOrRedirect() {
   const hostname = window.location.hostname;
+  const pathname = window.location.pathname;
+
+  if (pathname === '/login' || pathname === '/login-sekolah') {
+    const parsed = parseTenantHostname(hostname);
+    const pillar = parsed? resolveTenantProductPillarFromParsed(parsed) : null;
+    
+    if (pillar === 'siput') {
+      return <SchoolLogin />;
+    }
+    return <Navigate to="/" replace />;
+  }
 
   if (isUnresolvedTenantHostname(hostname)) {
     return <UnknownTenantHost />;
@@ -52,7 +62,6 @@ function LandingOrRedirect() {
   return <RasyatechLanding />;
 }
 
-/** Domain utama / portal Rasyatech → Master Admin; subdomain tenant → dashboard tenant. */
 function AdminEntry() {
   const hostname = window.location.hostname;
   const subdomain = useSubdomain();
@@ -81,6 +90,9 @@ function TenantCatchAll() {
 
 function AppRoutes() {
   const navigate = useNavigate();
+  const hostname = window.location.hostname;
+  const parsed = parseTenantHostname(hostname);
+  const pillar = parsed? resolveTenantProductPillarFromParsed(parsed) : null;
 
   useEffect(() => {
     if (window.location.hash && window.location.hash.includes('type=recovery')) {
@@ -100,6 +112,23 @@ function AppRoutes() {
     <>
       <TenantSubdomainGate />
       <Routes>
+        <Route 
+          path="/login" 
+          element={
+            pillar === 'siput' 
+             ? <SchoolLogin /> 
+              : <Navigate to="/" replace />
+          } 
+        />
+        <Route 
+          path="/login-sekolah" 
+          element={
+            pillar === 'siput' 
+             ? <SchoolLogin /> 
+              : <Navigate to="/" replace />
+          } 
+        />
+        
         <Route path="/" element={<LandingOrRedirect />} />
 
         <Route path="/master-admin" element={<Navigate to="/admin" replace />} />
@@ -118,7 +147,6 @@ function AppRoutes() {
         <Route path="/kuliner/:subdomain" element={<TenantProductRoute pillar="kuliner" />} />
 
         <Route path="/affiliate/portal" element={<AffiliatePortal />} />
-        <Route path="/login-sekolah" element={<SchoolLogin />} />
         <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
         <Route path="/daftar" element={<FormPendaftaranSaaS />} />
 
@@ -131,7 +159,7 @@ function AppRoutes() {
 export default function App() {
   const [showSplash, setShowSplash] = useState(() => {
     if (typeof window === 'undefined') return true;
-    return !shouldSkipLandingSplash(window.location.hostname, window.location.pathname);
+    return!shouldSkipLandingSplash(window.location.hostname, window.location.pathname);
   });
 
   return (
@@ -145,9 +173,3 @@ export default function App() {
               }}
             />
           )}
-          <AppRoutes />
-        </Router>
-      </LandingDataProvider>
-    </SubdomainProvider>
-  );
-}
