@@ -1,5 +1,12 @@
-import { getSupabaseAdminSiput } from './_lib/supabaseSiput.js'
+import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from './supabase-clients';
+
+function getSupabaseAdminSiput() {
+  return createClient(
+    process.env.SIPUT_SUPABASE_URL!,
+    process.env.SIPUT_SERVICE_ROLE_KEY!
+  );
+}
 import {
   buildProvisioningSubdomain,
   normalizeTenantSubdomain,

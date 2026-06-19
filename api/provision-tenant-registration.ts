@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSupabaseAdminSiput } from './_lib/supabaseSiput';
+import { createClient } from '@supabase/supabase-js';
 import type { TenantProductDbTab } from './_lib/provision-registration-shared';
 import { provisionTenantRegistrationOnApprovalServer } from './_lib/provision-tenant-registration-server';
 import {
@@ -7,6 +7,13 @@ import {
   logProvisioningError,
   serializeProvisioningError,
 } from './_lib/provision-debug';
+
+function getSupabaseAdminSiput() {
+  return createClient(
+    process.env.SIPUT_SUPABASE_URL!,
+    process.env.SIPUT_SERVICE_ROLE_KEY!
+  );
+}
 
 export const config = {
   api: {

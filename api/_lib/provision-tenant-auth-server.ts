@@ -1,5 +1,12 @@
-import { getSupabaseAdminSiput } from './supabaseSiput';
+import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin, type SupabaseAdminProduct } from './supabase-clients';
+
+function getSupabaseAdminSiput() {
+  return createClient(
+    process.env.SIPUT_SUPABASE_URL!,
+    process.env.SIPUT_SERVICE_ROLE_KEY!
+  );
+}
 
 export type TenantAuthProduct = SupabaseAdminProduct;
 

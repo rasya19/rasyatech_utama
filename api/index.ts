@@ -112,8 +112,11 @@ app.post("/api/provision-tenant-registration", async (req, res) => {
 
   try {
     if (tab === "siput") {
-      const { getSupabaseAdminSiput } = await import("./_lib/supabaseSiput");
-      getSupabaseAdminSiput();
+      const { createClient } = await import("@supabase/supabase-js");
+      createClient(
+        process.env.SIPUT_SUPABASE_URL!,
+        process.env.SIPUT_SERVICE_ROLE_KEY!
+      );
     }
     const result = await provisionTenantRegistrationOnApprovalServer(tab, registrationRow);
     return res.status(201).json(result);
