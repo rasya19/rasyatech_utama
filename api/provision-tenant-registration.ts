@@ -14,6 +14,7 @@ export const config = {
       sizeLimit: '4mb',
     },
   },
+  runtime: 'nodejs',
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

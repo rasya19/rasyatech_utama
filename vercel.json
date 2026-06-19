@@ -1,4 +1,18 @@
 {
+  "functions": {
+    "api/provision-tenant-registration.ts": {
+      "maxDuration": 60,
+      "includeFiles": "api/_lib/**"
+    },
+    "api/provision-main-tenant.ts": {
+      "maxDuration": 60,
+      "includeFiles": "api/_lib/**"
+    },
+    "api/provision-tenant-auth.ts": {
+      "maxDuration": 30,
+      "includeFiles": "api/_lib/**"
+    }
+  },
   "redirects": [
     {
       "source": "/master-admin",

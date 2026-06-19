@@ -76,8 +76,18 @@ export const SAAS_PRODUCTS: SaasProduct[] = [
   },
 ];
 
-export const TENANT_SUBDOMAIN_DOMAIN =
-  import.meta.env.VITE_TENANT_DOMAIN || 'rsch.my.id';
+function readEnv(key: string, fallback: string): string {
+  if (typeof process !== 'undefined' && process.env?.[key]) {
+    return String(process.env[key]).trim();
+  }
+  if (typeof import.meta !== 'undefined') {
+    const value = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.[key];
+    if (value?.trim()) return value.trim();
+  }
+  return fallback;
+}
+
+export const TENANT_SUBDOMAIN_DOMAIN = readEnv('VITE_TENANT_DOMAIN', 'rsch.my.id');
 
 export function getSaasProduct(id: string): SaasProduct | undefined {
   return SAAS_PRODUCTS.find((p) => p.id === id);

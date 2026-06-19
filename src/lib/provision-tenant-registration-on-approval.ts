@@ -128,7 +128,10 @@ export async function provisionTenantRegistrationOnApproval(
       body.detail ||
       body.error ||
       body.message ||
-      (typeof body.step === 'string' ? `Gagal di langkah ${body.step}` : null);
+      (typeof body.step === 'string' ? `Gagal di langkah ${body.step}` : null) ||
+      (responseText && !responseText.startsWith('{')
+        ? responseText.trim().slice(0, 300)
+        : null);
     console.error('[FE] Provisioning gagal:', {
       status: response.status,
       detail,
