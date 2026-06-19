@@ -17,7 +17,6 @@ import {
   deriveSlugFromRegistration,
 } from '../../lib/provision-tenant-on-approval';
 import { provisionTenantRegistrationOnApproval } from '../../lib/provision-tenant-registration-on-approval';
-import { createTenantProductClient } from '../../lib/create-tenant-client';
 import { buildTenantPortalUrl } from '../../lib/tenant-url';
 import { toProductApp } from '../../lib/saas-product-options';
 import {
@@ -280,8 +279,24 @@ export default function ManajemenPendaftarSaaS({
     const masterClient = getDbClient(activeTab);
     const mergedRow = { ...item._raw };
 
-    // Verifikasi kredensial produk terkonfigurasi di build (anon) sebelum panggil API server
-    createTenantProductClient(activeTab);
+    const cleanSlug = normalizeTenantSubdomain(deriveSlugFromRegistration(mergedRow));
+    const slug = buildProvisioningSubdomain(cleanSlug, activeTab);
+
+    console.log('[FE] SETUJUI — mulai provisioning:', {
+      tab: activeTab,
+      rowId,
+      tenantId: mergedRow.tenant_id ?? mergedRow.tenant_master_id ?? null,
+      slug,
+      npsn: mergedRow.npsn,
+      paket: mergedRow.package_tier ?? mergedRow.selected_package ?? mergedRow.paket_langganan,
+      email: item.email,
+      business_name: item.business_name,
+    });
+
+    if (!slug) {
+      console.error('[FE] SLUG KOSONG!', { activeTab, mergedRow, cleanSlug });
+      throw new Error('Subdomain/slug kosong — tidak bisa provisioning tenant.');
+    }
 
     const provision = await provisionTenantRegistrationOnApproval(activeTab, mergedRow);
 

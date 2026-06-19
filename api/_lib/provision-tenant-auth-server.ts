@@ -1,3 +1,4 @@
+import { getSupabaseAdminSiput } from './supabaseSiput';
 import { getSupabaseAdmin, type SupabaseAdminProduct } from './supabase-clients';
 
 export type TenantAuthProduct = SupabaseAdminProduct;
@@ -20,7 +21,8 @@ export type ProvisionTenantAuthOutput = {
 export async function provisionTenantAuthUser(
   input: ProvisionTenantAuthInput
 ): Promise<ProvisionTenantAuthOutput> {
-  const admin = getSupabaseAdmin(input.product);
+  const admin =
+    input.product === 'siput' ? getSupabaseAdminSiput() : getSupabaseAdmin(input.product);
 
   const normalizedEmail = input.email.trim().toLowerCase();
   const plainPassword =

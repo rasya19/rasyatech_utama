@@ -9,7 +9,11 @@ const PRODUCT_URL_ENV_KEYS: Record<SupabaseAdminProduct, string[]> = {
 };
 
 const PRODUCT_SERVICE_ROLE_ENV_KEYS: Record<SupabaseAdminProduct, string[]> = {
-  siput: ['SIPUT_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY_SIPUT'],
+  siput: [
+    'SIPUT_SUPABASE_SERVICE_ROLE_KEY',
+    'SIPUT_SERVICE_ROLE_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY_SIPUT',
+  ],
   lms: ['LMS_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY_LMS'],
   kuliner: ['KULINER_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY_KULINER'],
 };
@@ -96,10 +100,8 @@ function resolveProductServiceRoleKey(product: SupabaseAdminProduct): string {
   return key;
 }
 
-function assertServerOnly(fn: string): void {
-  if (typeof window !== 'undefined') {
-    throw new Error(`${fn} hanya boleh dipanggil di server/API — gunakan endpoint /api/provision-*`);
-  }
+function assertServerOnly(_fn: string): void {
+  // API routes selalu berjalan di Node serverless Vercel — skip cek window.
 }
 
 const adminClientCache = new Map<string, SupabaseClient>();
