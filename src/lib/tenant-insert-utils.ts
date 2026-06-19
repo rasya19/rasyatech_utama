@@ -172,6 +172,118 @@ export function isMissingColumnError(message: string, column: string): boolean {
   );
 }
 
+/** Ekstrak nama kolom dari error PGRST204 PostgREST. */
+export function extractMissingColumnFromPostgrestError(message: string): string | null {
+  const match = message.match(/Could not find the '([^']+)' column/i);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Saat kolom tidak ada di skema DB produk (mis. SIPUT legacy tanpa admin_email),
+ * remap ke alias umum atau buang kolom opsional.
+ */
+export function remapPayloadMissingColumn(
+  payload: Record<string, unknown>,
+  missingColumn: string
+): Record<string, unknown> {
+  const next = { ...payload };
+  const removedValue = next[missingColumn];
+  delete next[missingColumn];
+
+  switch (missingColumn) {
+    case 'admin_email':
+      if (next.email == null && removedValue != null) next.email = removedValue;
+      break;
+    case 'email':
+      if (next.admin_email == null && removedValue != null) next.admin_email = removedValue;
+      break;
+    case 'admin_name':
+      if (next.name == null && removedValue != null) next.name = removedValue;
+      if (next.contact_name == null && removedValue != null) next.contact_name = removedValue;
+      break;
+    case 'tenant_name':
+      if (next.school_name == null && removedValue != null) next.school_name = removedValue;
+      if (next.cafe_name == null && removedValue != null) next.cafe_name = removedValue;
+      break;
+    case 'school_name':
+      if (next.tenant_name == null && removedValue != null) next.tenant_name = removedValue;
+      break;
+    case 'product_app':
+      if (next.product_type == null && removedValue != null) next.product_type = removedValue;
+      if (next.product_name == null && removedValue != null) next.product_name = removedValue;
+      break;
+    case 'subdomain':
+      if (next.slug == null && removedValue != null) next.slug = removedValue;
+      if (next.kode_tenant == null && removedValue != null) next.kode_tenant = removedValue;
+      break;
+    case 'subdomain_host':
+    case 'package_tier':
+    case 'source':
+    case 'registration_id':
+    case 'updated_at':
+    case 'created_at':
+    case 'meta_data':
+    case 'tenant_id':
+    case 'is_approved':
+    case 'approved':
+    case 'business_name':
+    case 'business_type':
+    case 'selected_package':
+    case 'kode_tenant':
+    case 'tabel_count':
+    case 'whatsapp_number':
+    case 'full_name':
+      break;
+    default:
+      break;
+  }
+
+  return stripUndefinedPayloadFields(next);
+}
+
+/** INSERT dengan retry: buang/remap kolom yang tidak ada di skema target. */
+export async function insertRowAdaptive(
+  client: import('@supabase/supabase-js').SupabaseClient,
+  table: string,
+  payload: Record<string, unknown>,
+  context: string
+): Promise<Record<string, unknown>> {
+  let current = { ...payload };
+  const maxAttempts = 20;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { data, error } = await client.from(table).insert([current]).select('id').single();
+
+    if (!error) {
+      return (data ?? {}) as Record<string, unknown>;
+    }
+
+    const missingCol = extractMissingColumnFromPostgrestError(error.message);
+    if (missingCol) {
+      const next = remapPayloadMissingColumn(current, missingCol);
+      const unchanged = Object.keys(next).length === Object.keys(current).length &&
+        Object.keys(next).every((k) => next[k] === current[k]);
+      if (unchanged) {
+        logSupabaseInsertError(`${context}.insert`, error, current);
+        throw new Error(
+          `Kolom "${missingCol}" tidak ada di tabel ${table} dan tidak ada alias — jalankan migrasi SQL atau sesuaikan skema DB produk.`
+        );
+      }
+      console.warn(`[insertRowAdaptive][${context}] remap kolom "${missingCol}"`, {
+        attempt,
+        remaining: Object.keys(next),
+      });
+      current = next;
+      continue;
+    }
+
+    logSupabaseInsertError(`${context}.insert`, error, current);
+    throw error;
+  }
+
+  throw new Error(`INSERT ke ${table} gagal setelah menyesuaikan skema (${context}).`);
+}
+
 /** Log detail eror Supabase + payload yang dikirim (debug kolom gagal). */
 export function logSupabaseInsertError(
   context: string,
