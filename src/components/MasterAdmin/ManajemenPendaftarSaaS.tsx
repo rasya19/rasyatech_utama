@@ -270,108 +270,103 @@ export default function ManajemenPendaftarSaaS({
    * 2. Buat akun Auth + insert registrations di DB tenant
    * 3. Hapus baris di master hanya jika semua langkah sukses
    */
-  const handleApprove = async (item: Pendaftar) => {
-    if (activeTab !== 'lms' && activeTab !== 'siput') {
-      throw new Error('handleApprove hanya untuk produk LMS/SIPUT.');
-    }
+const handleApprove = async (item: Pendaftar) => {
+  if (activeTab !== 'lms' && activeTab !== 'siput') {
+    throw new Error('handleApprove hanya untuk produk LMS/SIPUT.');
+  }
 
-    const rowId = getRegistrationRowId(item);
-    const masterClient = getDbClient(activeTab);
-    const mergedRow = { ...item._raw };
+  const rowId = getRegistrationRowId(item);
+  const masterClient = getDbClient(activeTab);
+  const mergedRow = { ...item._raw };
 
-    const cleanSlug = normalizeTenantSubdomain(deriveSlugFromRegistration(mergedRow));
-    const slug = buildProvisioningSubdomain(cleanSlug, activeTab);
+  const cleanSlug = normalizeTenantSubdomain(deriveSlugFromRegistration(mergedRow));
+  const slug = buildProvisioningSubdomain(cleanSlug, activeTab);
 
-    console.log('[FE] SETUJUI — mulai provisioning:', {
-      tab: activeTab,
-      rowId,
-      tenantId: mergedRow.tenant_id ?? mergedRow.tenant_master_id ?? null,
-      slug,
-      npsn: mergedRow.npsn,
-      paket: mergedRow.package_tier ?? mergedRow.selected_package ?? mergedRow.paket_langganan,
-      email: item.email,
-      business_name: item.business_name,
-    });
+  console.log('[FE] SETUJUI — mulai provisioning:', {
+    tab: activeTab,
+    rowId,
+    tenantId: mergedRow.tenant_id ?? mergedRow.tenant_master_id ?? null,
+    slug,
+    npsn: mergedRow.npsn,
+    paket: mergedRow.package_tier ?? mergedRow.selected_package ?? mergedRow.paket_langganan,
+    email: item.email,
+    business_name: item.business_name,
+  });
 
-    if (!slug) {
-      console.error('[FE] SLUG KOSONG!', { activeTab, mergedRow, cleanSlug });
-      throw new Error('Subdomain/slug kosong — tidak bisa provisioning tenant.');
-    }
+  if (!slug) {
+    console.error('[FE] SLUG KOSONG!', { activeTab, mergedRow, cleanSlug });
+    throw new Error('Subdomain/slug kosong — tidak bisa provisioning tenant.');
+  }
 
-    const provision = await provisionTenantRegistrationOnApproval(activeTab, mergedRow);
+  const provision = await provisionTenantRegistrationOnApproval(activeTab, mergedRow);
 
-// Update status di master menjadi approved dan simpan tenant_id
-const { error: updateError } = await masterClient
-  .from('registrations')
-  .update({
-    status: 'approved',
-    is_approved: true,
-    tenant_id: provision.tenant?.id || null,
-    tenant_master_id: provision.tenant?.id || null,
-  })
-  .eq('id', rowId);
+  // Update status di master menjadi approved dan simpan tenant_id
+  const { error: updateError } = await masterClient
+    .from('registrations')
+    .update({
+      status: 'approved',
+      is_approved: true,
+      tenant_id: provision.tenant?.id || null,
+      tenant_master_id: provision.tenant?.id || null,
+    })
+    .eq('id', rowId);
 
-if (updateError) {
-  console.warn('[FE] Gagal update status di master:', updateError);
-  showToast('Tenant berhasil dibuat, tetapi gagal update status di master.', 'error');
-} else {
-  console.log('[FE] Status pendaftar di master diupdate menjadi approved');
-}
-    if (!provision.auth.magicLinkSent && !extractPlainPasswordHint(mergedRow)) {
-      showToast(
-        'Tenant & akun auth dibuat. Pengguna perlu reset password via email (magic link) karena password asli tidak tersimpan di master.',
-        'success'
-      );
-    }
+  if (updateError) {
+    console.warn('[FE] Gagal update status di master:', updateError);
+    showToast('Tenant berhasil dibuat, tetapi gagal update status di master.', 'error');
+  } else {
+    console.log('[FE] Status pendaftar di master diupdate menjadi approved');
+  }
 
-    const kodeTenant = provision.tenant.slug;
-    const portalUrl = buildTenantPortalUrl(kodeTenant, toProductApp(activeTab));
-
-    try {
-      await sendTenantApprovalNotification({
-        fullName: item.full_name,
-        businessName: item.business_name,
-        product: String(mergedRow.product_type || activeTab),
-        kodeTenant,
-        email: item.email !== '-' ? item.email : undefined,
-        whatsapp: item.whatsapp,
-      });
-    } catch (notifyErr) {
-      console.warn('[ManajemenPendaftarSaaS] notifikasi approval:', notifyErr);
-    }
-
-// Update state lokal agar item tetap muncul dengan status 'approved'
-setData((prev) =>
-  prev.map((row) =>
-    row.id === item.id
-      ? {
-          ...row,
-          status: 'approved',
-          is_approved: true,
-          tenant_id: provision.tenant?.id || row.tenant_id,
-          tenant_master_id: provision.tenant?.id || row.tenant_master_id,
-          _raw: {
-            ...row._raw,
+  // Update state lokal agar item tetap muncul dengan status 'approved'
+  setData((prev) =>
+    prev.map((row) =>
+      row.id === item.id
+        ? {
+            ...row,
             status: 'approved',
             is_approved: true,
             tenant_id: provision.tenant?.id || row.tenant_id,
             tenant_master_id: provision.tenant?.id || row.tenant_master_id,
-          },
-        }
-      : row
-  )
-);
+            _raw: {
+              ...row._raw,
+              status: 'approved',
+              is_approved: true,
+              tenant_id: provision.tenant?.id || row.tenant_id,
+              tenant_master_id: provision.tenant?.id || row.tenant_master_id,
+            },
+          }
+        : row
+    )
+  );
 
-await refreshTotalPendaftar();
+  await refreshTotalPendaftar();
 
-const authNote = provision.auth.magicLinkSent
-  ? ' Email reset password telah dikirim ke pendaftar.'
-  : '';
+  const kodeTenant = provision.tenant.slug;
+  const portalUrl = buildTenantPortalUrl(kodeTenant, toProductApp(activeTab));
 
-showToast(
-  `Pendaftar disetujui. Data diperbarui di DB ${activeTab.toUpperCase()} (${portalUrl}).${authNote}`,
-  'success'
-);
+  try {
+    await sendTenantApprovalNotification({
+      fullName: item.full_name,
+      businessName: item.business_name,
+      product: String(mergedRow.product_type || activeTab),
+      kodeTenant,
+      email: item.email !== '-' ? item.email : undefined,
+      whatsapp: item.whatsapp,
+    });
+  } catch (notifyErr) {
+    console.warn('[ManajemenPendaftarSaaS] notifikasi approval:', notifyErr);
+  }
+
+  const authNote = provision.auth.magicLinkSent
+    ? ' Email reset password telah dikirim ke pendaftar.'
+    : '';
+
+  showToast(
+    `Pendaftar disetujui. Data diperbarui di DB ${activeTab.toUpperCase()} (${portalUrl}).${authNote}`,
+    'success'
+  );
+};
 
   function extractPlainPasswordHint(row: Record<string, unknown>): boolean {
     const candidates = [row.password_plain, row.plain_password, row.password];
