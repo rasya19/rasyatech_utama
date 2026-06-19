@@ -10,6 +10,7 @@ import {
   isRasyatechPortalHostname,
 } from './src/lib/tenant-host-parser';
 import { resolveMiddlewareRewriteWithDb } from './src/lib/middleware-tenant-lookup';
+import { buildExternalProductTenantLoginUrlEdge } from './src/lib/product-external-urls-edge';
 
 const STATIC_FILE_PATTERN =
   /\.(?:png|jpe?g|gif|webp|svg|ico|js|css|woff2?|ttf|eot|map|json|txt|xml)$/i;
@@ -137,6 +138,16 @@ export const config = {
 };
 
 export default async function middleware(request: Request) {
+  try {
+    return await runMiddleware(request);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[middleware] MIDDLEWARE_INVOCATION_FAILED — passthrough:', message);
+    return;
+  }
+}
+
+async function runMiddleware(request: Request) {
   const url = new URL(request.url);
   const hostname = (request.headers.get('host') || url.hostname).split(':')[0].toLowerCase();
   const pathname = url.pathname;
@@ -176,23 +187,34 @@ export default async function middleware(request: Request) {
   }
 
   const resolved = await resolveMiddlewareRewriteWithDb(hostname, pathname);
-  if (!resolved) {
-    if (hostnameHasTenantSubdomain(hostname)) {
-      logMiddlewareDecision(hostname, pathname, '(404 — tenant tidak dikenal)');
-      return unknownTenantResponse(hostname);
+  if (resolved) {
+    if (
+      (resolved.productRoute === 'siput' || resolved.productRoute === 'lms') &&
+      (pathname === '/' || pathname === '')
+    ) {
+      const loginUrl = buildExternalProductTenantLoginUrlEdge(
+        resolved.productRoute,
+        resolved.cleanTenantSlug || resolved.hostnameSubdomain
+      );
+      logMiddlewareDecision(hostname, pathname, `(302 → ${loginUrl})`);
+      return Response.redirect(loginUrl, 302);
     }
-    logMiddlewareDecision(hostname, pathname, '(passthrough — hostname non-tenant)');
-    return;
+
+    return middlewareRewrite(
+      request,
+      resolved.targetPath,
+      resolved.cleanTenantSlug,
+      resolved.productRoute
+    );
   }
   if (resolved.productRoute === 'siput' && (pathname === '/' || pathname === '')) {
     // GANTI string ini dengan path route asli komponen Login Admin Sekolah Anda
     resolved.targetPath = '/auth/admin-login'; 
   }
 
-  return middlewareRewrite(
-    request,
-    resolved.targetPath,
-    resolved.cleanTenantSlug,
-    resolved.productRoute
-  );
+  if (hostnameHasTenantSubdomain(hostname)) {
+    logMiddlewareDecision(hostname, pathname, '(404 — tenant tidak dikenal)');
+    return unknownTenantResponse(hostname);
+  }
+  logMiddlewareDecision(hostname, pathname, '(passthrough — hostname non-tenant)');
 }

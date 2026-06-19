@@ -24,6 +24,10 @@ import {
   isRasyatechPortalHostname,
 } from './lib/subdomain-utils';
 import UnknownTenantHost from './components/UnknownTenantHost';
+import ExternalProductLoginRedirect from './components/ExternalProductLoginRedirect';
+import {
+  resolveExternalProductFromPillar,
+} from './lib/product-external-urls';
 
 type TenantProductPillar = 'lms' | 'siput' | 'scanbite' | 'resto' | 'instafood' | 'kuliner';
 
@@ -45,6 +49,13 @@ function LandingOrRedirect() {
     const parsed = parseTenantHostname(hostname);
     if (!parsed) {
       return <UnknownTenantHost />;
+    }
+    const externalProduct = resolveExternalProductFromPillar(mapParsedPillar(parsed));
+    const subdomain = parsed.routeTenantSlug || parsed.tenantSlug;
+    if (externalProduct && subdomain) {
+      return (
+        <ExternalProductLoginRedirect product={externalProduct} tenantSubdomain={subdomain} />
+      );
     }
     return <TenantProductRoute pillar={mapParsedPillar(parsed)} />;
   }

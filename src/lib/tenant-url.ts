@@ -1,5 +1,9 @@
 import type { SaasProductApp, SaasProductType } from './saas-product-options';
 import {
+  buildExternalProductTenantLoginUrl,
+  shouldUseExternalProductApp,
+} from './product-external-urls';
+import {
   stripInstitutionalPrefixFromSlug,
   type SaasProductRoute,
   productAppToRoute,
@@ -44,6 +48,21 @@ export function resolveTenantHostnameDomain(product: SaasProductApp | string): s
   return getEduTenantDomain();
 }
 
+/** URL login portal tenant — untuk SIPUT/LMS arahkan ke aplikasi produk asli. */
+export function buildTenantLoginUrl(
+  kodeTenant: string,
+  product: SaasProductApp | SaasProductType | string
+): string {
+  const productKey = String(product).toUpperCase();
+  if (shouldUseExternalProductApp(productKey.toLowerCase())) {
+    return buildExternalProductTenantLoginUrl(
+      productKey.toLowerCase() as 'siput' | 'lms',
+      kodeTenant
+    );
+  }
+  return buildTenantPortalUrl(kodeTenant, product);
+}
+
 /** URL portal tenant publik, mis. https://pkbm-armilla.rsch.my.id */
 export function buildTenantPortalUrl(
   kodeTenant: string,
@@ -73,7 +92,7 @@ export function buildTenantApprovalMessage(params: {
   email?: string;
 }): { portalUrl: string; whatsappText: string; emailText: string } {
   const productApp = String(params.product).toUpperCase();
-  const portalUrl = buildTenantPortalUrl(params.kodeTenant, productApp);
+  const portalUrl = buildTenantLoginUrl(params.kodeTenant, productApp);
   const internalPath = buildTenantInternalPath(productApp, params.kodeTenant);
 
   const whatsappText =

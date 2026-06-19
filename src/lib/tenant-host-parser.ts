@@ -152,22 +152,20 @@ export function routeToInternalPrefix(route: SaasProductRoute): string {
 }
 
 export function getTenantBaseDomains(): string[] {
-  const edu =
-    (typeof import.meta !== 'undefined' &&
-      (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_TENANT_DOMAIN) ||
-    (typeof process !== 'undefined' && process.env?.VITE_TENANT_DOMAIN) ||
-    'rsch.my.id';
-  const kuliner =
-    (typeof import.meta !== 'undefined' &&
-      (import.meta as ImportMeta & { env?: Record<string, string> }).env
-        ?.VITE_TENANT_DOMAIN_KULINER) ||
-    (typeof process !== 'undefined' && process.env?.VITE_TENANT_DOMAIN_KULINER) ||
-    'rsch.web.id';
-  const apex =
-    (typeof import.meta !== 'undefined' &&
-      (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_APEX_DOMAIN) ||
-    (typeof process !== 'undefined' && process.env?.VITE_APEX_DOMAIN) ||
-    'rasyatech.com';
+  const read = (key: string, fallback: string): string => {
+    if (typeof process !== 'undefined' && process.env?.[key]) {
+      return String(process.env[key]).trim();
+    }
+    if (typeof import.meta !== 'undefined') {
+      const value = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.[key];
+      if (value?.trim()) return value.trim();
+    }
+    return fallback;
+  };
+
+  const edu = read('VITE_TENANT_DOMAIN', 'rsch.my.id');
+  const kuliner = read('VITE_TENANT_DOMAIN_KULINER', 'rsch.web.id');
+  const apex = read('VITE_APEX_DOMAIN', 'rasyatech.com');
   return [...new Set([edu, kuliner, apex].map((d) => String(d).toLowerCase().replace(/^\.+/, '')))];
 }
 

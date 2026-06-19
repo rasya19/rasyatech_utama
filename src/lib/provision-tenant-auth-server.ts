@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin, type SupabaseAdminProduct } from './supabase-clients';
 
-export type TenantAuthProduct = 'siput' | 'lms';
+export type TenantAuthProduct = SupabaseAdminProduct;
 
 export type ProvisionTenantAuthInput = {
   product: TenantAuthProduct;
@@ -17,45 +17,10 @@ export type ProvisionTenantAuthOutput = {
   message: string;
 };
 
-function getTenantServiceConfig(product: TenantAuthProduct): { url: string; serviceKey: string } | null {
-  if (product === 'siput') {
-    const url =
-      process.env.SUPABASE_URL_SIPUT ||
-      process.env.VITE_SUPABASE_URL_SIPUT ||
-      '';
-    const serviceKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY_SIPUT ||
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      '';
-    if (!url || !serviceKey) return null;
-    return { url: url.replace(/\/$/, ''), serviceKey };
-  }
-
-  const url =
-    process.env.SUPABASE_URL_LMS ||
-    process.env.VITE_SUPABASE_URL_LMS ||
-    '';
-  const serviceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY_LMS ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    '';
-  if (!url || !serviceKey) return null;
-  return { url: url.replace(/\/$/, ''), serviceKey };
-}
-
 export async function provisionTenantAuthUser(
   input: ProvisionTenantAuthInput
 ): Promise<ProvisionTenantAuthOutput> {
-  const config = getTenantServiceConfig(input.product);
-  if (!config) {
-    throw new Error(
-      `Service role Supabase ${input.product.toUpperCase()} belum dikonfigurasi di server.`
-    );
-  }
-
-  const admin = createClient(config.url, config.serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const admin = getSupabaseAdmin(input.product);
 
   const normalizedEmail = input.email.trim().toLowerCase();
   const plainPassword =
