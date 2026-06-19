@@ -6,6 +6,8 @@ import {
   isApexLandingHostname,
   isDevPreviewHostname,
   hostnameHasTenantSubdomain,
+  isMasterAdminPath,
+  isRasyatechPortalHostname,
 } from './src/lib/tenant-host-parser';
 import { resolveMiddlewareRewriteWithDb } from './src/lib/middleware-tenant-lookup';
 
@@ -147,6 +149,16 @@ export default async function middleware(request: Request) {
     const redirectUrl = new URL(request.url);
     redirectUrl.pathname = pathname.replace(/^\/master-admin/, '/admin') || '/admin';
     return Response.redirect(redirectUrl, 308);
+  }
+
+  if (isMasterAdminPath(pathname)) {
+    logMiddlewareDecision(hostname, pathname, '(passthrough — master admin)');
+    return;
+  }
+
+  if (isRasyatechPortalHostname(hostname)) {
+    logMiddlewareDecision(hostname, pathname, '(passthrough — portal Rasyatech)');
+    return;
   }
 
   if (isDevPreviewHostname(hostname)) {

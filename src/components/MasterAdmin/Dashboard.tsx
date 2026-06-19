@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
-import { isMainDomainHostname } from '../../lib/subdomain-utils';
+import { isRasyatechPortalHostname } from '../../lib/subdomain-utils';
 import { fetchTotalPendaftarCount } from '../../lib/registration-stats';
 import MonitoringDashboard from './MonitoringDashboard';
 import UnifiedRegistrationManager from './UnifiedRegistrationManager';
@@ -678,14 +678,13 @@ export default function Admin() {
   };
 
   const isAuthorizedSuperAdmin = user?.email?.toLowerCase() === 'ismanto095@gmail.com';
-  const isMainDomain = isMainDomainHostname(window.location.hostname);
+  const isPortalHost = isRasyatechPortalHostname(window.location.hostname);
 
   useEffect(() => {
-    if (!loading && user && (!isAuthorizedSuperAdmin || !isMainDomain)) {
-       // Redirect unauthorized users or main admin access from subdomains
+    if (!loading && user && (!isAuthorizedSuperAdmin || !isPortalHost)) {
        window.location.href = '/';
     }
-  }, [user, loading, isAuthorizedSuperAdmin, isMainDomain]);
+  }, [user, loading, isAuthorizedSuperAdmin, isPortalHost]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">

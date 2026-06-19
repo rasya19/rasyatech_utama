@@ -2,6 +2,8 @@ import { TENANT_SUBDOMAIN_DOMAIN } from './saas-products';
 
 export {
   isMainDomainHostname,
+  isRasyatechPortalHostname,
+  isMasterAdminPath,
   getSubdomainFromHostname,
   parseTenantHostname,
   buildTenantRoutePath,
