@@ -243,6 +243,9 @@ export default function ManajemenPendaftarSaaS({
 
       const rows = (rawRows as Record<string, unknown>[]) || [];
       const filtered = rows.filter((row) => matchesActiveTab(row, activeTab));
+      console.log('[FE] fetchData - total rows:', rows.length);
+      console.log('[FE] fetchData - filtered rows:', filtered.length);
+      console.log('[FE] fetchData - filtered data:', filtered);
       const mapped = sortByCreatedAtDesc(filtered.map((row) => mapRowToPendaftar(row, activeTab)));
 
       setData(mapped);
