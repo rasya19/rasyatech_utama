@@ -31,9 +31,9 @@ serve(async (req) => {
 
     // 2. Buat client Supabase untuk project SIPUT (menggunakan Service Role Key)
     const supabaseSiput = createClient(
-      Deno.env.get("SUPABASE_URL_SIPUT")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY_SIPUT")!
-    );
+  Deno.env.get("SIPUT_URL")!,
+  Deno.env.get("SIPUT_SERVICE_ROLE_KEY")!
+);
 
     // 3. Buat user Auth di SIPUT (langsung aktif, tanpa verifikasi email)
     const { data: authData, error: authError } = await supabaseSiput.auth.admin.createUser({
