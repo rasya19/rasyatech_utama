@@ -27,45 +27,82 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { ProductType } from './types/products';
+import {
+  resolveProductAnonKey,
+  resolveProductSupabaseUrl,
+  type SupabaseAdminProduct,
+} from './supabase-clients';
 
 // ─── Master client (always present) ──────────────────────────────────────────
 
-const MASTER_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const MASTER_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const MASTER_URL = (
+  (typeof import.meta !== 'undefined' &&
+    (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process.env?.SUPABASE_URL) ||
+  ''
+).trim();
+
+const MASTER_KEY = (
+  (typeof import.meta !== 'undefined' &&
+    (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_SUPABASE_ANON_KEY) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) ||
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+  ''
+).trim();
 
 if (!MASTER_URL || !MASTER_KEY) {
   console.error('[supabase-hub] CRITICAL: Master Supabase credentials missing.');
 }
 
-export const supabaseMaster: SupabaseClient = createClient(
-  MASTER_URL || '',
-  MASTER_KEY || ''
-);
+export const supabaseMaster: SupabaseClient = createClient(MASTER_URL || '', MASTER_KEY || '');
 
-// ─── Per-product credential map (falls back to master if not set) ─────────────
+function productCredentials(product: SupabaseAdminProduct): { url: string; key: string } {
+  return {
+    url: resolveProductSupabaseUrl(product),
+    key: resolveProductAnonKey(product),
+  };
+}
 
-const productEnvMap: Record<ProductType, { url: string; key: string }> = {
-  lms: {
-    url: (import.meta.env.VITE_SUPABASE_URL_LMS as string) || MASTER_URL,
-    key: (import.meta.env.VITE_SUPABASE_ANON_KEY_LMS as string) || MASTER_KEY,
-  },
-  siput: {
-    url: (import.meta.env.VITE_SUPABASE_URL_SIPUT as string) || MASTER_URL,
-    key: (import.meta.env.VITE_SUPABASE_ANON_KEY_SIPUT as string) || MASTER_KEY,
-  },
-  scanbite: {
-    url: (import.meta.env.VITE_SUPABASE_URL_SCANBITE as string) || MASTER_URL,
-    key: (import.meta.env.VITE_SUPABASE_ANON_KEY_SCANBITE as string) || MASTER_KEY,
-  },
-  instafood: {
-    url: (import.meta.env.VITE_SUPABASE_URL_INSTAFOOD as string) || MASTER_URL,
-    key: (import.meta.env.VITE_SUPABASE_ANON_KEY_INSTAFOOD as string) || MASTER_KEY,
-  },
-  resto: {
-    url: (import.meta.env.VITE_SUPABASE_URL_RESTO as string) || MASTER_URL,
-    key: (import.meta.env.VITE_SUPABASE_ANON_KEY_RESTO as string) || MASTER_KEY,
-  },
+function readOptionalProductEnv(urlKey: string, keyKey: string): { url: string; key: string } | null {
+  const url =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta as ImportMeta & { env?: Record<string, string> }).env?.[urlKey]) ||
+    (typeof process !== 'undefined' && process.env?.[urlKey]) ||
+    '';
+  const key =
+    (typeof import.meta !== 'undefined' &&
+      (import.meta as ImportMeta & { env?: Record<string, string> }).env?.[keyKey]) ||
+    (typeof process !== 'undefined' && process.env?.[keyKey]) ||
+    '';
+  if (!String(url).trim() || !String(key).trim()) return null;
+  return { url: String(url).trim(), key: String(key).trim() };
+}
+
+// ─── Per-product credential map (LMS/SIPUT wajib env produk — tanpa fallback master) ─
+
+const productEnvMap: Record<ProductType, { url: string; key: string } | null> = {
+  lms: tryProductCredentials('lms'),
+  siput: tryProductCredentials('siput'),
+  scanbite:
+    readOptionalProductEnv('VITE_SUPABASE_URL_SCANBITE', 'VITE_SUPABASE_ANON_KEY_SCANBITE') ||
+    tryProductCredentials('kuliner'),
+  instafood:
+    readOptionalProductEnv('VITE_SUPABASE_URL_INSTAFOOD', 'VITE_SUPABASE_ANON_KEY_INSTAFOOD') ||
+    tryProductCredentials('kuliner'),
+  resto:
+    readOptionalProductEnv('VITE_SUPABASE_URL_RESTO', 'VITE_SUPABASE_ANON_KEY_RESTO') ||
+    tryProductCredentials('kuliner'),
 };
+
+function tryProductCredentials(product: SupabaseAdminProduct): { url: string; key: string } | null {
+  try {
+    return productCredentials(product);
+  } catch {
+    return null;
+  }
+}
 
 // ─── Client cache (one instance per unique URL) ───────────────────────────────
 
@@ -73,10 +110,18 @@ const clientCache = new Map<string, SupabaseClient>();
 
 /**
  * Returns the Supabase client for the given product type.
- * Instances are cached per project URL so we never create duplicate clients.
+ * LMS/SIPUT wajib punya env produk sendiri — tidak fallback ke master.
  */
 export function getProductClient(product: ProductType): SupabaseClient {
-  const { url, key } = productEnvMap[product];
+  const credentials = productEnvMap[product];
+  if (!credentials?.url || !credentials.key) {
+    throw new Error(
+      `[supabase-hub] Kredensial Supabase ${product.toUpperCase()} belum dikonfigurasi. ` +
+        `Set VITE_SUPABASE_URL_${product.toUpperCase()} dan VITE_SUPABASE_ANON_KEY_${product.toUpperCase()} di Vercel.`
+    );
+  }
+
+  const { url, key } = credentials;
   const cacheKey = url;
 
   if (clientCache.has(cacheKey)) {

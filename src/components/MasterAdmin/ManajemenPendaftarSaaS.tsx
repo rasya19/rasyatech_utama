@@ -280,7 +280,7 @@ export default function ManajemenPendaftarSaaS({
     const masterClient = getDbClient(activeTab);
     const mergedRow = { ...item._raw };
 
-  // Verifikasi client tenant terkonfigurasi (URL/anon key produk)
+    // Verifikasi kredensial produk terkonfigurasi di build (anon) sebelum panggil API server
     createTenantProductClient(activeTab);
 
     const provision = await provisionTenantRegistrationOnApproval(activeTab, mergedRow);

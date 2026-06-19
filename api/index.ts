@@ -8,6 +8,8 @@ import {
   type TenantRegistrationPayload,
 } from "../src/lib/register-tenant-core";
 import { provisionTenantAuthUser } from "../src/lib/provision-tenant-auth-server";
+import { provisionMainTenantOnApprovalServer, provisionKulinerTenantOnApprovalServer } from "../src/lib/provision-tenant-server";
+import { provisionTenantRegistrationOnApprovalServer } from "../src/lib/provision-tenant-registration-server";
 
 const app = express();
 
@@ -63,6 +65,45 @@ app.post("/api/provision-tenant-auth", async (req, res) => {
       redirectTo: typeof redirectTo === "string" ? redirectTo : undefined,
       metadata: metadata && typeof metadata === "object" ? metadata : {},
     });
+    return res.status(200).json(result);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal error";
+    return res.status(500).json({ error: message });
+  }
+});
+
+app.post("/api/provision-main-tenant", async (req, res) => {
+  const { tab, registrationRow } = req.body || {};
+  if (!tab || typeof tab !== "string") {
+    return res.status(400).json({ error: "tab wajib" });
+  }
+  if (!registrationRow || typeof registrationRow !== "object") {
+    return res.status(400).json({ error: "registrationRow wajib" });
+  }
+
+  try {
+    const result =
+      tab === "siput" || tab === "lms"
+        ? await provisionMainTenantOnApprovalServer(tab, registrationRow)
+        : await provisionKulinerTenantOnApprovalServer(tab, registrationRow);
+    return res.status(200).json(result);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal error";
+    return res.status(500).json({ error: message });
+  }
+});
+
+app.post("/api/provision-tenant-registration", async (req, res) => {
+  const { tab, registrationRow } = req.body || {};
+  if (tab !== "lms" && tab !== "siput") {
+    return res.status(400).json({ error: "tab harus lms atau siput" });
+  }
+  if (!registrationRow || typeof registrationRow !== "object") {
+    return res.status(400).json({ error: "registrationRow wajib" });
+  }
+
+  try {
+    const result = await provisionTenantRegistrationOnApprovalServer(tab, registrationRow);
     return res.status(200).json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal error";
