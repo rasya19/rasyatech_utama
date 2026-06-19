@@ -1,8 +1,8 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
-let cachedClient: SupabaseClient | null = null;
+let cachedClient = null;
 
-function readSiputUrl(): string {
+function readSiputUrl() {
   return (
     process.env.SIPUT_SUPABASE_URL ||
     process.env.SUPABASE_URL_SIPUT ||
@@ -13,7 +13,7 @@ function readSiputUrl(): string {
     .replace(/\/$/, '');
 }
 
-function readSiputServiceRoleKey(): string {
+function readSiputServiceRoleKey() {
   return (
     process.env.SIPUT_SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SIPUT_SERVICE_ROLE_KEY ||
@@ -22,13 +22,7 @@ function readSiputServiceRoleKey(): string {
   ).trim();
 }
 
-/**
- * Supabase admin client khusus DB SIPUT (proyek terpisah).
- * Wajib set di Vercel project rasyatech:
- *   SIPUT_SUPABASE_URL
- *   SIPUT_SUPABASE_SERVICE_ROLE_KEY
- */
-export function getSupabaseAdminSiput(): SupabaseClient {
+export function getSupabaseAdminSiput() {
   if (cachedClient) return cachedClient;
 
   const url = readSiputUrl();
@@ -52,5 +46,4 @@ export function getSupabaseAdminSiput(): SupabaseClient {
   return cachedClient;
 }
 
-/** Alias untuk import di route handler. */
 export const supabaseAdminSiput = getSupabaseAdminSiput;
