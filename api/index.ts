@@ -7,6 +7,7 @@ import {
   checkSubdomainAvailable,
   type TenantRegistrationPayload,
 } from "../src/lib/register-tenant-core";
+import { provisionTenantAuthUser } from "../src/lib/provision-tenant-auth-server";
 
 const app = express();
 
@@ -43,6 +44,31 @@ function getAdminSupabase() {
   }
   return createClient(DEFAULT_SUPABASE_URL, serviceKey);
 }
+
+app.post("/api/provision-tenant-auth", async (req, res) => {
+  const { product, email, password, redirectTo, metadata } = req.body || {};
+
+  if (!product || (product !== "siput" && product !== "lms")) {
+    return res.status(400).json({ error: "product harus siput atau lms" });
+  }
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "email wajib" });
+  }
+
+  try {
+    const result = await provisionTenantAuthUser({
+      product,
+      email,
+      password,
+      redirectTo: typeof redirectTo === "string" ? redirectTo : undefined,
+      metadata: metadata && typeof metadata === "object" ? metadata : {},
+    });
+    return res.status(200).json(result);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal error";
+    return res.status(500).json({ error: message });
+  }
+});
 
 app.post("/api/register-tenant", async (req, res) => {
   const {

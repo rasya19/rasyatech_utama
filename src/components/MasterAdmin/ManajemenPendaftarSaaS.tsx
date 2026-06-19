@@ -16,6 +16,10 @@ import {
   linkMainRegistrationTenantId,
   deriveSlugFromRegistration,
 } from '../../lib/provision-tenant-on-approval';
+import { provisionTenantRegistrationOnApproval } from '../../lib/provision-tenant-registration-on-approval';
+import { createTenantProductClient } from '../../lib/create-tenant-client';
+import { buildTenantPortalUrl } from '../../lib/tenant-url';
+import { toProductApp } from '../../lib/saas-product-options';
 import {
   logSupabaseInsertError,
   normalizeTenantSubdomain,
@@ -185,6 +189,11 @@ interface ManajemenPendaftarSaaSProps {
   onTotalPendaftarChange?: (count: number) => void;
 }
 
+type ToastState = {
+  type: 'success' | 'error';
+  message: string;
+} | null;
+
 export default function ManajemenPendaftarSaaS({
   onTotalPendaftarChange,
 }: ManajemenPendaftarSaaSProps) {
@@ -193,6 +202,12 @@ export default function ManajemenPendaftarSaaS({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    window.setTimeout(() => setToast(null), 6000);
+  };
 
   const refreshTotalPendaftar = useCallback(async () => {
     if (!onTotalPendaftarChange) return;
@@ -250,6 +265,82 @@ export default function ManajemenPendaftarSaaS({
     refreshTotalPendaftar();
   }, [refreshTotalPendaftar]);
 
+  /**
+   * Setujui pendaftar LMS/SIPUT:
+   * 1. Client DB tenant (bukan master)
+   * 2. Buat akun Auth + insert registrations di DB tenant
+   * 3. Hapus baris di master hanya jika semua langkah sukses
+   */
+  const handleApprove = async (item: Pendaftar) => {
+    if (activeTab !== 'lms' && activeTab !== 'siput') {
+      throw new Error('handleApprove hanya untuk produk LMS/SIPUT.');
+    }
+
+    const rowId = getRegistrationRowId(item);
+    const masterClient = getDbClient(activeTab);
+    const mergedRow = { ...item._raw };
+
+  // Verifikasi client tenant terkonfigurasi (URL/anon key produk)
+    createTenantProductClient(activeTab);
+
+    const provision = await provisionTenantRegistrationOnApproval(activeTab, mergedRow);
+
+    const { error: deleteError } = await masterClient
+      .from('registrations')
+      .delete()
+      .eq('id', rowId)
+      .select('id');
+
+    if (deleteError) {
+      throw new Error(
+        `Tenant berhasil dibuat, tetapi gagal menghapus data master: ${deleteError.message}`
+      );
+    }
+
+    if (!provision.auth.magicLinkSent && !extractPlainPasswordHint(mergedRow)) {
+      showToast(
+        'Tenant & akun auth dibuat. Pengguna perlu reset password via email (magic link) karena password asli tidak tersimpan di master.',
+        'success'
+      );
+    }
+
+    const kodeTenant = provision.tenant.slug;
+    const portalUrl = buildTenantPortalUrl(kodeTenant, toProductApp(activeTab));
+
+    try {
+      await sendTenantApprovalNotification({
+        fullName: item.full_name,
+        businessName: item.business_name,
+        product: String(mergedRow.product_type || activeTab),
+        kodeTenant,
+        email: item.email !== '-' ? item.email : undefined,
+        whatsapp: item.whatsapp,
+      });
+    } catch (notifyErr) {
+      console.warn('[ManajemenPendaftarSaaS] notifikasi approval:', notifyErr);
+    }
+
+    setData((prev) => prev.filter((row) => row.id !== item.id));
+    await refreshTotalPendaftar();
+
+    const authNote = provision.auth.magicLinkSent
+      ? ' Email reset password telah dikirim ke pendaftar.'
+      : '';
+
+    showToast(
+      `Pendaftar disetujui. Data dipindahkan ke DB ${activeTab.toUpperCase()} (${portalUrl}).${authNote}`,
+      'success'
+    );
+  };
+
+  function extractPlainPasswordHint(row: Record<string, unknown>): boolean {
+    const candidates = [row.password_plain, row.plain_password, row.password];
+    return candidates.some((value) => {
+      const s = String(value ?? '').trim();
+      return s.length >= 6 && !s.startsWith('$2');
+    });
+  }
+
   const handleUpdateStatus = async (item: Pendaftar) => {
     const rowId = getRegistrationRowId(item);
     setUpdatingId(item.id);
@@ -257,6 +348,11 @@ export default function ManajemenPendaftarSaaS({
     const client = getDbClient(activeTab);
 
     try {
+      if (activating && isMainDbTab(activeTab)) {
+        await handleApprove(item);
+        return;
+      }
+
       const { payload, selectColumns } = await buildRegistrationStatusPayload(
         activeTab,
         activating,
@@ -380,20 +476,21 @@ export default function ManajemenPendaftarSaaS({
       );
 
       if (activating) {
-        alert(
+        showToast(
           isKulinerTab(activeTab)
             ? 'Status pendaftar disetujui dan tenant kuliner telah diproses.'
             : patch.tenant_id
-              ? 'Status pendaftar disetujui dan tenant LMS/SIPUT berhasil dibuat.'
-              : 'Status diperbarui. Tenant belum terbuat — periksa log konsol untuk detail INSERT.'
+              ? 'Status pendaftar disetujui dan tenant berhasil dibuat.'
+              : 'Status diperbarui. Tenant belum terbuat — periksa log konsol.',
+          patch.tenant_id || isKulinerTab(activeTab) ? 'success' : 'error'
         );
       } else {
-        alert('Status pendaftar berhasil diperbarui!');
+        showToast('Status pendaftar berhasil diperbarui!', 'success');
       }
     } catch (err: unknown) {
       console.error('Update operation error:', err);
       const message = err instanceof Error ? err.message : 'Gagal memperbarui status pendaftar.';
-      alert(message);
+      showToast(message, 'error');
     } finally {
       setUpdatingId(null);
     }
@@ -456,7 +553,23 @@ export default function ManajemenPendaftarSaaS({
   };
 
   return (
-    <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl">
+    <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl relative">
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            className={`fixed top-6 right-6 z-[100] max-w-md px-5 py-4 rounded-2xl border shadow-2xl text-sm font-medium ${
+              toast.type === 'success'
+                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-100'
+                : 'bg-rose-500/15 border-rose-500/30 text-rose-100'
+            }`}
+          >
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="p-8 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
