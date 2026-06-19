@@ -340,18 +340,38 @@ if (updateError) {
       console.warn('[ManajemenPendaftarSaaS] notifikasi approval:', notifyErr);
     }
 
-    setData((prev) => prev.filter((row) => row.id !== item.id));
-    await refreshTotalPendaftar();
+// Update state lokal agar item tetap muncul dengan status 'approved'
+setData((prev) =>
+  prev.map((row) =>
+    row.id === item.id
+      ? {
+          ...row,
+          status: 'approved',
+          is_approved: true,
+          tenant_id: provision.tenant?.id || row.tenant_id,
+          tenant_master_id: provision.tenant?.id || row.tenant_master_id,
+          _raw: {
+            ...row._raw,
+            status: 'approved',
+            is_approved: true,
+            tenant_id: provision.tenant?.id || row.tenant_id,
+            tenant_master_id: provision.tenant?.id || row.tenant_master_id,
+          },
+        }
+      : row
+  )
+);
 
-    const authNote = provision.auth.magicLinkSent
-      ? ' Email reset password telah dikirim ke pendaftar.'
-      : '';
+await refreshTotalPendaftar();
 
-    showToast(
-      `Pendaftar disetujui. Data dipindahkan ke DB ${activeTab.toUpperCase()} (${portalUrl}).${authNote}`,
-      'success'
-    );
-  };
+const authNote = provision.auth.magicLinkSent
+  ? ' Email reset password telah dikirim ke pendaftar.'
+  : '';
+
+showToast(
+  `Pendaftar disetujui. Data diperbarui di DB ${activeTab.toUpperCase()} (${portalUrl}).${authNote}`,
+  'success'
+);
 
   function extractPlainPasswordHint(row: Record<string, unknown>): boolean {
     const candidates = [row.password_plain, row.plain_password, row.password];
