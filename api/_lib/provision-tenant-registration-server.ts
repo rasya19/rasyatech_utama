@@ -73,24 +73,34 @@ export async function provisionTenantRegistrationOnApprovalServer(
   const cleanSlug = normalizeTenantSubdomain(deriveSlugFromRegistration(registrationRow));
   const provisioningSubdomain = buildProvisioningSubdomain(cleanSlug, tab);
 
-  const tenant = await provisionMainTenantOnApprovalServer(tab, registrationRow);
+  let tenant;
+  try {
+    tenant = await provisionMainTenantOnApprovalServer(tab, registrationRow);
+  } catch (error) {
+    throw new Error(`[tenant] ${formatStepError(error)}`);
+  }
 
   const email = resolveRegistrationEmail(registrationRow);
   const plainPassword = extractPlainPasswordFromRegistration(registrationRow);
   const portalUrl = buildTenantPortalUrl(provisioningSubdomain, toProductApp(tab));
   const redirectTo = `${portalUrl.replace(/\/$/, '')}/reset-password`;
 
-  const authResult = await provisionTenantAuthUser({
-    product: tab,
-    email,
-    password: plainPassword,
-    redirectTo,
-    metadata: {
-      tenant_subdomain: provisioningSubdomain,
-      product_app: toProductApp(tab),
-      business_name: String(registrationRow.business_name || registrationRow.school_name || '').trim(),
-    },
-  });
+  let authResult;
+  try {
+    authResult = await provisionTenantAuthUser({
+      product: tab,
+      email,
+      password: plainPassword,
+      redirectTo,
+      metadata: {
+        tenant_subdomain: provisioningSubdomain,
+        product_app: toProductApp(tab),
+        business_name: String(registrationRow.business_name || registrationRow.school_name || '').trim(),
+      },
+    });
+  } catch (error) {
+    throw new Error(`[auth] ${formatStepError(error)}`);
+  }
 
   const auth: TenantAuthProvisionResult = {
     userId: authResult.userId,
@@ -107,16 +117,25 @@ export async function provisionTenantRegistrationOnApprovalServer(
     provisioningSubdomain
   );
 
-  await insertRowAdaptive(
-    tenantClient,
-    'registrations',
-    registrationPayload,
-    'provision-tenant-registration'
-  );
+  try {
+    await insertRowAdaptive(
+      tenantClient,
+      'registrations',
+      registrationPayload,
+      'provision-tenant-registration'
+    );
+  } catch (error) {
+    throw new Error(`[registrations] ${formatStepError(error)}`);
+  }
 
   return {
     tenant,
     auth,
     registrationId: auth.userId,
   };
+}
+
+function formatStepError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }

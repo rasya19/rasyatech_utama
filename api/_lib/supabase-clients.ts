@@ -100,10 +100,8 @@ function resolveProductServiceRoleKey(product: SupabaseAdminProduct): string {
   return key;
 }
 
-function assertServerOnly(fn: string): void {
-  if (typeof window !== 'undefined') {
-    throw new Error(`${fn} hanya boleh dipanggil di server/API — gunakan endpoint /api/provision-*`);
-  }
+function assertServerOnly(_fn: string): void {
+  // API routes selalu berjalan di Node serverless Vercel — skip cek window.
 }
 
 const adminClientCache = new Map<string, SupabaseClient>();

@@ -103,11 +103,16 @@ app.post("/api/provision-tenant-registration", async (req, res) => {
   }
 
   try {
+    if (tab === "siput") {
+      const { getSupabaseAdminSiput } = await import("./_lib/supabaseSiput");
+      getSupabaseAdminSiput();
+    }
     const result = await provisionTenantRegistrationOnApprovalServer(tab, registrationRow);
     return res.status(201).json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal error";
-    return res.status(500).json({ error: message });
+    console.error("[api/index provision-tenant-registration]", message, error);
+    return res.status(500).json({ error: message, step: "provision-tenant-registration" });
   }
 });
 

@@ -17,7 +17,6 @@ import {
   deriveSlugFromRegistration,
 } from '../../lib/provision-tenant-on-approval';
 import { provisionTenantRegistrationOnApproval } from '../../lib/provision-tenant-registration-on-approval';
-import { createTenantProductClient } from '../../lib/create-tenant-client';
 import { buildTenantPortalUrl } from '../../lib/tenant-url';
 import { toProductApp } from '../../lib/saas-product-options';
 import {
@@ -279,9 +278,6 @@ export default function ManajemenPendaftarSaaS({
     const rowId = getRegistrationRowId(item);
     const masterClient = getDbClient(activeTab);
     const mergedRow = { ...item._raw };
-
-    // Verifikasi kredensial produk terkonfigurasi di build (anon) sebelum panggil API server
-    createTenantProductClient(activeTab);
 
     const provision = await provisionTenantRegistrationOnApproval(activeTab, mergedRow);
 

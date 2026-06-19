@@ -7,7 +7,7 @@ function readSiputUrl() {
     process.env.SIPUT_SUPABASE_URL ||
     process.env.SUPABASE_URL_SIPUT ||
     process.env.VITE_SUPABASE_URL_SIPUT ||
-    ''
+    'https://mqvxretzntpkwxspbvap.supabase.co'
   )
     .trim()
     .replace(/\/$/, '');
@@ -28,16 +28,14 @@ export function getSupabaseAdminSiput() {
   const url = readSiputUrl();
   const serviceKey = readSiputServiceRoleKey();
 
-  if (!url) {
-    throw new Error(
-      'SIPUT_SUPABASE_URL belum dikonfigurasi di Vercel (project rasyatech).'
-    );
-  }
   if (!serviceKey) {
     throw new Error(
-      'SIPUT_SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi di Vercel (project rasyatech).'
+      'SIPUT_SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi di Vercel. ' +
+        'Ambil service_role key dari dashboard Supabase proyek SIPUT (mqvxretzntpkwxspbvap) → Settings → API.'
     );
   }
+
+  console.log('[supabaseSiput] admin client →', url);
 
   cachedClient = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },

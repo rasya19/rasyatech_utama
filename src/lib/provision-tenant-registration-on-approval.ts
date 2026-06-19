@@ -65,7 +65,11 @@ export async function provisionTenantRegistrationOnApproval(
 
   const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    throw new Error(String(body.error || 'Gagal provisioning tenant di database produk.'));
+    const detail =
+      body.error ||
+      body.message ||
+      (typeof body.step === 'string' ? `Gagal di langkah ${body.step}` : null);
+    throw new Error(String(detail || `Provisioning gagal (HTTP ${response.status}).`));
   }
 
   return body as TenantRegistrationProvisionResult;
