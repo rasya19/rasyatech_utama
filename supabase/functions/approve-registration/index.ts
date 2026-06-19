@@ -53,7 +53,7 @@ serve(async (req) => {
         user_id: userId,
         email: email,
         subdomain: subdomain,
-        name: name,
+        full_name: name,     // <- diperbaiki
         phone: phone || null,
         status: "approved",
         created_at: new Date().toISOString(),
