@@ -63,27 +63,5 @@ export function resolveExternalProductFromPillar(
   return null;
 }
 
-/** Untuk edge middleware (tanpa import.meta). */
-export function buildExternalProductTenantLoginUrlEdge(
-  product: ExternalProductKey,
-  tenantSubdomain: string
-): string {
-  const siputBase =
-    process.env.VITE_SIPUT_APP_URL ||
-    process.env.SIPUT_APP_URL ||
-    'https://siput.rsch.my.id';
-  const lmsBase =
-    process.env.VITE_LMS_APP_URL || process.env.LMS_APP_URL || 'https://lms.rsch.my.id';
-  const base = (product === 'siput' ? siputBase : lmsBase).replace(/\/$/, '');
-  const path =
-    product === 'siput'
-      ? process.env.VITE_SIPUT_TENANT_LOGIN_PATH || '/login'
-      : process.env.VITE_LMS_TENANT_LOGIN_PATH || '/login';
-  const slug = tenantSubdomain.trim().toLowerCase();
-  const url = new URL(`${base}${path.startsWith('/') ? path : `/${path}`}`);
-  const tenantParam = process.env.VITE_TENANT_QUERY_PARAM || 'tenant';
-  url.searchParams.set(tenantParam, slug);
-  url.searchParams.set('subdomain', slug);
-  url.searchParams.set('kode_tenant', slug);
-  return url.toString();
-}
+/** @deprecated Pakai `product-external-urls-edge.ts` di middleware. */
+export { buildExternalProductTenantLoginUrlEdge } from './product-external-urls-edge';

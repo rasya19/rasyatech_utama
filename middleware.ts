@@ -10,7 +10,7 @@ import {
   isRasyatechPortalHostname,
 } from './src/lib/tenant-host-parser';
 import { resolveMiddlewareRewriteWithDb } from './src/lib/middleware-tenant-lookup';
-import { buildExternalProductTenantLoginUrlEdge } from './src/lib/product-external-urls';
+import { buildExternalProductTenantLoginUrlEdge } from './src/lib/product-external-urls-edge';
 
 const STATIC_FILE_PATTERN =
   /\.(?:png|jpe?g|gif|webp|svg|ico|js|css|woff2?|ttf|eot|map|json|txt|xml)$/i;
@@ -138,6 +138,16 @@ export const config = {
 };
 
 export default async function middleware(request: Request) {
+  try {
+    return await runMiddleware(request);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[middleware] MIDDLEWARE_INVOCATION_FAILED — passthrough:', message);
+    return;
+  }
+}
+
+async function runMiddleware(request: Request) {
   const url = new URL(request.url);
   const hostname = (request.headers.get('host') || url.hostname).split(':')[0].toLowerCase();
   const pathname = url.pathname;
