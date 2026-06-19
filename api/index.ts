@@ -6,10 +6,10 @@ import {
   registerTenant,
   checkSubdomainAvailable,
   type TenantRegistrationPayload,
-} from "../src/lib/register-tenant-core";
-import { provisionTenantAuthUser } from "../src/lib/provision-tenant-auth-server";
-import { provisionMainTenantOnApprovalServer, provisionKulinerTenantOnApprovalServer } from "../src/lib/provision-tenant-server";
-import { provisionTenantRegistrationOnApprovalServer } from "../src/lib/provision-tenant-registration-server";
+} from "./_lib/register-tenant-core";
+import { provisionTenantAuthUser } from "./_lib/provision-tenant-auth-server";
+import { provisionMainTenantOnApprovalServer, provisionKulinerTenantOnApprovalServer } from "./_lib/provision-tenant-server";
+import { provisionTenantRegistrationOnApprovalServer } from "./_lib/provision-tenant-registration-server";
 
 const app = express();
 
@@ -86,7 +86,7 @@ app.post("/api/provision-main-tenant", async (req, res) => {
       tab === "siput" || tab === "lms"
         ? await provisionMainTenantOnApprovalServer(tab, registrationRow)
         : await provisionKulinerTenantOnApprovalServer(tab, registrationRow);
-    return res.status(200).json(result);
+    return res.status(201).json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal error";
     return res.status(500).json({ error: message });
@@ -104,7 +104,7 @@ app.post("/api/provision-tenant-registration", async (req, res) => {
 
   try {
     const result = await provisionTenantRegistrationOnApprovalServer(tab, registrationRow);
-    return res.status(200).json(result);
+    return res.status(201).json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal error";
     return res.status(500).json({ error: message });

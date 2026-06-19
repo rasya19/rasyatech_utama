@@ -6,17 +6,17 @@ import {
   stripUndefinedPayloadFields,
   insertRowAdaptive,
 } from './tenant-insert-utils';
-import { deriveSlugFromRegistration } from './provision-tenant-on-approval';
+import { deriveSlugFromRegistration } from './provision-slug';
 import { provisionMainTenantOnApprovalServer } from './provision-tenant-server';
 import { provisionTenantAuthUser } from './provision-tenant-auth-server';
 import { buildTenantPortalUrl } from './tenant-url';
 import { toProductApp } from './saas-product-options';
-import type { TenantProductDbTab } from './create-tenant-client';
 import {
   extractPlainPasswordFromRegistration,
   type TenantAuthProvisionResult,
+  type TenantProductDbTab,
   type TenantRegistrationProvisionResult,
-} from './provision-tenant-registration-on-approval';
+} from './provision-registration-shared';
 
 function resolveRegistrationEmail(row: Record<string, unknown>): string {
   const email = String(row.email || row.admin_email || '').trim();
