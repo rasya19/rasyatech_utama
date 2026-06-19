@@ -300,18 +300,23 @@ export default function ManajemenPendaftarSaaS({
 
     const provision = await provisionTenantRegistrationOnApproval(activeTab, mergedRow);
 
-    const { error: deleteError } = await masterClient
-      .from('registrations')
-      .delete()
-      .eq('id', rowId)
-      .select('id');
+// Update status di master menjadi approved dan simpan tenant_id
+const { error: updateError } = await masterClient
+  .from('registrations')
+  .update({
+    status: 'approved',
+    is_approved: true,
+    tenant_id: provision.tenant?.id || null,
+    tenant_master_id: provision.tenant?.id || null,
+  })
+  .eq('id', rowId);
 
-    if (deleteError) {
-      throw new Error(
-        `Tenant berhasil dibuat, tetapi gagal menghapus data master: ${deleteError.message}`
-      );
-    }
-
+if (updateError) {
+  console.warn('[FE] Gagal update status di master:', updateError);
+  showToast('Tenant berhasil dibuat, tetapi gagal update status di master.', 'error');
+} else {
+  console.log('[FE] Status pendaftar di master diupdate menjadi approved');
+}
     if (!provision.auth.magicLinkSent && !extractPlainPasswordHint(mergedRow)) {
       showToast(
         'Tenant & akun auth dibuat. Pengguna perlu reset password via email (magic link) karena password asli tidak tersimpan di master.',
