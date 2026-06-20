@@ -17,12 +17,16 @@ serve(async (req) => {
     const body = await req.json();
     const { email, password, subdomain, full_name, whatsapp_number } = body;
 
-    if (!email || !password || !subdomain || !full_name) {
+    // Validasi: email, subdomain, full_name WAJIB. Password OPSIONAL.
+    if (!email || !subdomain || !full_name) {
       return new Response(
-        JSON.stringify({ error: "Field wajib: email, password, subdomain, full_name" }),
+        JSON.stringify({ error: "Field wajib: email, subdomain, full_name" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Generate password otomatis jika tidak disediakan
+    const finalPassword = password || Math.random().toString(36).slice(-8) + 'A1!';
 
     const supabaseSiput = createClient(
       Deno.env.get("SIPUT_URL")!,
@@ -31,7 +35,7 @@ serve(async (req) => {
 
     const { data: authData, error: authError } = await supabaseSiput.auth.admin.createUser({
       email,
-      password,
+      password: finalPassword,
       email_confirm: true,
       user_metadata: { full_name, subdomain, whatsapp_number },
     });
@@ -66,6 +70,7 @@ serve(async (req) => {
       );
     }
 
+    // Kirim email dengan password (baik yang dikirim maupun yang digenerate)
     if (Deno.env.get("RESEND_API_KEY") && Deno.env.get("FROM_EMAIL")) {
       const resend = new Resend(Deno.env.get("RESEND_API_KEY")!);
       const tenantUrl = `https://${subdomain}.siput.rsch.my.id`;
@@ -73,7 +78,15 @@ serve(async (req) => {
         from: Deno.env.get("FROM_EMAIL")!,
         to: [email],
         subject: "Selamat! Pendaftaran Anda Disetujui",
-        html: `<h1>Halo ${full_name},</h1><p>Pendaftaran Anda untuk <strong>${subdomain}</strong> telah disetujui.</p><p>Klik link di bawah untuk mengakses dashboard sekolah Anda:</p><p><a href="${tenantUrl}" target="_blank">${tenantUrl}</a></p><p>Gunakan email dan password yang Anda daftarkan untuk login.</p><p>Salam,<br>Tim SIPUT</p>`,
+        html: `
+          <h1>Halo ${full_name},</h1>
+          <p>Pendaftaran Anda untuk <strong>${subdomain}</strong> telah disetujui.</p>
+          <p>Klik link di bawah untuk mengakses dashboard sekolah Anda:</p>
+          <p><a href="${tenantUrl}" target="_blank">${tenantUrl}</a></p>
+          <p><strong>Password sementara Anda: ${finalPassword}</strong></p>
+          <p>Segera ganti password setelah login untuk keamanan.</p>
+          <p>Salam,<br>Tim SIPUT</p>
+        `,
       });
     }
 
