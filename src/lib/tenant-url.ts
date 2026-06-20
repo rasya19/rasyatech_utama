@@ -84,6 +84,11 @@ export function buildTenantInternalPath(
   return `${routeToInternalPrefix(route)}/${clean}`;
 }
 
+/**
+ * 🔥 PERUBAHAN: Sekarang selalu menggunakan subdomain (buildTenantPortalUrl)
+ * untuk semua produk, termasuk SIPUT dan LMS.
+ * Sebelumnya memakai buildTenantLoginUrl yang menghasilkan query parameter.
+ */
 export function buildTenantApprovalMessage(params: {
   fullName: string;
   businessName: string;
@@ -92,7 +97,10 @@ export function buildTenantApprovalMessage(params: {
   email?: string;
 }): { portalUrl: string; whatsappText: string; emailText: string } {
   const productApp = String(params.product).toUpperCase();
-  const portalUrl = buildTenantLoginUrl(params.kodeTenant, productApp);
+
+  // ✅ SEKARANG PAKAI SUBDOMAIN UNTUK SEMUA PRODUK
+  const portalUrl = buildTenantPortalUrl(params.kodeTenant, productApp);
+
   const internalPath = buildTenantInternalPath(productApp, params.kodeTenant);
 
   const whatsappText =
