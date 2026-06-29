@@ -149,6 +149,8 @@ export default function FormPendaftaranSaaS() {
         }
 
       } else if (productType === 'siput') {
+        const uniqueSubdomain = formData.full_name.toLowerCase().replace(/\s+/g, '');
+        
         const siputData = {
           full_name: formData.full_name,
           email: formData.email,
