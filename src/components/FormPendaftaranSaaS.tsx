@@ -112,53 +112,89 @@ export default function FormPendaftaranSaaS() {
     }
   };
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
-  setError(null);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
-  try {
-    // 1. Ambil data dari form (Pastikan key sesuai dengan kolom database)
-    const submissionData = {
-      full_name: formData.full_name,
-      email: formData.email,
-      whatsapp_number: formData.whatsapp, // Sesuaikan nama kolom dengan DB
-      business_name: formData.business_name,
-      product_type: formData.product_type,
-      selected_package: formData.package || 'standard',
-      status: 'pending'
-    };
-
-    // 2. Tentukan tujuan database
-    const isLms = formData.product_type === 'lms';
-    const client = isLms ? supabase : supabaseKuliner;
-
-    // 3. Eksekusi Insert (Hanya satu kali)
-    const { error: insertError } = await client
-      .from('registrations')
-      .insert([submissionData]);
-
-    if (insertError) throw insertError;
-
-    // 4. Webhook (Tidak fatal, tidak menghentikan proses jika gagal)
     try {
-      await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, timestamp: new Date().toISOString() }),
-      });
-    } catch (webhookErr) {
-      console.warn('Webhook issue:', webhookErr);
-    }
+      const isLms = formData.product_type === 'lms';
 
-    alert('Pendaftaran berhasil!');
-  } catch (err) {
-    console.error('Submission error:', err);
-    setError('Gagal memproses pendaftaran. Periksa koneksi Anda.');
-  } finally {
-    setLoading(false);
-  }
-};
+      // Construct subdomain for LMS registration
+      const rawSubdomain = formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const uniqueSubdomain = rawSubdomain ? `${rawSubdomain}-${Math.floor(1000 + Math.random() * 9000)}` : `tenant-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
+      const lmsInsertData = {
+        school_name: formData.business_name,
+        admin_name: formData.full_name,
+        admin_email: formData.email,
+        whatsapp: formData.whatsapp,
+        npsn: formData.npsn || '-',
+        subdomain: uniqueSubdomain,
+        password: 'defaultpassword123',
+        status: 'pending',
+        is_approved: false,
+        paket_langganan: formData.product_type === 'lms' ? (formData.package || 'silver') : (formData.package || 'standard')
+      };
+
+      const { error: lmsError } = await supabase
+        .from('registrations')
+        .insert([lmsInsertData]);
+
+      if (lmsError) {
+        console.error('Error inserting into Supabase LMS registrations table:', lmsError);
+        throw lmsError;
+      }
+
+      // If it is NOT LMS (ie. culinary/siput), also insert into Supabase Culinary 'registrations' table
+      if (!isLms) {
+        const culinaryInsertData = {
+          full_name: formData.full_name,
+          email: formData.email,
+          whatsapp_number: formData.whatsapp,
+          business_type: formData.product_type,
+          business_name: formData.business_name,
+          selected_package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
+          table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+          status: 'pending'
+        };
+
+        const { error: culinaryError } = await supabaseKuliner
+          .from('registrations')
+          .insert([culinaryInsertData]);
+
+        if (culinaryError) {
+          console.error('Error inserting into Supabase Culinary registrations table:', culinaryError);
+          throw culinaryError;
+        }
+      }
+
+      // Webhook Notification to Pipedream (Non-blocking)
+      try {
+        await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...formData,
+            timestamp: new Date().toISOString(),
+            source: 'saas_registration_form'
+          }),
+        });
+      } catch (webhookErr) {
+        console.warn('Webhook error:', webhookErr);
+      }
+
+      setSubmitted(true);
+    } catch (err: any) {
+      console.error('Submission error:', err);
+      setError(err.message || 'Gagal memproses pendaftaran. Silakan coba lagi.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (submitted) {
     const redirectDetails = getProductRedirectDetails(formData.product_type);

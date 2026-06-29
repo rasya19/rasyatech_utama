@@ -15,7 +15,8 @@ import {
   LayoutGrid,
   Clock,
   RefreshCcw,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 
 type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
@@ -176,25 +177,32 @@ export default function ManajemenPendaftarSaaS() {
     return '-';
   };
 
-  const handleDelete = async (id: number) => {
-  // 1. Konfirmasi user agar tidak salah hapus
-  if (!confirm("Apakah Anda yakin ingin menghapus data pendaftar ini?")) return;
+  const handleDelete = async (id: string) => {
+    // 1. Konfirmasi user agar tidak salah hapus
+    if (!confirm("Apakah Anda yakin ingin menghapus data pendaftar ini?")) return;
 
-  // 2. Eksekusi delete ke Supabase
-  const { error } = await supabase
-    .from('registrations')
-    .delete()
-    .eq('id', id); // Menggunakan ID untuk mencari baris yang akan dihapus
+    try {
+      const isLms = activeTab === 'lms';
+      const client = isLms ? supabase : supabaseKuliner;
 
-  if (error) {
-    alert("Gagal menghapus data: " + error.message);
-  } else {
-    alert("Data berhasil dihapus!");
-    // 3. Refresh data agar tombol menghilang setelah sukses
-    // Panggil kembali fungsi untuk mengambil data (misal: fetchData())
-    fetchData(); 
-  }
-};
+      // 2. Eksekusi delete ke database yang sesuai
+      const { error } = await client
+        .from('registrations')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        alert("Gagal menghapus data: " + error.message);
+      } else {
+        alert("Data berhasil dihapus!");
+        // 3. Refresh data agar tampilan ter-update
+        fetchData();
+      }
+    } catch (err: any) {
+      console.error("Delete operation error:", err);
+      alert("Terjadi kesalahan sistem saat menghapus data.");
+    }
+  };
 
   return (
     <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl">
@@ -348,6 +356,14 @@ export default function ManajemenPendaftarSaaS() {
                           >
                             <MessageCircle className="w-4 h-4 transition-transform group-hover/wa:scale-110" />
                           </a>
+
+                          <button 
+                            onClick={() => handleDelete(item.id)}
+                            className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all group/trash"
+                            title="Hapus Pendaftar"
+                          >
+                            <Trash2 className="w-4 h-4 transition-transform group-hover/trash:scale-110" />
+                          </button>
                           
                           <button
                             onClick={() => handleUpdateStatus(item.id, item.status)}
