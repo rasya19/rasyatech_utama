@@ -155,6 +155,7 @@ export default function FormPendaftaranSaaS() {
           whatsapp_number: formData.whatsapp, // Pastikan di kode memakai 'whatsapp_number'
           subdomain: uniqueSubdomain,         // Sesuaikan dengan kolom subdomain Anda
           status: 'pending'
+};
 
         const { error: siputError } = await supabaseSiput
           .from('registrations')
