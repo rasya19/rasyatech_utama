@@ -126,50 +126,40 @@ export default function ManajemenPendaftarSaaS() {
   }, [activeTab]);
 
   const handleUpdateStatus = async (id: string, currentStatus: string) => {
-  setUpdatingId(id);
-  try {
-    const isLms = activeTab === 'lms';
-    const client = isLms ? supabase : supabaseKuliner;
-    
-    // Tentukan aksi berdasarkan status baru
-    const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
-    const action = nextStatus === 'active' ? 'ACTIVATE' : 'DEACTIVATE';
+    setUpdatingId(id);
+    try {
+      const isLms = activeTab === 'lms';
+      const client = isLms ? supabase : supabaseKuliner;
+      const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
+      const table = 'registrations';
+      
+      // HUKUM #4: LMS WAJIB update status ke 'active'
+      const statusValue = isLms 
+        ? (nextStatus === 'active' ? 'active' : 'pending')
+        : nextStatus;
 
-    const table = 'registrations';
-    
-    // 1. Update database lokal (registrations)
-    const updatePayload: any = { 
-      status: nextStatus,
-      is_approved: (nextStatus === 'active') 
-    };
+      const updatePayload: any = { status: statusValue };
+      if (isLms) {
+        updatePayload.is_approved = (statusValue === 'active');
+      }
 
-    const { error: updateError } = await client
-      .from(table)
-      .update(updatePayload)
-      .eq('id', id);
+      const { error: updateError } = await client
+        .from(table)
+        .update(updatePayload)
+        .eq('id', id);
 
-    if (updateError) throw updateError;
-
-    // 2. JIKA LMS, sinkronkan ke SiPUT via Edge Function
-    if (isLms) {
-      const tenantId = id; // Asumsi ID di registrations sama dengan tenant_id
-      await fetch('https://mqvxretzntpkwxspbvap.supabase.co/functions/v1/atur-status-tenant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, action })
-      });
+      if (updateError) throw updateError;
+      
+      // Update local state (Kalo sukses → baru UI berubah jadi AKTIF)
+      setData(prev => prev.map(item => item.id === id ? { ...item, status: nextStatus as any } : item));
+    } catch (err: any) {
+      console.error('Update operation error:', err);
+      // HUKUM #4: Kalo gagal → kasih alert "Gagal update database bang"
+      alert('Gagal update database bang');
+    } finally {
+      setUpdatingId(null);
     }
-    
-    // 3. Update local state
-    setData(prev => prev.map(item => item.id === id ? { ...item, status: nextStatus as any } : item));
-    
-  } catch (err: any) {
-    console.error('Update operation error:', err);
-    alert('Gagal update database bang');
-  } finally {
-    setUpdatingId(null);
-  }
-};
+  };
 
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
