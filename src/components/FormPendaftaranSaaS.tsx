@@ -112,15 +112,14 @@ export default function FormPendaftaranSaaS() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setLoading(true);
   setError(null);
 
   try {
-    // 1. Data untuk Insert Utama (Supabase LMS)
-    // Pastikan field ini sesuai dengan kolom di database Anda
-    const registrationData = {
+    // 1. Definisikan data yang akan dikirim (Mapping kolom sesuai database)
+    const lmsInsertData = {
       full_name: formData.full_name,
       email: formData.email,
       whatsapp_number: formData.whatsapp,
@@ -133,22 +132,24 @@ export default function FormPendaftaranSaaS() {
       is_approved: false
     };
 
-    // 2. Eksekusi Insert ke tabel 'registrations'
+    // 2. Eksekusi perintah Insert ke Supabase
     const { error: insertError } = await supabase
       .from('registrations')
-      .insert([registrationData]);
+      .insert([lmsInsertData]);
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.error('Supabase Error:', insertError);
+      throw insertError;
+    }
 
-    // 3. Webhook Pipedream (Opsional/Non-blocking)
+    // 3. Webhook ke Pipedream
     try {
       await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           ...formData, 
-          timestamp: new Date().toISOString(),
-          source: 'saas_registration_form' 
+          timestamp: new Date().toISOString() 
         }),
       });
     } catch (webhookErr) {
