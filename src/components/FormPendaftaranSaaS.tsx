@@ -118,31 +118,49 @@ const handleSubmit = async (e: React.FormEvent) => {
   setError(null);
 
   try {
-    // 1. Definisikan data yang akan dikirim (Mapping kolom sesuai database)
+    // 1. Data untuk database LMS (Rasyatech LMS)
     const lmsInsertData = {
       full_name: formData.full_name,
       email: formData.email,
       whatsapp_number: formData.whatsapp,
-      business_name: formData.business_name,
+      bussiness_name: formData.business_name,
       product_type: formData.product_type,
-      busines_type: formData.product_type,
+      bussines_type: formData.product_type,
       selected_package: formData.package || 'standard',
       table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
       status: 'pending',
       is_approved: false
     };
 
-    // 2. Eksekusi perintah Insert ke Supabase
     const { error: insertError } = await supabase
       .from('registrations')
       .insert([lmsInsertData]);
 
-    if (insertError) {
-      console.error('Supabase Error:', insertError);
-      throw insertError;
+    if (insertError) throw insertError;
+
+    // 2. Data untuk database Kuliner (Jika bukan produk LMS)
+    const isLms = formData.product_type === 'lms';
+    
+    if (!isLms) {
+      const culinaryInsertData = {
+        full_name: formData.full_name,
+        email: formData.email,
+        whatsapp_number: formData.whatsapp,
+        business_type: formData.product_type,
+        business_name: formData.business_name,
+        selected_package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
+        table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+        status: 'pending'
+      };
+
+      const { error: culinaryError } = await supabaseKuliner
+        .from('registrations')
+        .insert([culinaryInsertData]);
+
+      if (culinaryError) throw culinaryError;
     }
 
-    // 3. Webhook ke Pipedream
+    // 3. Webhook (Opsional)
     try {
       await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
         method: 'POST',
@@ -164,38 +182,6 @@ const handleSubmit = async (e: React.FormEvent) => {
     setLoading(false);
   }
 };
-
-      // If it is NOT LMS (ie. culinary/siput), also insert into Supabase Culinary 'registrations' table
-      if (!isLms) {
-        const culinaryInsertData = {
-          full_name: formData.full_name,
-          email: formData.email,
-          whatsapp_number: formData.whatsapp,
-          business_type: formData.product_type,
-          business_name: formData.business_name,
-          selected_package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
-          table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-          status: 'pending'
-        };
-
-        const { error: culinaryError } = await supabaseKuliner
-          .from('registrations')
-          .insert([culinaryInsertData]);
-
-        if (culinaryError) {
-          console.error('Error inserting into Supabase Culinary registrations table:', culinaryError);
-          throw culinaryError;
-        }
-      }
-
-      setSubmitted(true);
-    } catch (err: any) {
-      console.error('Submission error:', err);
-      setError(err.message || 'Gagal mengirim pendaftaran. Silakan coba lagi.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (submitted) {
     const redirectDetails = getProductRedirectDetails(formData.product_type);
