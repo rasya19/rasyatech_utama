@@ -161,7 +161,7 @@ export default function FormPendaftaranSaaS() {
 
         const { error: siputError } = await supabaseSiput
           .from('registrations')
-          .insert([siputInsertData]);
+          .insert([siputData]);
 
         if (siputError) {
           console.error('Error inserting into Supabase Siput registrations table:', siputError);
