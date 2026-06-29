@@ -127,7 +127,7 @@ export default function FormPendaftaranSaaS() {
       // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
       const lmsInsertData = {
         school_name: formData.business_name,
-        admin_name: formData.full_name,
+        full_name: formData.full_name,
         email: formData.email,
         whatsapp: formData.whatsapp,
         npsn: formData.npsn || '-',
