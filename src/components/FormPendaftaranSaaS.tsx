@@ -123,9 +123,9 @@ const handleSubmit = async (e: React.FormEvent) => {
       full_name: formData.full_name,
       email: formData.email,
       whatsapp_number: formData.whatsapp,
-      bussiness_name: formData.business_name,
+      business_name: formData.business_name,
       product_type: formData.product_type,
-      bussines_type: formData.product_type,
+      busines_type: formData.product_type,
       selected_package: formData.package || 'standard',
       table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
       status: 'pending',
@@ -164,31 +164,6 @@ const handleSubmit = async (e: React.FormEvent) => {
     setLoading(false);
   }
 };
-
-      // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
-      const lmsInsertData = {
-        full_name: formData.full_name,
-        email: formData.email,
-        whatsapp_number: formData.whatsapp,
-        business_name: formData.business_name, // Perhatikan ejaan "bussiness" (dobel S)
-        product_type: formData.product_type,
-        business_type: formData.product_type,   // Mengisi kolom bussines_type (sesuai daftar Anda)
-        selected_package: formData.package || 'standard',
-        table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-        status: 'pending',
-        is_approved: false
-        // Kolom lain seperti 'kode_tenant', 'tenant', 'tenant_master_id' 
-        // jangan diisi dulu kecuali Anda punya datanya, biarkan default database (NULL)
-      };
-
-      const { error: lmsError } = await supabase
-        .from('registrations')
-        .insert([lmsInsertData]);
-
-      if (lmsError) {
-        console.error('Error inserting into Supabase LMS registrations table:', lmsError);
-        if (isLms) throw lmsError;
-      }
 
       // If it is NOT LMS (ie. culinary/siput), also insert into Supabase Culinary 'registrations' table
       if (!isLms) {
