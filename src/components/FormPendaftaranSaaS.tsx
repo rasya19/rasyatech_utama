@@ -132,7 +132,7 @@ export default function FormPendaftaranSaaS() {
         whatsapp: formData.whatsapp,
         npsn: formData.npsn || '-',
         subdomain: uniqueSubdomain,
-        password: 'defaultpassword123',
+        password: 'paud2026',
         status: 'pending',
         is_approved: false
       };
