@@ -64,16 +64,10 @@ export function LandingDataProvider({ children }: { children: React.ReactNode })
 
         const [
           settingsRes,
-          laptopsRes,
-          productsRes,
-          affiliatesRes,
-          servicesRes
+          affiliatesRes
         ] = await Promise.all([
           supabase.from('settings').select('*'),
-          supabase.from('laptops').select('*'),
-          supabase.from('products').select('*'),
-          supabase.from('affiliates').select('*').order('name', { ascending: true }),
-          supabase.from('services').select('*')
+          supabase.from('affiliates').select('*').order('name', { ascending: true })
         ]);
 
         if (!isMounted) return;
@@ -90,24 +84,9 @@ export function LandingDataProvider({ children }: { children: React.ReactNode })
           }
         }
 
-        // Process Laptops Row
-        if (laptopsRes.data) {
-          setLaptops(laptopsRes.data);
-        }
-
-        // Process Products Row
-        if (productsRes.data) {
-          setProducts(productsRes.data);
-        }
-
         // Process Affiliates Row
         if (affiliatesRes.data) {
           setAffiliates(affiliatesRes.data);
-        }
-
-        // Process Services Row
-        if (servicesRes.data) {
-          setServices(servicesRes.data);
         }
 
       } catch (err: any) {

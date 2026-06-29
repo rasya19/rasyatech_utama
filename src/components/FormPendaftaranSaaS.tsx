@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from '../lib/supabase';
+import { supabase as supabaseLMS } from '../lib/supabase';
 import { supabaseKuliner } from '../lib/supabase-kuliner';
+import { supabaseSiput } from '../lib/supabase-siput';
 import { 
   Building2, 
   Mail, 
@@ -118,63 +119,63 @@ export default function FormPendaftaranSaaS() {
     setError(null);
 
     try {
-      const isLms = formData.product_type === 'lms';
+      const productType = (formData.product_type || '').toLowerCase();
 
-      // Construct subdomain for LMS registration
-      const rawSubdomain = formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const uniqueSubdomain = rawSubdomain ? `${rawSubdomain}-${Math.floor(1000 + Math.random() * 9000)}` : `tenant-${Math.floor(1000 + Math.random() * 9000)}`;
+      if (productType === 'lms' || productType === 'rasyatech') {
+        // Construct subdomain for LMS registration
+        const rawSubdomain = formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const uniqueSubdomain = rawSubdomain ? `${rawSubdomain}-${Math.floor(1000 + Math.random() * 9000)}` : `tenant-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
-      const lmsInsertData: any = {
-        school_name: formData.business_name,
-        full_name: formData.full_name,
-        email: formData.email,
-        whatsapp: formData.whatsapp,
-        npsn: formData.npsn || '-',
-        subdomain: uniqueSubdomain,
-        password: 'paud2026',
-        status: 'pending',
-        is_approved: false
-      };
+        const lmsInsertData = {
+          school_name: formData.business_name,
+          full_name: formData.full_name,
+          email: formData.email,
+          whatsapp: formData.whatsapp,
+          npsn: formData.npsn || '-',
+          subdomain: uniqueSubdomain,
+          password: 'paud2026',
+          status: 'pending',
+          is_approved: false,
+          selected_package: formData.package || 'silver'
+        };
 
-      // Handle package columns conditionally to avoid DB schema mismatch (Error 400)
-      if (formData.product_type === 'siput') {
-        lmsInsertData.package_tier = formData.package || 'standard';
-      } else if (formData.product_type === 'lms') {
-        lmsInsertData.selected_package = formData.package || 'silver';
+        const { error: lmsError } = await supabaseLMS
+          .from('registrations')
+          .insert([lmsInsertData]);
+
+        if (lmsError) {
+          console.error('Error inserting into Supabase LMS registrations table:', lmsError);
+          throw lmsError;
+        }
+
+      } else if (productType === 'siput') {
+        const siputInsertData = {
+          full_name: formData.full_name,
+          email: formData.email,
+          whatsapp: formData.whatsapp,
+          business_name: formData.business_name,
+          status: 'pending',
+          package_tier: formData.package || 'standard'
+        };
+
+        const { error: siputError } = await supabaseSiput
+          .from('registrations')
+          .insert([siputInsertData]);
+
+        if (siputError) {
+          console.error('Error inserting into Supabase Siput registrations table:', siputError);
+          throw siputError;
+        }
+
       } else {
-        // Other types like scanbite, restoran_asli, instafoto
-        lmsInsertData.selected_package = formData.package || 'standard';
-      }
-
-      const { error: lmsError } = await supabase
-        .from('registrations')
-        .insert([lmsInsertData]);
-
-      if (lmsError) {
-        console.error('Error inserting into Supabase LMS registrations table:', lmsError);
-        throw lmsError;
-      }
-
-      // If it is NOT LMS (ie. culinary/siput), also insert into Supabase Culinary 'registrations' table
-      if (!isLms) {
-        const culinaryInsertData: any = {
+        // Default to kuliner database (scanbite, restoran_asli, Instafood, etc.)
+        const culinaryInsertData = {
           full_name: formData.full_name,
           email: formData.email,
           whatsapp_number: formData.whatsapp,
-          business_type: formData.product_type,
           business_name: formData.business_name,
-          table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
           status: 'pending'
         };
-
-        // Handle package columns conditionally for culinary table to avoid DB schema mismatch (Error 400)
-        if (formData.product_type === 'siput') {
-          culinaryInsertData.package_tier = formData.package || 'standard';
-        } else {
-          // Other types like scanbite, restoran_asli, instafoto
-          culinaryInsertData.selected_package = formData.package || 'standard';
-        }
 
         const { error: culinaryError } = await supabaseKuliner
           .from('registrations')

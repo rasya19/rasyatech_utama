@@ -40,12 +40,6 @@ export default function Home() {
     const fetchData = async () => {
         const { data: config } = await supabase.from('settings').select('*').eq('id', 'config').maybeSingle();
         if (config) setDbConfig(config);
-
-        const { data: services } = await supabase.from('services').select('*');
-        if (services) setDbServices(services);
-
-        const { data: laptops } = await supabase.from('laptops').select('*');
-        if (laptops) setDbLaptops(laptops);
     };
     fetchData();
 
