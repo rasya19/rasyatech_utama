@@ -118,8 +118,8 @@ const handleSubmit = async (e: React.FormEvent) => {
   setError(null);
 
   try {
-    // 1. Data untuk database LMS (Rasyatech LMS)
-    const lmsInsertData = {
+    // 1. Data untuk Supabase (LMS/Kuliner)
+    const registrationData = {
       full_name: formData.full_name,
       email: formData.email,
       whatsapp_number: formData.whatsapp,
@@ -132,51 +132,30 @@ const handleSubmit = async (e: React.FormEvent) => {
       is_approved: false
     };
 
+    // 2. Eksekusi Insert
     const { error: insertError } = await supabase
       .from('registrations')
-      .insert([lmsInsertData]);
+      .insert([registrationData]);
 
     if (insertError) throw insertError;
 
-    // 2. Data untuk database Kuliner (Jika bukan produk LMS)
-    const isLms = formData.product_type === 'lms';
-    
-    if (!isLms) {
-      const culinaryInsertData = {
-        full_name: formData.full_name,
-        email: formData.email,
-        whatsapp_number: formData.whatsapp,
-        business_type: formData.product_type,
-        business_name: formData.business_name,
-        selected_package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
-        table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-        status: 'pending'
-      };
-
-      const { error: culinaryError } = await supabaseKuliner
-        .from('registrations')
-        .insert([culinaryInsertData]);
-
-      if (culinaryError) throw culinaryError;
-    }
-
-    // 3. Webhook (Opsional)
+    // 3. Webhook (JANGAN biarkan error di sini menghentikan pendaftaran)
     try {
       await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          ...formData, 
-          timestamp: new Date().toISOString() 
-        }),
+        body: JSON.stringify({ ...formData, timestamp: new Date().toISOString() }),
       });
     } catch (webhookErr) {
-      console.error('Webhook error (non-fatal):', webhookErr);
+      console.warn('Webhook info:', webhookErr); // Gunakan console.warn agar tidak dianggap error fatal
     }
 
+    // 4. BERHASIL
     alert('Pendaftaran berhasil!');
+    
   } catch (err) {
     console.error('Submission error:', err);
+    // Hanya tampilkan pesan error jika benar-benar gagal
     setError('Gagal memproses pendaftaran. Silakan coba lagi.');
   } finally {
     setLoading(false);
