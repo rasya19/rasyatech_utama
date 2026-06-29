@@ -118,28 +118,29 @@ const handleSubmit = async (e: React.FormEvent) => {
   setError(null);
 
   try {
-    // 1. Data untuk Supabase (LMS/Kuliner)
-    const registrationData = {
+    // 1. Ambil data dari form (Pastikan key sesuai dengan kolom database)
+    const submissionData = {
       full_name: formData.full_name,
       email: formData.email,
-      whatsapp_number: formData.whatsapp,
+      whatsapp_number: formData.whatsapp, // Sesuaikan nama kolom dengan DB
       business_name: formData.business_name,
       product_type: formData.product_type,
-      business_type: formData.product_type,
       selected_package: formData.package || 'standard',
-      table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-      status: 'pending',
-      is_approved: false
+      status: 'pending'
     };
 
-    // 2. Eksekusi Insert
-    const { error: insertError } = await supabase
+    // 2. Tentukan tujuan database
+    const isLms = formData.product_type === 'lms';
+    const client = isLms ? supabase : supabaseKuliner;
+
+    // 3. Eksekusi Insert (Hanya satu kali)
+    const { error: insertError } = await client
       .from('registrations')
-      .insert([registrationData]);
+      .insert([submissionData]);
 
     if (insertError) throw insertError;
 
-    // 3. Webhook (JANGAN biarkan error di sini menghentikan pendaftaran)
+    // 4. Webhook (Tidak fatal, tidak menghentikan proses jika gagal)
     try {
       await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
         method: 'POST',
@@ -147,16 +148,13 @@ const handleSubmit = async (e: React.FormEvent) => {
         body: JSON.stringify({ ...formData, timestamp: new Date().toISOString() }),
       });
     } catch (webhookErr) {
-      console.warn('Webhook info:', webhookErr); // Gunakan console.warn agar tidak dianggap error fatal
+      console.warn('Webhook issue:', webhookErr);
     }
 
-    // 4. BERHASIL
     alert('Pendaftaran berhasil!');
-    
   } catch (err) {
     console.error('Submission error:', err);
-    // Hanya tampilkan pesan error jika benar-benar gagal
-    setError('Gagal memproses pendaftaran. Silakan coba lagi.');
+    setError('Gagal memproses pendaftaran. Periksa koneksi Anda.');
   } finally {
     setLoading(false);
   }

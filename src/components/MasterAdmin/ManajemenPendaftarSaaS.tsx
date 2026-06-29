@@ -176,6 +176,26 @@ export default function ManajemenPendaftarSaaS() {
     return '-';
   };
 
+  const handleDelete = async (id: number) => {
+  // 1. Konfirmasi user agar tidak salah hapus
+  if (!confirm("Apakah Anda yakin ingin menghapus data pendaftar ini?")) return;
+
+  // 2. Eksekusi delete ke Supabase
+  const { error } = await supabase
+    .from('registrations')
+    .delete()
+    .eq('id', id); // Menggunakan ID untuk mencari baris yang akan dihapus
+
+  if (error) {
+    alert("Gagal menghapus data: " + error.message);
+  } else {
+    alert("Data berhasil dihapus!");
+    // 3. Refresh data agar tombol menghilang setelah sukses
+    // Panggil kembali fungsi untuk mengambil data (misal: fetchData())
+    fetchData(); 
+  }
+};
+
   return (
     <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl">
       {/* Header */}
