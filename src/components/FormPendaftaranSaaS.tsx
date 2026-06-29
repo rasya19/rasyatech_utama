@@ -112,40 +112,29 @@ export default function FormPendaftaranSaaS() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setLoading(true);
   setError(null);
 
   try {
-    // 1. Data untuk insert ke tabel registrations
-    // Menyesuaikan dengan daftar kolom: id, full_name, email, whatsapp_number, 
-    // bussiness_name, product_type, selected_package, table_count, status, 
-    // created_at, bussines_type, kode_tenant, tenant, tenant_master_id, 
-    // is_approved, package_tier
-    
+    // 1. Data untuk insert ke tabel utama (tanpa meta_data)
     const registrationData = {
-      full_name: formData.full_name,
       email: formData.email,
       whatsapp_number: formData.whatsapp,
-      bussiness_name: formData.business_name, // Menggunakan ejaan 'ss' sesuai database Anda
+      bussiness_name: formData.business_name,
       product_type: formData.product_type,
-      bussines_type: formData.product_type,   // Sesuai daftar kolom Anda
-      selected_package: formData.package || 'standard',
-      package_tier: formData.package || 'standard',
-      table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
-      status: 'pending',
-      is_approved: false
+      bussines_type: formData.product_type,
+      status: 'pending'
     };
 
-    // 2. Eksekusi Insert
-    const { data, error } = await supabase
+    const { error: insertError } = await supabase
       .from('registrations')
       .insert([registrationData]);
 
-    if (error) throw error;
+    if (insertError) throw insertError;
 
-    // 3. Webhook ke Pipedream (tetap menggunakan meta_data karena ini untuk pihak ke-3)
+    // 2. Webhook Pipedream (Boleh pakai meta_data untuk pihak ketiga)
     const meta_data = {
       npsn: formData.npsn,
       tables_count: formData.tables_count,
@@ -156,23 +145,37 @@ export default function FormPendaftaranSaaS() {
       await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          meta_data: meta_data,
-          timestamp: new Date().toISOString(),
-          source: 'saas_registration_form'
-        }),
+        body: JSON.stringify({ ...formData, meta_data, source: 'saas_registration_form' }),
       });
     } catch (webhookErr) {
       console.error('Webhook error:', webhookErr);
     }
 
-    alert('Pendaftaran berhasil!');
-    setLoading(false);
+    // 3. Insert ke tabel LMS (Pastikan berada di DALAM blok try)
+    const lmsInsertData = {
+      full_name: formData.full_name,
+      email: formData.email,
+      whatsapp_number: formData.whatsapp,
+      bussiness_name: formData.business_name,
+      product_type: formData.product_type,
+      bussines_type: formData.product_type,
+      selected_package: formData.package || 'standard',
+      table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+      status: 'pending',
+      is_approved: false
+    };
 
+    const { error: lmsError } = await supabase
+      .from('registrations')
+      .insert([lmsInsertData]);
+
+    if (lmsError) throw lmsError;
+
+    alert('Pendaftaran berhasil!');
   } catch (err) {
     console.error('Submission error:', err);
     setError('Gagal memproses pendaftaran. Silakan coba lagi.');
+  } finally {
     setLoading(false);
   }
 };
