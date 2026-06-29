@@ -72,7 +72,7 @@ export default function ManajemenPendaftarSaaS() {
           whatsapp: r.whatsapp || r.WA || '-',
           business_name: r.school_name || '-',
           product_type: 'lms',
-          package: r.paket_langganan || 'silver',
+          package: r.selected_package || r.paket_langganan || 'silver',
           status: r.status || 'pending',
           meta_data: { npsn: r.npsn },
           created_at: r.created_at
@@ -106,7 +106,7 @@ export default function ManajemenPendaftarSaaS() {
           whatsapp: r.whatsapp_number || '-',
           business_name: r.business_name || '-',
           product_type: activeTab,
-          package: r.selected_package || 'standard',
+          package: r.package_tier || r.selected_package || 'standard',
           status: r.status as any,
           meta_data: { 
             tables_count: r.table_count,

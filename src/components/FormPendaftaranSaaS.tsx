@@ -125,7 +125,7 @@ export default function FormPendaftaranSaaS() {
       const uniqueSubdomain = rawSubdomain ? `${rawSubdomain}-${Math.floor(1000 + Math.random() * 9000)}` : `tenant-${Math.floor(1000 + Math.random() * 9000)}`;
 
       // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
-      const lmsInsertData = {
+      const lmsInsertData: any = {
         school_name: formData.business_name,
         full_name: formData.full_name,
         email: formData.email,
@@ -134,9 +134,18 @@ export default function FormPendaftaranSaaS() {
         subdomain: uniqueSubdomain,
         password: 'defaultpassword123',
         status: 'pending',
-        is_approved: false,
-        paket_langganan: formData.product_type === 'lms' ? (formData.package || 'silver') : (formData.package || 'standard')
+        is_approved: false
       };
+
+      // Handle package columns conditionally to avoid DB schema mismatch (Error 400)
+      if (formData.product_type === 'siput') {
+        lmsInsertData.package_tier = formData.package || 'standard';
+      } else if (formData.product_type === 'lms') {
+        lmsInsertData.selected_package = formData.package || 'silver';
+      } else {
+        // Other types like scanbite, restoran_asli, instafoto
+        lmsInsertData.selected_package = formData.package || 'standard';
+      }
 
       const { error: lmsError } = await supabase
         .from('registrations')
@@ -149,16 +158,23 @@ export default function FormPendaftaranSaaS() {
 
       // If it is NOT LMS (ie. culinary/siput), also insert into Supabase Culinary 'registrations' table
       if (!isLms) {
-        const culinaryInsertData = {
+        const culinaryInsertData: any = {
           full_name: formData.full_name,
           email: formData.email,
           whatsapp_number: formData.whatsapp,
           business_type: formData.product_type,
           business_name: formData.business_name,
-          selected_package: formData.product_type === 'siput' ? null : (formData.package || 'standard'),
           table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
           status: 'pending'
         };
+
+        // Handle package columns conditionally for culinary table to avoid DB schema mismatch (Error 400)
+        if (formData.product_type === 'siput') {
+          culinaryInsertData.package_tier = formData.package || 'standard';
+        } else {
+          // Other types like scanbite, restoran_asli, instafoto
+          culinaryInsertData.selected_package = formData.package || 'standard';
+        }
 
         const { error: culinaryError } = await supabaseKuliner
           .from('registrations')
