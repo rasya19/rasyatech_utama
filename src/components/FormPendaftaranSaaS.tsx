@@ -113,54 +113,69 @@ export default function FormPendaftaranSaaS() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
+
+  try {
+    // 1. Data untuk insert ke tabel registrations
+    // Menyesuaikan dengan daftar kolom: id, full_name, email, whatsapp_number, 
+    // bussiness_name, product_type, selected_package, table_count, status, 
+    // created_at, bussines_type, kode_tenant, tenant, tenant_master_id, 
+    // is_approved, package_tier
+    
+    const registrationData = {
+      full_name: formData.full_name,
+      email: formData.email,
+      whatsapp_number: formData.whatsapp,
+      bussiness_name: formData.business_name, // Menggunakan ejaan 'ss' sesuai database Anda
+      product_type: formData.product_type,
+      bussines_type: formData.product_type,   // Sesuai daftar kolom Anda
+      selected_package: formData.package || 'standard',
+      package_tier: formData.package || 'standard',
+      table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
+      status: 'pending',
+      is_approved: false
+    };
+
+    // 2. Eksekusi Insert
+    const { data, error } = await supabase
+      .from('registrations')
+      .insert([registrationData]);
+
+    if (error) throw error;
+
+    // 3. Webhook ke Pipedream (tetap menggunakan meta_data karena ini untuk pihak ke-3)
+    const meta_data = {
+      npsn: formData.npsn,
+      tables_count: formData.tables_count,
+      outlet_count: formData.outlet_count
+    };
 
     try {
-      // Package meta_data based on product
-      const meta_data: Record<string, string> = {};
-      if (formData.product_type === 'scanbite' || formData.product_type === 'restoran_asli') {
-        meta_data.tables_count = formData.tables_count;
-      } else if (formData.product_type === 'Instafood') {
-        meta_data.outlet_count = formData.outlet_count;
-      } else if (formData.product_type === 'lms' || formData.product_type === 'siput') {
-        meta_data.npsn = formData.npsn;
-      }
-      const { data, error } = await supabase
-  .from('registrations')
-  .insert([
-    {
-      email: formData.email, // Pastikan field ini sesuai dengan state Anda
-      whatsapp: formData.whatsapp,
-      business_name: formData.business_name,
-      // WAJIB SERTAKAN INI AGAR TIDAK ERROR
-      product_type: formData.product_type, 
-      meta_data: meta_data, // Masukkan objek meta_data yang sudah disiapkan
-    },
-  ]);
+      await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          meta_data: meta_data,
+          timestamp: new Date().toISOString(),
+          source: 'saas_registration_form'
+        }),
+      });
+    } catch (webhookErr) {
+      console.error('Webhook error:', webhookErr);
+    }
 
-if (error) throw error;
+    alert('Pendaftaran berhasil!');
+    setLoading(false);
 
-      const isLms = formData.product_type === 'lms';
-
-      // Webhook Notification to Pipedream (Fires every click)
-      try {
-        await fetch('https://eokh2lzws2oigii.m.pipedream.net', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...formData,
-            meta_data: meta_data,
-            timestamp: new Date().toISOString(),
-            source: 'saas_registration_form'
-          }),
-        });
-      } catch (webhookErr) {
-        console.error('Webhook error:', webhookErr);
-      }
+  } catch (err) {
+    console.error('Submission error:', err);
+    setError('Gagal memproses pendaftaran. Silakan coba lagi.');
+    setLoading(false);
+  }
+};
 
       // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
       const lmsInsertData = {
