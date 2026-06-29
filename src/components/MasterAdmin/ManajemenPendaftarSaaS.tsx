@@ -1,45 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 import { supabaseKuliner } from '../../lib/supabase-kuliner';
-import { fetchTotalPendaftarCount } from '../../lib/registration-stats';
-import {
-  isMainDbTab,
-  isKulinerTab,
-  buildRegistrationStatusPayload,
-  buildLocalStatusPatch,
-  type PendaftarProductTab,
-} from '../../lib/pendaftar-mutations';
-import {
-  provisionMainTenantOnApproval,
-  provisionKulinerTenantOnApproval,
-  linkMainRegistrationTenantId,
-  deriveSlugFromRegistration,
-} from '../../lib/provision-tenant-on-approval';
-import { provisionTenantRegistrationOnApproval } from '../../lib/provision-tenant-registration-on-approval';
-import { buildTenantPortalUrl } from '../../lib/tenant-url';
-import { toProductApp } from '../../lib/saas-product-options';
-import {
-  logSupabaseInsertError,
-  normalizeTenantSubdomain,
-  buildProvisioningSubdomain,
-} from '../../lib/tenant-insert-utils';
-import { sendTenantApprovalNotification } from '../../lib/notifications';
-import {
-  Users,
-  MessageCircle,
-  CheckCircle2,
-  Loader2,
-  Search,
+import { 
+  Users, 
+  MessageCircle, 
+  CheckCircle2, 
+  Loader2, 
+  Search, 
+  Filter,
+  ExternalLink,
   School,
   Store,
+  LayoutGrid,
   Clock,
   RefreshCcw,
-  AlertCircle,
-  Trash2,
+  AlertCircle
 } from 'lucide-react';
 
-type ProductType = PendaftarProductTab;
+type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
 
 interface Pendaftar {
   id: string;
@@ -50,13 +29,8 @@ interface Pendaftar {
   product_type: ProductType;
   package?: string;
   status: 'pending' | 'active' | 'verified';
-  is_approved?: boolean;
-  tenant_id?: string | null;
-  tenant_master_id?: string | null;
-  meta_data: Record<string, unknown>;
+  meta_data: any;
   created_at: string;
-  /** Baris mentah dari Supabase — untuk update status dinamis */
-  _raw: Record<string, unknown>;
 }
 
 const TABS = [
@@ -67,504 +41,135 @@ const TABS = [
   { id: 'instafoto', label: 'Instafoto', icon: '📸', color: 'text-orange-400' },
 ] as const;
 
-function getDbClient(tab: ProductType) {
-  return isMainDbTab(tab) ? supabase : supabaseKuliner;
-}
-
-function getProductTypeValue(row: Record<string, unknown>): string {
-  return String(
-    row.product_app || row.product_type || row.product_name || row.business_type || ''
-  ).toLowerCase();
-}
-
-function matchesActiveTab(row: Record<string, unknown>, tab: ProductType): boolean {
-  const pType = getProductTypeValue(row);
-  const tabLower = tab.toLowerCase();
-
-  switch (tab) {
-    case 'lms':
-      return (
-        pType === 'lms' ||
-        pType.includes('lms') ||
-        pType.includes('armilla') ||
-        pType.includes('kesetaraan')
-      );
-    case 'siput':
-      return pType === 'siput' || pType.includes('siput');
-    case 'scanbite':
-      return pType === 'scanbite' || pType.includes('scanbite');
-    case 'restoran_asli':
-      return pType === 'restoran_asli' || pType.includes('restoran') || pType.includes('resto');
-    case 'instafoto':
-      return pType === 'instafoto' || pType.includes('instafoto') || pType.includes('instafood');
-    default:
-      return pType === tabLower || pType.includes(tabLower);
-  }
-}
-
-function isTruthyApproved(value: unknown): boolean {
-  return value === true || value === 1 || String(value).toLowerCase() === 'true';
-}
-
-/** Toleran terhadap status string/boolean dari berbagai skema Supabase. */
-function isVerified(item: Pick<Pendaftar, 'status' | 'is_approved' | '_raw'>): boolean {
-  const statusValues = [
-    item.status,
-    item._raw?.status,
-  ]
-    .map((v) => String(v ?? '').toLowerCase())
-    .filter(Boolean);
-
-  if (statusValues.some((s) => s === 'verified' || s === 'active' || s === 'approved')) {
-    return true;
-  }
-
-  if (isTruthyApproved(item.is_approved) || isTruthyApproved(item._raw?.is_approved)) {
-    return true;
-  }
-
-  if (item._raw?.approved === true || String(item._raw?.approved).toLowerCase() === 'true') {
-    return true;
-  }
-
-  return false;
-}
-
-function resolveUiStatus(row: Record<string, unknown>): Pendaftar['status'] {
-  if (isTruthyApproved(row.is_approved)) {
-    return 'verified';
-  }
-  const status = String(row.status || '').toLowerCase();
-  if (status === 'verified' || status === 'active' || status === 'approved') return 'verified';
-  if (row.approved === true || String(row.approved).toLowerCase() === 'true') return 'verified';
-  return 'pending';
-}
-
-function mapRowToPendaftar(row: Record<string, unknown>, tab: ProductType): Pendaftar {
-  return {
-    id: String(row.id),
-    full_name: String(row.admin_name || row.full_name || row.name || '-'),
-    email: String(row.admin_email || row.email || '-'),
-    whatsapp: String(row.whatsapp || row.whatsapp_number || row.WA || '-'),
-    business_name: String(row.school_name || row.business_name || row.tenant_name || '-'),
-    product_type: tab,
-    package: String(row.paket_langganan || row.selected_package || row.package_tier || 'silver'),
-    status: resolveUiStatus(row),
-    is_approved: isTruthyApproved(row.is_approved),
-    tenant_id: row.tenant_id ? String(row.tenant_id) : null,
-    tenant_master_id: row.tenant_master_id ? String(row.tenant_master_id) : null,
-    meta_data: {
-      npsn: row.npsn ?? null,
-      tables_count: row.tabel_count ?? row.table_count ?? row.tables_count ?? 0,
-      outlet_count: row.outlet_count ?? row.tabel_count ?? 0,
-    },
-    created_at: String(row.created_at || ''),
-    _raw: row,
-  };
-}
-
-function sortByCreatedAtDesc<T extends { created_at?: string }>(items: T[]): T[] {
-  return [...items].sort(
-    (a, b) =>
-      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-  );
-}
-
-/** ID asli dari baris Supabase (bigint/UUID) — jangan pakai filter tenant pada update/delete. */
-function getRegistrationRowId(item: Pick<Pendaftar, 'id' | '_raw'>): string | number {
-  const rawId = item._raw?.id;
-  if (typeof rawId === 'number') return rawId;
-  if (typeof rawId === 'string' && rawId.trim() !== '') {
-    const asNumber = Number(rawId);
-    if (!Number.isNaN(asNumber) && String(asNumber) === rawId) return asNumber;
-    return rawId;
-  }
-  const asNumber = Number(item.id);
-  if (!Number.isNaN(asNumber) && String(asNumber) === item.id) return asNumber;
-  return item.id;
-}
-
-interface ManajemenPendaftarSaaSProps {
-  onTotalPendaftarChange?: (count: number) => void;
-}
-
-type ToastState = {
-  type: 'success' | 'error';
-  message: string;
-} | null;
-
-export default function ManajemenPendaftarSaaS({
-  onTotalPendaftarChange,
-}: ManajemenPendaftarSaaSProps) {
+export default function ManajemenPendaftarSaaS() {
   const [activeTab, setActiveTab] = useState<ProductType>('lms');
   const [data, setData] = useState<Pendaftar[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
 
-  const showToast = (message: string, type: 'success' | 'error') => {
-    setToast({ message, type });
-    window.setTimeout(() => setToast(null), 6000);
-  };
-
-  const refreshTotalPendaftar = useCallback(async () => {
-    if (!onTotalPendaftarChange) return;
-    try {
-      const total = await fetchTotalPendaftarCount();
-      onTotalPendaftarChange(total);
-    } catch (err) {
-      console.warn('[ManajemenPendaftarSaaS] gagal hitung total pendaftar:', err);
-    }
-  }, [onTotalPendaftarChange]);
-
-  const fetchData = useCallback(async () => {
+  const fetchData = async () => {
     setLoading(true);
     setError(null);
-
     try {
-      const client = getDbClient(activeTab);
-      const kulinerMissing =
-        !isMainDbTab(activeTab) &&
-        !(import.meta.env.VITE_SUPABASE_URL_KULINER && import.meta.env.VITE_SUPABASE_ANON_KEY_KULINER);
+      if (activeTab === 'lms') {
+        // Fetch from registrations table for schools
+        const { data: regs, error: fetchError } = await supabase
+          .from('registrations')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (kulinerMissing) {
-        throw new Error(
-          'Kredensial Supabase Kuliner belum dikonfigurasi di Vercel (VITE_SUPABASE_URL_KULINER).'
-        );
+        if (fetchError) throw fetchError;
+        
+        // Map registrations to Pendaftar format
+        const mappedData: Pendaftar[] = (regs || []).map(r => ({
+          id: r.id,
+          full_name: r.admin_name || r.name || '-',
+          email: r.admin_email || r.email || '-',
+          whatsapp: r.whatsapp || r.WA || '-',
+          business_name: r.school_name || '-',
+          product_type: 'lms',
+          package: r.paket_langganan || 'silver',
+          status: (r.status === 'verified' || r.status === 'active') ? 'active' : 'pending',
+          meta_data: { npsn: r.npsn },
+          created_at: r.created_at
+        }));
+        
+        // Also fetch from pendaftar table where product_type = 'lms' just in case
+        const { data: saasLms } = await supabase
+          .from('pendaftar')
+          .select('*')
+          .eq('product_type', 'lms');
+        
+        const unified = [...mappedData, ...(saasLms || [])];
+        // Sort by created_at
+        unified.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        
+        setData(unified);
+      } else {
+        // Fetch from culinary supabase registrations table
+        const { data: pendaftar, error: fetchError } = await supabaseKuliner
+          .from('registrations')
+          .select('*')
+          .eq('business_type', activeTab)
+          .order('created_at', { ascending: false });
+
+        if (fetchError) throw fetchError;
+        
+        const mappedData: Pendaftar[] = (pendaftar || []).map((r: any) => ({
+          id: r.id,
+          full_name: r.full_name || '-',
+          email: r.email || '-',
+          whatsapp: r.whatsapp_number || '-',
+          business_name: r.business_name || '-',
+          product_type: activeTab,
+          package: r.selected_package || 'standard',
+          status: r.status as any,
+          meta_data: { 
+            tables_count: r.table_count,
+            outlet_count: r.table_count
+          },
+          created_at: r.created_at
+        }));
+
+        setData(mappedData);
       }
-
-      const { data: rawRows, error: fetchError } = await client
-        .from('registrations')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-
-      const rows = (rawRows as Record<string, unknown>[]) || [];
-      // Di dalam fetchData
-      const filtered = rows.filter((row) => matchesActiveTab(row, activeTab));
-
-      if (process.env.NODE_ENV === 'development') {
-      console.log('[FE] fetchData - total rows:', rows.length);
-      console.log('[FE] fetchData - filtered rows:', filtered.length);
-      console.log('[FE] fetchData - filtered data:', filtered);
-}
-
-const mapped = sortByCreatedAtDesc(filtered.map((row) => mapRowToPendaftar(row, activeTab)));
-      setData(mapped);
-      await refreshTotalPendaftar();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Gagal memuat data pendaftar';
-      setError(message);
-      setData([]);
+    } catch (err: any) {
+      setError(err.message || 'Gagal memuat data pendaftar');
     } finally {
       setLoading(false);
     }
-  }, [activeTab, refreshTotalPendaftar]);
+  };
 
   useEffect(() => {
     fetchData();
-  }, [activeTab, fetchData]);
+  }, [activeTab]);
 
-  useEffect(() => {
-    refreshTotalPendaftar();
-  }, [refreshTotalPendaftar]);
-
-  /**
-   * Setujui pendaftar LMS/SIPUT:
-   * 1. Client DB tenant (bukan master)
-   * 2. Buat akun Auth + insert registrations di DB tenant
-   * 3. Hapus baris di master hanya jika semua langkah sukses
-   */
-const handleApprove = async (item: Pendaftar) => {
-  if (activeTab !== 'lms' && activeTab !== 'siput') {
-    throw new Error('handleApprove hanya untuk produk LMS/SIPUT.');
-  }
-
-  const rowId = getRegistrationRowId(item);
-  const masterClient = getDbClient(activeTab);
-  const mergedRow = { ...item._raw };
-
-  const cleanSlug = normalizeTenantSubdomain(deriveSlugFromRegistration(mergedRow));
-  const slug = buildProvisioningSubdomain(cleanSlug, activeTab);
-
-  console.log('[FE] SETUJUI — mulai provisioning:', {
-    tab: activeTab,
-    rowId,
-    tenantId: mergedRow.tenant_id ?? mergedRow.tenant_master_id ?? null,
-    slug,
-    npsn: mergedRow.npsn,
-    paket: mergedRow.package_tier ?? mergedRow.selected_package ?? mergedRow.paket_langganan,
-    email: item.email,
-    business_name: item.business_name,
-  });
-
-  if (!slug) {
-    console.error('[FE] SLUG KOSONG!', { activeTab, mergedRow, cleanSlug });
-    throw new Error('Subdomain/slug kosong — tidak bisa provisioning tenant.');
-  }
-
-  const provision = await provisionTenantRegistrationOnApproval(activeTab, mergedRow);
-
-  // Update status di master menjadi approved dan simpan tenant_id
-  const { error: updateError } = await masterClient
-    .from('registrations')
-    .update({
-      status: 'approved',
-      is_approved: true,
-      tenant_id: provision.tenant?.id || null,
-      tenant_master_id: provision.tenant?.id || null,
-    })
-    .eq('id', rowId);
-
-  if (updateError) {
-    console.warn('[FE] Gagal update status di master:', updateError);
-    showToast('Tenant berhasil dibuat, tetapi gagal update status di master.', 'error');
-  } else {
-    console.log('[FE] Status pendaftar di master diupdate menjadi approved');
-  }
-
-  // Update state lokal agar item tetap muncul dengan status 'approved'
-  setData((prev) =>
-    prev.map((row) =>
-      row.id === item.id
-        ? {
-            ...row,
-            status: 'approved',
-            is_approved: true,
-            tenant_id: provision.tenant?.id || row.tenant_id,
-            tenant_master_id: provision.tenant?.id || row.tenant_master_id,
-            _raw: {
-              ...row._raw,
-              status: 'approved',
-              is_approved: true,
-              tenant_id: provision.tenant?.id || row.tenant_id,
-              tenant_master_id: provision.tenant?.id || row.tenant_master_id,
-            },
-          }
-        : row
-    )
-  );
-
-  await refreshTotalPendaftar();
-
-  const kodeTenant = provision.tenant.slug;
-  const portalUrl = buildTenantPortalUrl(kodeTenant, toProductApp(activeTab));
-
+  const handleUpdateStatus = async (id: string, currentStatus: string) => {
+  setUpdatingId(id);
   try {
-    await sendTenantApprovalNotification({
-      fullName: item.full_name,
-      businessName: item.business_name,
-      product: String(mergedRow.product_type || activeTab),
-      kodeTenant,
-      email: item.email !== '-' ? item.email : undefined,
-      whatsapp: item.whatsapp,
-    });
-  } catch (notifyErr) {
-    console.warn('[ManajemenPendaftarSaaS] notifikasi approval:', notifyErr);
+    const isLms = activeTab === 'lms';
+    const client = isLms ? supabase : supabaseKuliner;
+    
+    // Tentukan aksi berdasarkan status baru
+    const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
+    const action = nextStatus === 'active' ? 'ACTIVATE' : 'DEACTIVATE';
+
+    const table = 'registrations';
+    
+    // 1. Update database lokal (registrations)
+    const updatePayload: any = { 
+      status: nextStatus,
+      is_approved: (nextStatus === 'active') 
+    };
+
+    const { error: updateError } = await client
+      .from(table)
+      .update(updatePayload)
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    // 2. JIKA LMS, sinkronkan ke SiPUT via Edge Function
+    if (isLms) {
+      const tenantId = id; // Asumsi ID di registrations sama dengan tenant_id
+      await fetch('https://mqvxretzntpkwxspbvap.supabase.co/functions/v1/atur-status-tenant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, action })
+      });
+    }
+    
+    // 3. Update local state
+    setData(prev => prev.map(item => item.id === id ? { ...item, status: nextStatus as any } : item));
+    
+  } catch (err: any) {
+    console.error('Update operation error:', err);
+    alert('Gagal update database bang');
+  } finally {
+    setUpdatingId(null);
   }
-
-  const authNote = provision.auth.magicLinkSent
-    ? ' Email reset password telah dikirim ke pendaftar.'
-    : '';
-
-  showToast(
-    `Pendaftar disetujui. Data diperbarui di DB ${activeTab.toUpperCase()} (${portalUrl}).${authNote}`,
-    'success'
-  );
 };
-
-  function extractPlainPasswordHint(row: Record<string, unknown>): boolean {
-    const candidates = [row.password_plain, row.plain_password, row.password];
-    return candidates.some((value) => {
-      const s = String(value ?? '').trim();
-      return s.length >= 6 && !s.startsWith('$2');
-    });
-  }
-
-  const handleUpdateStatus = async (item: Pendaftar) => {
-    const rowId = getRegistrationRowId(item);
-    setUpdatingId(item.id);
-    const activating = !isVerified(item);
-    const client = getDbClient(activeTab);
-
-    try {
-      if (activating && isMainDbTab(activeTab)) {
-        await handleApprove(item);
-        return;
-      }
-
-      const { payload, selectColumns } = await buildRegistrationStatusPayload(
-        activeTab,
-        activating,
-        client,
-        item._raw
-      );
-
-      const { data: updatedRows, error: updateError } = await client
-        .from('registrations')
-        .update(payload)
-        .eq('id', rowId)
-        .select(selectColumns);
-
-      if (updateError) throw updateError;
-      if (!updatedRows?.length) {
-        throw new Error('Tidak ada baris yang diperbarui. Periksa ID pendaftar atau kebijakan RLS Supabase.');
-      }
-
-      const updated = updatedRows[0] as unknown as Record<string, unknown>;
-      let patch = buildLocalStatusPatch(activeTab, activating, updated);
-
-      if (activating) {
-        let provisionTenantId: string | null = patch.tenant_id ?? null;
-
-        try {
-          if (isMainDbTab(activeTab)) {
-            const provision = await provisionMainTenantOnApproval(activeTab, {
-              ...item._raw,
-              ...updated,
-            });
-            if (provision.tenantId) {
-              await linkMainRegistrationTenantId(client, rowId, provision.tenantId);
-              provisionTenantId = provision.tenantId;
-              patch = {
-                ...patch,
-                tenant_id: provision.tenantId,
-                tenant_master_id: provision.tenantId,
-              };
-            }
-          } else {
-            const provision = await provisionKulinerTenantOnApproval(activeTab, {
-              ...item._raw,
-              ...updated,
-            });
-            provisionTenantId = provision.tenantId;
-            if (provision.tenantId) {
-              await client
-                .from('registrations')
-                .update({ tenant_id: provision.tenantId })
-                .eq('id', rowId);
-            }
-          }
-        } catch (provisionErr) {
-          logSupabaseInsertError(
-            'ManajemenPendaftarSaaS.handleUpdateStatus.provision',
-            provisionErr,
-            { ...item._raw, tab: activeTab }
-          );
-          const msg =
-            provisionErr instanceof Error ? provisionErr.message : 'Gagal membuat tenant.';
-          alert(`Status diperbarui, tetapi provisioning tenant gagal: ${msg}`);
-        }
-
-        if (provisionTenantId) {
-          patch = {
-            ...patch,
-            tenant_id: provisionTenantId,
-            tenant_master_id: provisionTenantId,
-          };
-        }
-
-        try {
-          const mergedRow = { ...item._raw, ...updated };
-          let kodeTenant = normalizeTenantSubdomain(
-            String(mergedRow.kode_tenant || '').trim() ||
-              deriveSlugFromRegistration(mergedRow)
-          );
-
-          if (isMainDbTab(activeTab)) {
-            kodeTenant = buildProvisioningSubdomain(kodeTenant, activeTab);
-          }
-          const product = String(
-            mergedRow.product_type || mergedRow.business_type || mergedRow.tenant || activeTab
-          );
-
-          await sendTenantApprovalNotification({
-            fullName: item.full_name,
-            businessName: item.business_name,
-            product,
-            kodeTenant,
-            email: item.email !== '-' ? item.email : undefined,
-            whatsapp: item.whatsapp,
-          });
-        } catch (notifyErr) {
-          console.warn('[ManajemenPendaftarSaaS] notifikasi approval:', notifyErr);
-        }
-      }
-
-      setData((prev) =>
-        prev.map((row) =>
-          row.id === item.id
-            ? {
-                ...row,
-                status: patch.status,
-                is_approved: patch.is_approved,
-                tenant_id: patch.tenant_id ?? row.tenant_id,
-                tenant_master_id: patch.tenant_master_id ?? row.tenant_master_id,
-                _raw: {
-                  ...row._raw,
-                  status: patch.status,
-                  is_approved: patch.is_approved,
-                  ...(patch.tenant != null ? { tenant: patch.tenant } : {}),
-                  ...(patch.tenant_id != null ? { tenant_id: patch.tenant_id } : {}),
-                  ...(patch.tenant_master_id != null
-                    ? { tenant_master_id: patch.tenant_master_id }
-                    : {}),
-                },
-              }
-            : row
-        )
-      );
-
-      if (activating) {
-        showToast(
-          isKulinerTab(activeTab)
-            ? 'Status pendaftar disetujui dan tenant kuliner telah diproses.'
-            : patch.tenant_id
-              ? 'Status pendaftar disetujui dan tenant berhasil dibuat.'
-              : 'Status diperbarui. Tenant belum terbuat — periksa log konsol.',
-          patch.tenant_id || isKulinerTab(activeTab) ? 'success' : 'error'
-        );
-      } else {
-        showToast('Status pendaftar berhasil diperbarui!', 'success');
-      }
-    } catch (err: unknown) {
-      console.error('Update operation error:', err);
-      const message = err instanceof Error ? err.message : 'Gagal memperbarui status pendaftar.';
-      showToast(message, 'error');
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  const handleDelete = async (item: Pendaftar) => {
-    if (!window.confirm('Yakin ingin menghapus data ini?')) return;
-
-    const rowId = getRegistrationRowId(item);
-    const client = getDbClient(activeTab);
-
-    try {
-      const { data: deletedRows, error: deleteError } = await client
-        .from('registrations')
-        .delete()
-        .eq('id', rowId)
-        .select('id');
-
-      if (deleteError) throw deleteError;
-      if (!deletedRows?.length) {
-        throw new Error('Tidak ada baris yang dihapus. Periksa ID pendaftar atau kebijakan RLS Supabase.');
-      }
-
-      setData((prev) => prev.filter((row) => row.id !== item.id));
-      await refreshTotalPendaftar();
-      alert('Data berhasil dihapus.');
-    } catch (err: unknown) {
-      console.error('[ManajemenPendaftarSaaS] delete error:', err);
-      const message = err instanceof Error ? err.message : 'Gagal menghapus data.';
-      alert(message);
-    }
-  };
 
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
@@ -573,62 +178,30 @@ const handleApprove = async (item: Pendaftar) => {
     return '-';
   };
 
-  const getDynamicValue = (meta: Record<string, unknown>) => {
+  const getDynamicValue = (meta: any) => {
     if (!meta) return '-';
-    if (activeTab === 'scanbite' || activeTab === 'restoran_asli') {
-      return String(meta.tables_count ?? '-');
-    }
-    if (activeTab === 'instafoto') return String(meta.outlet_count ?? '-');
-    if (activeTab === 'lms' || activeTab === 'siput') return String(meta.npsn ?? '-');
+    if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return meta.tables_count || '-';
+    if (activeTab === 'instafoto') return meta.outlet_count || '-';
+    if (activeTab === 'lms' || activeTab === 'siput') return meta.npsn || '-';
     return '-';
   };
 
-  const formatCreatedAt = (createdAt: string) => {
-    const date = new Date(createdAt || 0);
-    if (Number.isNaN(date.getTime())) {
-      return { date: '-', time: '-' };
-    }
-    return {
-      date: date.toLocaleDateString('id-ID'),
-      time: date.toLocaleTimeString('id-ID'),
-    };
-  };
-
   return (
-    <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl relative">
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            className={`fixed top-6 right-6 z-[100] max-w-md px-5 py-4 rounded-2xl border shadow-2xl text-sm font-medium ${
-              toast.type === 'success'
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-100'
-                : 'bg-rose-500/15 border-rose-500/30 text-rose-100'
-            }`}
-          >
-            {toast.message}
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="bg-[#0A0F1E] rounded-[32px] border border-slate-800/50 overflow-hidden shadow-2xl">
+      {/* Header */}
       <div className="p-8 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-blue-500/10 rounded-xl">
               <Users className="w-5 h-5 text-blue-400" />
             </div>
-            <h1 className="text-2xl font-bold text-white uppercase tracking-tight">
-              Manajemen Pendaftar SaaS
-            </h1>
+            <h1 className="text-2xl font-bold text-white uppercase tracking-tight">Manajemen Pendaftar SaaS</h1>
           </div>
-          <p className="text-slate-400 text-sm">
-            LMS & SIPUT → Supabase utama · Kuliner → Supabase Kuliner
-          </p>
+          <p className="text-slate-400 text-sm">Rekap pendaftaran produk ekosistem Rasyatech Enterprise.</p>
         </div>
 
-        <button
-          onClick={fetchData}
+        <button 
+          onClick={fetchData} 
           disabled={loading}
           className="flex items-center gap-2 px-6 py-3 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-2xl transition-all text-sm font-bold border border-slate-700/50 disabled:opacity-50"
         >
@@ -637,14 +210,15 @@ const handleApprove = async (item: Pendaftar) => {
         </button>
       </div>
 
+      {/* Tabs */}
       <div className="px-8 pt-4 pb-2 bg-[#0D1426] border-b border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as ProductType)}
             className={`flex items-center gap-3 px-6 py-4 border-b-2 transition-all whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-blue-500 text-white bg-blue-500/5'
+              activeTab === tab.id 
+                ? 'border-blue-500 text-white bg-blue-500/5' 
                 : 'border-transparent text-slate-500 hover:text-slate-300'
             }`}
           >
@@ -654,10 +228,11 @@ const handleApprove = async (item: Pendaftar) => {
         ))}
       </div>
 
+      {/* Content */}
       <div className="p-8">
         <AnimatePresence mode="wait">
           {loading ? (
-            <motion.div
+            <motion.div 
               key="loading"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -665,12 +240,10 @@ const handleApprove = async (item: Pendaftar) => {
               className="py-32 flex flex-col items-center justify-center gap-4"
             >
               <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-              <p className="text-slate-500 font-medium font-serif italic">
-                Membaca database Supabase...
-              </p>
+              <p className="text-slate-500 font-medium font-serif italic">Membaca database Supabase...</p>
             </motion.div>
           ) : error ? (
-            <motion.div
+            <motion.div 
               key="error"
               className="py-32 flex flex-col items-center justify-center gap-4 text-center"
             >
@@ -681,22 +254,18 @@ const handleApprove = async (item: Pendaftar) => {
               <p className="text-slate-500 max-w-sm">{error}</p>
             </motion.div>
           ) : data.length === 0 ? (
-            <motion.div
+            <motion.div 
               key="empty"
               className="py-32 flex flex-col items-center justify-center gap-4 text-center"
             >
               <div className="p-4 bg-slate-800/50 rounded-full">
                 <Search className="w-8 h-8 text-slate-600" />
               </div>
-              <h3 className="text-slate-400 font-bold text-lg uppercase tracking-widest">
-                Belum Ada Pendaftar
-              </h3>
-              <p className="text-slate-600 max-w-sm text-sm">
-                Belum ada user yang mendaftar untuk produk {activeTab.toUpperCase()} di tenant ini.
-              </p>
+              <h3 className="text-slate-400 font-bold text-lg uppercase tracking-widest">Belum Ada Pendaftar</h3>
+              <p className="text-slate-600 max-w-sm text-sm">Belum ada user yang mendaftar untuk produk {activeTab.toUpperCase()} di wilayah ini.</p>
             </motion.div>
           ) : (
-            <motion.div
+            <motion.div 
               key="content"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -705,131 +274,92 @@ const handleApprove = async (item: Pendaftar) => {
               <table className="w-full text-left border-collapse min-w-[1000px]">
                 <thead>
                   <tr className="border-b border-slate-800">
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Waktu Daftar
-                    </th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Nama Lengkap
-                    </th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Instansi / Bisnis
-                    </th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
-                      WhatsApp
-                    </th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
-                      Paket
-                    </th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">
-                      {getDynamicColumnHeader()}
-                    </th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-center">
-                      Status
-                    </th>
-                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-right">
-                      Aksi
-                    </th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Waktu Daftar</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Nama Lengkap</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Instansi / Bisnis</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">WhatsApp</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">Paket</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest">{getDynamicColumnHeader()}</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
+                    <th className="py-5 px-4 text-xs font-black text-slate-500 uppercase tracking-widest text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((item) => {
-                    const created = formatCreatedAt(item.created_at);
-                    const verified = isVerified(item);
-                    return (
-                      <tr
-                        key={item.id}
-                        className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group"
-                      >
-                        <td className="py-6 px-4">
-                          <div className="text-slate-300 text-sm font-medium">{created.date}</div>
-                          <div className="text-slate-600 text-[10px] font-mono mt-0.5">
-                            {created.time}
-                          </div>
-                        </td>
-                        <td className="py-6 px-4">
-                          <div className="text-white font-bold">{item.full_name}</div>
-                          <div className="text-slate-500 text-xs mt-1">{item.email}</div>
-                        </td>
-                        <td className="py-6 px-4">
-                          <div className="flex items-center gap-2">
-                            <span className="p-1.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
-                              {activeTab === 'lms' || activeTab === 'siput' ? (
-                                <School className="w-3.5 h-3.5" />
-                              ) : (
-                                <Store className="w-3.5 h-3.5" />
-                              )}
-                            </span>
-                            <span className="text-slate-300 font-semibold">{item.business_name}</span>
-                          </div>
-                        </td>
-                        <td className="py-6 px-4 font-mono text-slate-400 text-sm">
-                          {item.whatsapp}
-                        </td>
-                        <td className="py-6 px-4">
-                          <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                            {item.package || 'default'}
+                  {data.map((item) => (
+                    <tr key={item.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
+                      <td className="py-6 px-4">
+                        <div className="text-slate-300 text-sm font-medium">{new Date(item.created_at).toLocaleDateString('id-ID')}</div>
+                        <div className="text-slate-600 text-[10px] font-mono mt-0.5">{new Date(item.created_at).toLocaleTimeString('id-ID')}</div>
+                      </td>
+                      <td className="py-6 px-4">
+                        <div className="text-white font-bold">{item.full_name}</div>
+                        <div className="text-slate-500 text-xs mt-1">{item.email}</div>
+                      </td>
+                      <td className="py-6 px-4">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 bg-slate-800 rounded-lg group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
+                            {activeTab === 'lms' || activeTab === 'siput' ? <School className="w-3.5 h-3.5" /> : <Store className="w-3.5 h-3.5" />}
                           </span>
-                        </td>
-                        <td className="py-6 px-4">
-                          <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
-                            {getDynamicValue(item.meta_data)}
+                          <span className="text-slate-300 font-semibold">{item.business_name}</span>
+                        </div>
+                      </td>
+                      <td className="py-6 px-4 font-mono text-slate-400 text-sm">{item.whatsapp}</td>
+                      <td className="py-6 px-4">
+                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                          {item.package || 'default'}
+                        </span>
+                      </td>
+                      <td className="py-6 px-4">
+                        <span className="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold font-mono">
+                          {getDynamicValue(item.meta_data)}
+                        </span>
+                      </td>
+                      <td className="py-6 px-4 text-center">
+                        {item.status === 'active' ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Aktif
                           </span>
-                        </td>
-                        <td className="py-6 px-4 text-center">
-                          {verified ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Aktif
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                              <Clock className="w-3 h-3" />
-                              Pending
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-6 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <a
-                              href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl transition-all group/wa"
-                              title="Hubungi via WhatsApp"
-                            >
-                              <MessageCircle className="w-4 h-4 transition-transform group-hover/wa:scale-110" />
-                            </a>
-
-                            <button
-                              onClick={() => handleUpdateStatus(item)}
-                              disabled={updatingId === item.id}
-                              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                                verified
-                                  ? 'bg-slate-800 text-slate-500 border border-slate-700 hover:text-white'
-                                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
-                              }`}
-                            >
-                              {updatingId === item.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : verified ? (
-                                'Nonaktifkan'
-                              ) : (
-                                'Setujui'
-                              )}
-                            </button>
-
-                            <button
-                              onClick={() => handleDelete(item)}
-                              className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl transition-all hover:text-rose-300"
-                              title="Hapus Data"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+                            <Clock className="w-3 h-3" />
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-6 px-4 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          <a 
+                            href={`https://wa.me/${item.whatsapp.replace(/\D/g, '')}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl transition-all group/wa"
+                            title="Hubungi via WhatsApp"
+                          >
+                            <MessageCircle className="w-4 h-4 transition-transform group-hover/wa:scale-110" />
+                          </a>
+                          
+                          <button
+                            onClick={() => handleUpdateStatus(item.id, item.status)}
+                            disabled={updatingId === item.id}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
+                              item.status === 'active'
+                                ? 'bg-slate-800 text-slate-500 border border-slate-700'
+                                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                            }`}
+                          >
+                            {updatingId === item.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : item.status === 'active' ? (
+                              'Nonaktifkan'
+                            ) : (
+                              'Setujui'
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </motion.div>
@@ -837,18 +367,19 @@ const handleApprove = async (item: Pendaftar) => {
         </AnimatePresence>
       </div>
 
+      {/* Footer Info */}
       <div className="p-6 bg-[#0D1426]/50 border-t border-slate-800 text-slate-600 text-xs flex justify-between items-center">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
-            {isMainDbTab(activeTab) ? 'Supabase LMS/SIPUT' : 'Supabase Kuliner'}
+            Supabase Live Sync Enabled
           </span>
           <span className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-emerald-500" />
-            Produk: {activeTab}
+            Secure WhatsApp API
           </span>
         </div>
-        <div className="font-mono">RASYATECH_ADMIN_V2.1.0</div>
+        <div className="font-mono">RASYATECH_ADMIN_V2.0.4</div>
       </div>
     </div>
   );

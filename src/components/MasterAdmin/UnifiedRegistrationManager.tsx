@@ -24,13 +24,7 @@ import {
 
 type MainTab = 'saas' | 'affiliates';
 
-interface UnifiedRegistrationManagerProps {
-  onTotalPendaftarChange?: (count: number) => void;
-}
-
-export default function UnifiedRegistrationManager({
-  onTotalPendaftarChange,
-}: UnifiedRegistrationManagerProps) {
+export default function UnifiedRegistrationManager() {
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('saas');
   
   // Affiliates State
@@ -108,7 +102,7 @@ export default function UnifiedRegistrationManager({
             animate={{ opacity: 1, x: 0 }} 
             exit={{ opacity: 0, x: 10 }}
           >
-            <ManajemenPendaftarSaaS onTotalPendaftarChange={onTotalPendaftarChange} />
+            <ManajemenPendaftarSaaS />
           </motion.div>
         )}
 
@@ -138,7 +132,7 @@ export default function UnifiedRegistrationManager({
                 <div className="col-span-full py-32 flex justify-center">
                   <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
                 </div>
-              ) : (affiliates || []).map((af) => (
+              ) : affiliates.map((af) => (
                 <div key={af.id} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm hover:shadow-md transition-all text-center flex flex-col items-center">
                   <div className="w-16 h-16 bg-blue-50 rounded-[20px] flex items-center justify-center text-blue-600 mb-4">
                     <UserCheck className="w-8 h-8" />

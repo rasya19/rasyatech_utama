@@ -1,7 +1,5 @@
-import { useState, useEffect, FormEvent, useMemo } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
-import { getProductClient } from '../lib/supabase-hub';
-import { parseTenantHostname } from '../lib/tenant-host-parser';
 import { useNavigate } from 'react-router-dom';
 
 export default function ResetPassword() {
@@ -12,20 +10,10 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
-  const authClient = useMemo(() => {
-    const parsed = parseTenantHostname(window.location.hostname);
-    if (parsed?.pillar === 'siput') return getProductClient('siput');
-    if (parsed?.pillar === 'lms') return getProductClient('lms');
-    const pillar = localStorage.getItem('current_product_pillar');
-    if (pillar === 'siput') return getProductClient('siput');
-    if (pillar === 'lms') return getProductClient('lms');
-    return supabase;
-  }, []);
-
   useEffect(() => {
     // Check if we are authenticated for password reset
     const checkSession = async () => {
-      const { data: { session } } = await authClient.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setError("Sesi tidak ditemukan atau kedaluwarsa. Silakan minta tautan reset password baru.");
       }
@@ -49,7 +37,7 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
-      const { error: updateError } = await authClient.auth.updateUser({ 
+      const { error: updateError } = await supabase.auth.updateUser({ 
         password: password 
       });
       
@@ -60,8 +48,8 @@ export default function ResetPassword() {
       setSuccess(true);
       // Wait for 3 seconds, sign out, then redirect
       setTimeout(async () => {
-        await authClient.auth.signOut();
-        navigate('/');
+        await supabase.auth.signOut();
+        navigate('/master-admin');
       }, 3000);
     } catch (err: any) {
       setError(err.message || 'Gagal memperbarui password.');

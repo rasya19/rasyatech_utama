@@ -1,8 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
-import { isRasyatechPortalHostname } from '../../lib/subdomain-utils';
-import { fetchTotalPendaftarCount } from '../../lib/registration-stats';
 import MonitoringDashboard from './MonitoringDashboard';
+import ManajemenPendaftarSaaS from './ManajemenPendaftarSaaS';
 import UnifiedRegistrationManager from './UnifiedRegistrationManager';
 import { 
   Save, 
@@ -69,7 +68,6 @@ export default function Admin() {
   const [ads, setAds] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
-  const [totalPendaftar, setTotalPendaftar] = useState(0);
   const [searchRegQuery, setSearchRegQuery] = useState('');
   const [filterRegPackage, setFilterRegPackage] = useState('all');
   const [affiliates, setAffiliates] = useState<any[]>([]);
@@ -148,7 +146,6 @@ export default function Admin() {
 
     // Listen to Registrations
     fetchRegistrations();
-    fetchTotalPendaftar();
 
     // // Listen to Affiliates
     // const unsubAffiliates = onSnapshot(query(collection(db, 'affiliates'), orderBy('name')), (snap) => {
@@ -178,7 +175,7 @@ export default function Admin() {
     setLoadingRegistrations(true);
     setRegistrationsError(null);
     try {
-      const { data: regs, error } = await supabase.from('tenant').select('*');
+      const { data: regs, error } = await supabase.from('registrations').select('*');
       if (error) {
         console.error("Error fetching registrations:", error);
         setRegistrationsError(error.message);
@@ -190,15 +187,6 @@ export default function Admin() {
       setRegistrationsError(err.message || 'Error tidak diketahui');
     } finally {
       setLoadingRegistrations(false);
-    }
-  };
-
-  const fetchTotalPendaftar = async () => {
-    try {
-      const total = await fetchTotalPendaftarCount();
-      setTotalPendaftar(total);
-    } catch (err) {
-      console.error('Error fetching total pendaftar:', err);
     }
   };
 
@@ -392,28 +380,24 @@ export default function Admin() {
   };
 
   const handleDeleteRegistration = async (id: string) => {
-  if (!window.confirm("Apakah Mas Ismanto yakin ingin menghapus permanen pendaftar ini?")) return;
-  try {
-    // Ambil tenant dari context atau environment (jangan hardcode!)
-    const tenant = 'scanbite_live'; // atau dari context: const { tenant } = useTenant();
-    
-    const response = await fetch(`/api/delete-registration?id=${id}&tenant=${tenant}`, {
-      method: 'DELETE'
-    });
-    
-    if (response.ok) {
-      // Refresh data atau tampilkan notifikasi sukses
-      alert('Pendaftar berhasil dihapus!');
-      // reload data pendaftaran
-    } else {
-      const error = await response.json();
-      alert('Gagal menghapus: ' + error.error);
+    if (!window.confirm("Apakah Mas Ismanto yakin ingin menghapus permanen pendaftar ini?")) return;
+    try {
+      const response = await fetch(`/api/delete-registration?id=${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Gagal menghapus pendaftar');
+      }
+      
+      const data = await response.json();
+      setSaveStatus({ type: 'success', message: data.message });
+      fetchRegistrations();
+    } catch (err) {
+      console.error(err);
+      setSaveStatus({ type: 'error', message: 'Gagal menghapus pendaftar.' });
     }
-  } catch (error) {
-    console.error('Error deleting registration:', error);
-    alert('Terjadi kesalahan saat menghapus data.');
-  }
-};
+  };
 
   const handleVerifySchool = async (reg: any) => {
     if (!reg) return;
@@ -431,7 +415,7 @@ export default function Admin() {
     try {
       // 1. Validasi: Keunikan (Cek apakah subdomain sudah dipakai sekolah lain)
       const { data: existing, error: checkError } = await supabase
-        .from('')
+        .from('registrations')
         .select('id, school_name')
         .eq('subdomain', autoSubdomain)
         .eq('status', 'verified')
@@ -481,14 +465,13 @@ export default function Admin() {
     
     try {
         const response = await fetch('/api/unverify-school', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    registrationId: reg.id,
-    subdomain: reg.subdomain,
-    tenant: 'scanbite_live' // atau dari context
-  })
-});
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                registrationId: reg.id,
+                subdomain: reg.subdomain
+            })
+        });
 
         if (!response.ok) {
            const errorBody = await response.text();
@@ -506,7 +489,7 @@ export default function Admin() {
   const handleUpdateRegStatus = async (id: string, status: string) => {
     try {
       console.log(`Updating ${id} to ${status}...`);
-      const { error } = await supabase.from('').update({ status }).eq('id', id);
+      const { error } = await supabase.from('registrations').update({ status }).eq('id', id);
       if (error) throw error;
       console.log("Update successful");
       setSaveStatus({ type: 'success', message: 'Status berhasil diperbarui!' });
@@ -528,7 +511,7 @@ export default function Admin() {
       console.log(`Updating 'paket_langganan' to ${newPackage} for school subdomain '${subdomain}'...`);
       
       // Update local state immediately for a highly responsive UI
-      setRegistrations(prev => (prev || []).map(r => {
+      setRegistrations(prev => prev.map(r => {
         if (r.subdomain === subdomain) {
           return { ...r, paket_langganan: newPackage };
         }
@@ -558,7 +541,7 @@ export default function Admin() {
 
       // 2. Also update registrations table just in case they added the column there
       const { error: regError } = await supabase
-        .from('')
+        .from('registrations')
         .update({ paket_langganan: newPackage })
         .eq('subdomain', subdomain);
 
@@ -597,7 +580,7 @@ export default function Admin() {
       "Tanggal Pendaftaran"
     ];
 
-    const rows = (registrations || []).map(reg => [
+    const rows = registrations.map(reg => [
       reg.id || '',
       (reg.school_name || '').replace(/"/g, '""'),
       reg.npsn || '-',
@@ -641,10 +624,10 @@ export default function Admin() {
     
     try {
         if (editingRegistration.id) {
-            const { error } = await supabase.from('').update(payload).eq('id', editingRegistration.id);
+            const { error } = await supabase.from('registrations').update(payload).eq('id', editingRegistration.id);
             if (error) throw error;
         } else {
-             const { error } = await supabase.from('').insert([payload]);
+             const { error } = await supabase.from('registrations').insert([payload]);
              if (error) throw error;
         }
         setEditingRegistration(null);
@@ -678,13 +661,15 @@ export default function Admin() {
   };
 
   const isAuthorizedSuperAdmin = user?.email?.toLowerCase() === 'ismanto095@gmail.com';
-  const isPortalHost = isRasyatechPortalHostname(window.location.hostname);
+  const hostnamePrefix = window.location.hostname.split('.')[0];
+  const isMainDomain = hostnamePrefix === 'rasyatech' || hostnamePrefix === 'www' || window.location.hostname.split('.').length < 3 || window.location.hostname.includes('asia-southeast1.run.app') || window.location.hostname.includes('localhost');
 
   useEffect(() => {
-    if (!loading && user && (!isAuthorizedSuperAdmin || !isPortalHost)) {
+    if (!loading && user && (!isAuthorizedSuperAdmin || !isMainDomain)) {
+       // Redirect unauthorized users or main admin access from subdomains
        window.location.href = '/';
     }
-  }, [user, loading, isAuthorizedSuperAdmin, isPortalHost]);
+  }, [user, loading, isAuthorizedSuperAdmin, isMainDomain]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -765,7 +750,7 @@ export default function Admin() {
   );
 
   const getTrendingData = () => {
-    const rawRegs = Array.isArray(registrations) ? registrations : [];
+    const rawRegs = registrations || [];
     
     if (chartView === 'daily') {
       // Create date slots for last 15 days
@@ -854,7 +839,7 @@ export default function Admin() {
 
   const trendData = getTrendingData();
 
-  const filteredRegistrations = (registrations || []).filter(reg => {
+  const filteredRegistrations = registrations.filter(reg => {
     const matchesSearch = !searchRegQuery.trim() || 
       (reg.school_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
       (reg.admin_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
@@ -995,7 +980,7 @@ export default function Admin() {
              </div>
              <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl transition-all duration-300">
                <div className="text-[10px] uppercase font-black tracking-widest text-[#00BEC4] mb-2">Total Pendaftar</div>
-               <div className="text-4xl font-black text-[#0B2447] font-mono tracking-tighter">{totalPendaftar}</div>
+               <div className="text-4xl font-black text-[#0B2447] font-mono tracking-tighter">{registrations.length}</div>
              </div>
              <div className="bg-white p-6 rounded-2xl border border-slate-100 hover:border-slate-200 shadow-md hover:shadow-xl transition-all duration-300">
                <div className="text-[10px] uppercase font-black tracking-widest text-[#14B8A6] mb-2">Mitra Affiliasi</div>
@@ -1035,7 +1020,7 @@ export default function Admin() {
           {/* Unified Registration Management */}
           {activeTab === 'registrations_unified' && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <UnifiedRegistrationManager onTotalPendaftarChange={setTotalPendaftar} />
+              <UnifiedRegistrationManager />
             </motion.div>
           )}
 
@@ -1228,7 +1213,7 @@ export default function Admin() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {(services || []).map(s => (
+                {services.map(s => (
                   <div key={s.id} className="bg-white p-8 rounded-[32px] border border-slate-100 hover:shadow-xl transition-all">
                     <div className="flex justify-between items-start mb-6">
                       <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
@@ -1261,7 +1246,7 @@ export default function Admin() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                {(laptops || []).map(l => (
+                {laptops.map(l => (
                   <div key={l.id} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden group">
                     <div className="h-48 overflow-hidden relative">
                       <img src={l.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -1298,7 +1283,7 @@ export default function Admin() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {(products || []).map(p => (
+                {products.map(p => (
                   <div key={p.id} className="bg-white rounded-[32px] border border-slate-100 overflow-hidden group">
                     <div className="h-40 overflow-hidden relative">
                       <img src={p.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />

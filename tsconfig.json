@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "types": ["vite/client", "node"],
+    "types": ["vite/client"],
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "module": "ESNext",
@@ -23,7 +23,5 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  },
-  "include": ["src", "middleware.ts"],
-  "exclude": ["node_modules", "dist", "api", "server.ts"]
+  }
 }

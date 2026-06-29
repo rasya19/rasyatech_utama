@@ -227,7 +227,7 @@ export default function Home() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {(displayServices || []).map((service, idx) => (
+              {displayServices.map((service, idx) => (
                 <div 
                   key={idx}
                   className="bg-white p-10 rounded-[32px] shadow-sm hover:shadow-2xl transition-all border border-slate-100 group"
@@ -260,7 +260,7 @@ export default function Home() {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {(displayLaptops || []).map((laptop, idx) => (
+              {displayLaptops.map((laptop, idx) => (
                 <div key={idx} className="group cursor-pointer">
                   <div className="relative aspect-[4/5] rounded-[32px] overflow-hidden mb-6 shadow-md group-hover:shadow-indigo-100 group-hover:shadow-2xl transition-all">
                     <img 
