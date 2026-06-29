@@ -149,14 +149,12 @@ export default function FormPendaftaranSaaS() {
         }
 
       } else if (productType === 'siput') {
-        const siputInsertData = {
+        const siputData = {
           full_name: formData.full_name,
           email: formData.email,
-          whatsapp: formData.whatsapp,
-          business_name: formData.business_name,
-          status: 'pending',
-          package_tier: formData.package || 'standard'
-        };
+          whatsapp_number: formData.whatsapp, // Pastikan di kode memakai 'whatsapp_number'
+          subdomain: uniqueSubdomain,         // Sesuaikan dengan kolom subdomain Anda
+          status: 'pending'
 
         const { error: siputError } = await supabaseSiput
           .from('registrations')
