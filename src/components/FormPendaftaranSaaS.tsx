@@ -127,6 +127,20 @@ export default function FormPendaftaranSaaS() {
       } else if (formData.product_type === 'lms' || formData.product_type === 'siput') {
         meta_data.npsn = formData.npsn;
       }
+      const { data, error } = await supabase
+  .from('registrations')
+  .insert([
+    {
+      email: formData.email, // Pastikan field ini sesuai dengan state Anda
+      whatsapp: formData.whatsapp,
+      business_name: formData.business_name,
+      // WAJIB SERTAKAN INI AGAR TIDAK ERROR
+      product_type: formData.product_type, 
+      meta_data: meta_data, // Masukkan objek meta_data yang sudah disiapkan
+    },
+  ]);
+
+if (error) throw error;
 
       const isLms = formData.product_type === 'lms';
 
@@ -150,16 +164,18 @@ export default function FormPendaftaranSaaS() {
 
       // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
       const lmsInsertData = {
-        school_name: formData.business_name,
-        admin_name: formData.full_name,
-        admin_email: formData.email,
-        whatsapp: formData.whatsapp,
-        npsn: formData.npsn || '-',
-        subdomain: formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '') || '-',
-        password: 'defaultpassword123',
+        full_name: formData.full_name,
+        email: formData.email,
+        whatsapp_number: formData.whatsapp,
+        business_name: formData.business_name, // Perhatikan ejaan "bussiness" (dobel S)
+        product_type: formData.product_type,
+        business_type: formData.product_type,   // Mengisi kolom bussines_type (sesuai daftar Anda)
+        selected_package: formData.package || 'standard',
+        table_count: parseInt(formData.tables_count || formData.outlet_count || '0'),
         status: 'pending',
-        is_approved: false,
-        paket_langganan: formData.product_type === 'lms' ? (formData.package || 'silver') : (formData.package || 'standard')
+        is_approved: false
+        // Kolom lain seperti 'kode_tenant', 'tenant', 'tenant_master_id' 
+        // jangan diisi dulu kecuali Anda punya datanya, biarkan default database (NULL)
       };
 
       const { error: lmsError } = await supabase
