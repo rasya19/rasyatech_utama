@@ -128,7 +128,7 @@ export default function FormPendaftaranSaaS() {
       const lmsInsertData = {
         school_name: formData.business_name,
         admin_name: formData.full_name,
-        admin_email: formData.email,
+        email: formData.email,
         whatsapp: formData.whatsapp,
         npsn: formData.npsn || '-',
         subdomain: uniqueSubdomain,

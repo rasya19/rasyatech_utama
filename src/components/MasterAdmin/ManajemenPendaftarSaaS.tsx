@@ -16,7 +16,9 @@ import {
   Clock,
   RefreshCcw,
   AlertCircle,
-  Trash2
+  Trash2,
+  Ban,
+  AlertTriangle
 } from 'lucide-react';
 
 type ProductType = 'lms' | 'scanbite' | 'restoran_asli' | 'siput' | 'instafoto';
@@ -29,7 +31,7 @@ interface Pendaftar {
   business_name: string;
   product_type: ProductType;
   package?: string;
-  status: 'pending' | 'active' | 'verified';
+  status: string;
   meta_data: any;
   created_at: string;
 }
@@ -66,12 +68,12 @@ export default function ManajemenPendaftarSaaS() {
         const mappedData: Pendaftar[] = (regs || []).map(r => ({
           id: r.id,
           full_name: r.admin_name || r.name || '-',
-          email: r.admin_email || r.email || '-',
+          email: r.email || r.admin_email || '-',
           whatsapp: r.whatsapp || r.WA || '-',
           business_name: r.school_name || '-',
           product_type: 'lms',
           package: r.paket_langganan || 'silver',
-          status: (r.status === 'verified' || r.status === 'active') ? 'active' : 'pending',
+          status: r.status || 'pending',
           meta_data: { npsn: r.npsn },
           created_at: r.created_at
         }));
@@ -126,22 +128,16 @@ export default function ManajemenPendaftarSaaS() {
     fetchData();
   }, [activeTab]);
 
-  const handleUpdateStatus = async (id: string, currentStatus: string) => {
+  const handleUpdateStatus = async (id: string, newStatus: string) => {
     setUpdatingId(id);
     try {
       const isLms = activeTab === 'lms';
       const client = isLms ? supabase : supabaseKuliner;
-      const nextStatus = currentStatus === 'pending' ? 'active' : 'pending';
       const table = 'registrations';
-      
-      // HUKUM #4: LMS WAJIB update status ke 'active'
-      const statusValue = isLms 
-        ? (nextStatus === 'active' ? 'active' : 'pending')
-        : nextStatus;
 
-      const updatePayload: any = { status: statusValue };
+      const updatePayload: any = { status: newStatus };
       if (isLms) {
-        updatePayload.is_approved = (statusValue === 'active');
+        updatePayload.is_approved = (newStatus === 'active' || newStatus === 'trial');
       }
 
       const { error: updateError } = await client
@@ -151,12 +147,11 @@ export default function ManajemenPendaftarSaaS() {
 
       if (updateError) throw updateError;
       
-      // Update local state (Kalo sukses → baru UI berubah jadi AKTIF)
-      setData(prev => prev.map(item => item.id === id ? { ...item, status: nextStatus as any } : item));
+      // Update local state
+      setData(prev => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
     } catch (err: any) {
       console.error('Update operation error:', err);
-      // HUKUM #4: Kalo gagal → kasih alert "Gagal update database bang"
-      alert('Gagal update database bang');
+      alert('Gagal update database bang: ' + (err.message || err));
     } finally {
       setUpdatingId(null);
     }
@@ -175,6 +170,47 @@ export default function ManajemenPendaftarSaaS() {
     if (activeTab === 'instafoto') return meta.outlet_count || '-';
     if (activeTab === 'lms' || activeTab === 'siput') return meta.npsn || '-';
     return '-';
+  };
+
+  const renderStatusBadge = (status: string) => {
+    const s = (status || 'pending').toLowerCase();
+    switch (s) {
+      case 'active':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+            <CheckCircle2 className="w-3 h-3" />
+            Active
+          </span>
+        );
+      case 'trial':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+            <Clock className="w-3 h-3 animate-pulse" />
+            Trial
+          </span>
+        );
+      case 'suspend':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+            <AlertCircle className="w-3 h-3" />
+            Suspend
+          </span>
+        );
+      case 'inactive':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-500/10 text-slate-400 border border-slate-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+            <Ban className="w-3 h-3" />
+            Inactive
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
+            <Clock className="w-3 h-3" />
+            {status || 'Pending'}
+          </span>
+        );
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -333,17 +369,7 @@ export default function ManajemenPendaftarSaaS() {
                         </span>
                       </td>
                       <td className="py-6 px-4 text-center">
-                        {item.status === 'active' ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full text-[10px] font-black uppercase tracking-tighter">
-                            <Clock className="w-3 h-3" />
-                            Pending
-                          </span>
-                        )}
+                        {renderStatusBadge(item.status)}
                       </td>
                       <td className="py-6 px-4 text-right">
                         <div className="flex items-center justify-end gap-3">
@@ -365,23 +391,31 @@ export default function ManajemenPendaftarSaaS() {
                             <Trash2 className="w-4 h-4 transition-transform group-hover/trash:scale-110" />
                           </button>
                           
-                          <button
-                            onClick={() => handleUpdateStatus(item.id, item.status)}
-                            disabled={updatingId === item.id}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${
-                              item.status === 'active'
-                                ? 'bg-slate-800 text-slate-500 border border-slate-700'
-                                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
-                            }`}
-                          >
+                          <div className="relative">
                             {updatingId === item.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : item.status === 'active' ? (
-                              'Nonaktifkan'
+                              <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-500">
+                                <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+                                <span>Updating...</span>
+                              </div>
                             ) : (
-                              'Setujui'
+                              <>
+                                <select
+                                  value={item.status || 'pending'}
+                                  onChange={(e) => handleUpdateStatus(item.id, e.target.value)}
+                                  className="appearance-none bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-300 font-bold text-xs uppercase tracking-wider rounded-xl pl-4 pr-8 py-2.5 outline-none transition-all cursor-pointer focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="pending" className="bg-[#0A0F1E] text-orange-400 font-bold">Pending</option>
+                                  <option value="trial" className="bg-[#0A0F1E] text-yellow-400 font-bold">Trial</option>
+                                  <option value="active" className="bg-[#0A0F1E] text-emerald-400 font-bold">Active</option>
+                                  <option value="suspend" className="bg-[#0A0F1E] text-rose-400 font-bold">Suspend</option>
+                                  <option value="inactive" className="bg-[#0A0F1E] text-slate-400 font-bold">Inactive</option>
+                                </select>
+                                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500">
+                                  <span className="text-[8px]">▼</span>
+                                </div>
+                              </>
                             )}
-                          </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
