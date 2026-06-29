@@ -158,6 +158,7 @@ export default function FormPendaftaranSaaS() {
     } finally {
       setLoading(false);
     }
+  }
   };
 
       // Always insert into Supabase LMS's 'registrations' table to fulfill HUKUM #2
