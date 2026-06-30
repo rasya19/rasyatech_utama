@@ -65,8 +65,11 @@ export default function ManajemenPendaftarSaaS() {
 
         if (fetchError) throw fetchError;
         
+        // Filter out siput registrations from the LMS tab
+        const filteredRegs = (regs || []).filter((r: any) => r.selected_package !== 'siput');
+
         // Map registrations to Pendaftar format
-        const mappedData: Pendaftar[] = (regs || []).map(r => ({
+        const mappedData: Pendaftar[] = filteredRegs.map(r => ({
           id: r.id,
           full_name: r.admin_name || r.name || '-',
           email: r.email || r.admin_email || '-',
@@ -91,25 +94,27 @@ export default function ManajemenPendaftarSaaS() {
         
         setData(unified);
       } else if (activeTab === 'siput') {
-        // Fetch from Siput registrations table
-        const { data: pendaftar, error: fetchError } = await supabaseSiput
+        // Fetch from the main database's registrations table where selected_package === 'siput'
+        const { data: regs, error: fetchError } = await supabase
           .from('registrations')
           .select('*')
+          .eq('selected_package', 'siput')
           .order('created_at', { ascending: false });
 
         if (fetchError) throw fetchError;
 
-        const mappedData: Pendaftar[] = (pendaftar || []).map((r: any) => ({
+        const mappedData: Pendaftar[] = (regs || []).map((r: any) => ({
           id: r.id,
-          full_name: r.full_name || '-',
-          email: r.email || '-',
-          whatsapp: r.whatsapp_number || r.whatsapp || '-',
-          business_name: r.subdomain ? `${r.subdomain} (SIPUT)` : '-',
+          full_name: r.admin_name || r.full_name || '-',
+          email: r.admin_email || r.email || '-',
+          whatsapp: r.whatsapp || r.whatsapp_number || '-',
+          business_name: r.school_name ? `${r.school_name} (SIPUT)` : (r.subdomain ? `${r.subdomain} (SIPUT)` : 'SIPUT'),
           product_type: 'siput',
-          package: r.package_tier || r.selected_package || 'standard',
-          status: r.status as any,
+          package: 'siput',
+          status: r.status || 'pending',
           meta_data: { 
-            subdomain: r.subdomain
+            subdomain: r.subdomain,
+            npsn: r.npsn || '-'
           },
           created_at: r.created_at
         }));
@@ -159,20 +164,41 @@ export default function ManajemenPendaftarSaaS() {
     try {
       const isLms = activeTab === 'lms';
       const isSiput = activeTab === 'siput';
-      const client = isLms ? supabase : (isSiput ? supabaseSiput : supabaseKuliner);
-      const table = 'registrations';
 
-      const updatePayload: any = { status: newStatus };
-      if (isLms) {
-        updatePayload.is_approved = (newStatus === 'active' || newStatus === 'trial');
+      if (isSiput) {
+        // 1. Update status in the main database (primary)
+        const { error: mainUpdateError } = await supabase
+          .from('registrations')
+          .update({ status: newStatus })
+          .eq('id', id);
+
+        if (mainUpdateError) throw mainUpdateError;
+
+        // 2. Best-effort update in remote Siput database
+        try {
+          await supabaseSiput
+            .from('registrations')
+            .update({ status: newStatus })
+            .eq('id', id);
+        } catch (siputErr) {
+          console.warn('Warning: Failed to sync status update to remote Siput DB:', siputErr);
+        }
+      } else {
+        const client = isLms ? supabase : supabaseKuliner;
+        const table = 'registrations';
+
+        const updatePayload: any = { status: newStatus };
+        if (isLms) {
+          updatePayload.is_approved = (newStatus === 'active' || newStatus === 'trial');
+        }
+
+        const { error: updateError } = await client
+          .from(table)
+          .update(updatePayload)
+          .eq('id', id);
+
+        if (updateError) throw updateError;
       }
-
-      const { error: updateError } = await client
-        .from(table)
-        .update(updatePayload)
-        .eq('id', id);
-
-      if (updateError) throw updateError;
       
       // Update local state
       setData(prev => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
@@ -247,20 +273,47 @@ export default function ManajemenPendaftarSaaS() {
     try {
       const isLms = activeTab === 'lms';
       const isSiput = activeTab === 'siput';
-      const client = isLms ? supabase : (isSiput ? supabaseSiput : supabaseKuliner);
 
-      // 2. Eksekusi delete ke database yang sesuai
-      const { error } = await client
-        .from('registrations')
-        .delete()
-        .eq('id', id);
+      if (isSiput) {
+        // Delete from main database
+        const { error: mainDeleteError } = await supabase
+          .from('registrations')
+          .delete()
+          .eq('id', id);
 
-      if (error) {
-        alert("Gagal menghapus data: " + error.message);
-      } else {
+        if (mainDeleteError) {
+          alert("Gagal menghapus data di database utama: " + mainDeleteError.message);
+          return;
+        }
+
+        // Best-effort delete from remote Siput database
+        try {
+          await supabaseSiput
+            .from('registrations')
+            .delete()
+            .eq('id', id);
+        } catch (siputErr) {
+          console.warn('Warning: Failed to sync deletion to remote Siput DB:', siputErr);
+        }
+
         alert("Data berhasil dihapus!");
-        // 3. Refresh data agar tampilan ter-update
         fetchData();
+      } else {
+        const client = isLms ? supabase : supabaseKuliner;
+
+        // 2. Eksekusi delete ke database yang sesuai
+        const { error } = await client
+          .from('registrations')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          alert("Gagal menghapus data: " + error.message);
+        } else {
+          alert("Data berhasil dihapus!");
+          // 3. Refresh data agar tampilan ter-update
+          fetchData();
+        }
       }
     } catch (err: any) {
       console.error("Delete operation error:", err);

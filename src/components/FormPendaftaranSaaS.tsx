@@ -152,12 +152,27 @@ export default function FormPendaftaranSaaS() {
         const rawSubdomain = formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
         const uniqueSubdomain = rawSubdomain || formData.full_name.toLowerCase().replace(/[^a-z0-9]/g, '') || `siput-${Math.floor(1000 + Math.random() * 9000)}`;
         
+        // Generate a single UUID to sync records in both databases
+        const uuid = (() => {
+          if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+          }
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+        })();
+
+        // 1. Insert into Siput database (without select() to bypass RLS select limitations)
         const siputData = {
+          id: uuid,
           full_name: formData.full_name,
           email: formData.email,
-          whatsapp_number: formData.whatsapp, // Pastikan di kode memakai 'whatsapp_number'
-          subdomain: uniqueSubdomain,         // Sesuaikan dengan kolom subdomain Anda
-          status: 'pending'
+          whatsapp_number: formData.whatsapp,
+          subdomain: uniqueSubdomain,
+          status: 'pending',
+          role: 'admin'
         };
 
         const { error: siputError } = await supabaseSiput
@@ -167,6 +182,30 @@ export default function FormPendaftaranSaaS() {
         if (siputError) {
           console.error('Error inserting into Supabase Siput registrations table:', siputError);
           throw siputError;
+        }
+
+        // 2. Insert copy into main database so the Master Admin can manage it
+        const mainDbData = {
+          id: uuid,
+          school_name: formData.business_name,
+          admin_email: formData.email,
+          admin_name: formData.full_name,
+          whatsapp: formData.whatsapp,
+          subdomain: uniqueSubdomain,
+          password: 'paud2026',
+          status: 'pending',
+          is_approved: false,
+          selected_package: 'siput',
+          created_at: new Date().toISOString()
+        };
+
+        const { error: mainError } = await supabaseLMS
+          .from('registrations')
+          .insert([mainDbData]);
+
+        if (mainError) {
+          console.error('Error inserting copy into main registrations table:', mainError);
+          throw mainError;
         }
 
       } else {
