@@ -149,7 +149,8 @@ export default function FormPendaftaranSaaS() {
         }
 
       } else if (productType === 'siput') {
-        const uniqueSubdomain = formData.full_name.toLowerCase().replace(/\s+/g, '');
+        const rawSubdomain = formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const uniqueSubdomain = rawSubdomain || formData.full_name.toLowerCase().replace(/[^a-z0-9]/g, '') || `siput-${Math.floor(1000 + Math.random() * 9000)}`;
         
         const siputData = {
           full_name: formData.full_name,
@@ -157,7 +158,7 @@ export default function FormPendaftaranSaaS() {
           whatsapp_number: formData.whatsapp, // Pastikan di kode memakai 'whatsapp_number'
           subdomain: uniqueSubdomain,         // Sesuaikan dengan kolom subdomain Anda
           status: 'pending'
-};
+        };
 
         const { error: siputError } = await supabaseSiput
           .from('registrations')

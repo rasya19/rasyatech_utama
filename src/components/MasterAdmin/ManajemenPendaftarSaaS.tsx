@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 import { supabaseKuliner } from '../../lib/supabase-kuliner';
+import { supabaseSiput } from '../../lib/supabase-siput';
 import { 
   Users, 
   MessageCircle, 
@@ -89,6 +90,31 @@ export default function ManajemenPendaftarSaaS() {
         unified.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         setData(unified);
+      } else if (activeTab === 'siput') {
+        // Fetch from Siput registrations table
+        const { data: pendaftar, error: fetchError } = await supabaseSiput
+          .from('registrations')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (fetchError) throw fetchError;
+
+        const mappedData: Pendaftar[] = (pendaftar || []).map((r: any) => ({
+          id: r.id,
+          full_name: r.full_name || '-',
+          email: r.email || '-',
+          whatsapp: r.whatsapp_number || r.whatsapp || '-',
+          business_name: r.subdomain ? `${r.subdomain} (SIPUT)` : '-',
+          product_type: 'siput',
+          package: r.package_tier || r.selected_package || 'standard',
+          status: r.status as any,
+          meta_data: { 
+            subdomain: r.subdomain
+          },
+          created_at: r.created_at
+        }));
+
+        setData(mappedData);
       } else {
         // Fetch from culinary supabase registrations table
         const { data: pendaftar, error: fetchError } = await supabaseKuliner
@@ -132,7 +158,8 @@ export default function ManajemenPendaftarSaaS() {
     setUpdatingId(id);
     try {
       const isLms = activeTab === 'lms';
-      const client = isLms ? supabase : supabaseKuliner;
+      const isSiput = activeTab === 'siput';
+      const client = isLms ? supabase : (isSiput ? supabaseSiput : supabaseKuliner);
       const table = 'registrations';
 
       const updatePayload: any = { status: newStatus };
@@ -219,7 +246,8 @@ export default function ManajemenPendaftarSaaS() {
 
     try {
       const isLms = activeTab === 'lms';
-      const client = isLms ? supabase : supabaseKuliner;
+      const isSiput = activeTab === 'siput';
+      const client = isLms ? supabase : (isSiput ? supabaseSiput : supabaseKuliner);
 
       // 2. Eksekusi delete ke database yang sesuai
       const { error } = await client
