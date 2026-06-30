@@ -61,15 +61,17 @@ async function startServer() {
 
     try {
       const payload: any = {
-        school_name,
-        admin_email,
-        admin_name: admin_name || school_name,
-        whatsapp: whatsapp || WA || '',
+        business_name: school_name,
+        email: admin_email,
+        full_name: admin_name || school_name,
+        whatsapp_number: whatsapp || WA || '',
         npsn: npsn || '-',
-        subdomain: subdomain || '',
+        tenant: subdomain || '',
         password: password || '',
         status: status || 'pending',
         is_approved: is_approved === undefined ? false : is_approved,
+        product_type: 'lms',
+        selected_package: 'silver',
         created_at: new Date().toISOString()
       };
 
@@ -131,9 +133,9 @@ async function startServer() {
           }
         }
 
-        const targetEmail = email || regData?.admin_email;
-        const targetSchoolName = school_name || regData?.school_name || 'Sekolah Baru';
-        const targetSubdomain = subdomain || regData?.subdomain;
+        const targetEmail = email || regData?.admin_email || regData?.email;
+        const targetSchoolName = school_name || regData?.school_name || regData?.business_name || 'Sekolah Baru';
+        const targetSubdomain = subdomain || regData?.subdomain || regData?.tenant;
 
         if (!targetEmail) {
           return res.status(400).json({ error: "Email is required for verification" });

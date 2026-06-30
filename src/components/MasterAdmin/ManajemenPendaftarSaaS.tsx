@@ -71,14 +71,17 @@ export default function ManajemenPendaftarSaaS() {
         // Map registrations to Pendaftar format
         const mappedData: Pendaftar[] = filteredRegs.map(r => ({
           id: r.id,
-          full_name: r.admin_name || r.name || '-',
+          full_name: r.full_name || r.admin_name || r.name || '-',
           email: r.email || r.admin_email || '-',
-          whatsapp: r.whatsapp || r.WA || '-',
-          business_name: r.school_name || '-',
+          whatsapp: r.whatsapp_number || r.whatsapp || r.WA || '-',
+          business_name: r.business_name || r.school_name || '-',
           product_type: 'lms',
           package: r.selected_package || r.paket_langganan || 'silver',
           status: r.status || 'pending',
-          meta_data: { npsn: r.npsn },
+          meta_data: { 
+            npsn: r.npsn || '-',
+            subdomain: r.tenant || r.subdomain || '-'
+          },
           created_at: r.created_at
         }));
         
@@ -105,15 +108,15 @@ export default function ManajemenPendaftarSaaS() {
 
         const mappedData: Pendaftar[] = (regs || []).map((r: any) => ({
           id: r.id,
-          full_name: r.admin_name || r.full_name || '-',
-          email: r.admin_email || r.email || '-',
-          whatsapp: r.whatsapp || r.whatsapp_number || '-',
-          business_name: r.school_name ? `${r.school_name} (SIPUT)` : (r.subdomain ? `${r.subdomain} (SIPUT)` : 'SIPUT'),
+          full_name: r.full_name || r.admin_name || '-',
+          email: r.email || r.admin_email || '-',
+          whatsapp: r.whatsapp_number || r.whatsapp || '-',
+          business_name: r.business_name || r.school_name || 'SIPUT',
           product_type: 'siput',
           package: 'siput',
           status: r.status || 'pending',
           meta_data: { 
-            subdomain: r.subdomain,
+            subdomain: r.tenant || r.subdomain || '-',
             npsn: r.npsn || '-'
           },
           created_at: r.created_at
@@ -213,7 +216,7 @@ export default function ManajemenPendaftarSaaS() {
   const getDynamicColumnHeader = () => {
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return 'Jml Meja';
     if (activeTab === 'instafoto') return 'Jml Outlet';
-    if (activeTab === 'lms' || activeTab === 'siput') return 'NPSN';
+    if (activeTab === 'lms' || activeTab === 'siput') return 'Subdomain / NPSN';
     return '-';
   };
 
@@ -221,7 +224,12 @@ export default function ManajemenPendaftarSaaS() {
     if (!meta) return '-';
     if (activeTab === 'scanbite' || activeTab === 'restoran_asli') return meta.tables_count || '-';
     if (activeTab === 'instafoto') return meta.outlet_count || '-';
-    if (activeTab === 'lms' || activeTab === 'siput') return meta.npsn || '-';
+    if (activeTab === 'lms' || activeTab === 'siput') {
+      const parts = [];
+      if (meta.subdomain && meta.subdomain !== '-') parts.push(`Subdomain: ${meta.subdomain}`);
+      if (meta.npsn && meta.npsn !== '-') parts.push(`NPSN: ${meta.npsn}`);
+      return parts.join(' | ') || '-';
+    }
     return '-';
   };
 

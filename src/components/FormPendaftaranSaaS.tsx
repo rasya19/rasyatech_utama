@@ -127,15 +127,16 @@ export default function FormPendaftaranSaaS() {
         const uniqueSubdomain = rawSubdomain ? `${rawSubdomain}-${Math.floor(1000 + Math.random() * 9000)}` : `tenant-${Math.floor(1000 + Math.random() * 9000)}`;
 
         const lmsInsertData = {
-          school_name: formData.business_name,
+          business_name: formData.business_name,
           full_name: formData.full_name,
           email: formData.email,
-          whatsapp: formData.whatsapp,
+          whatsapp_number: formData.whatsapp,
           npsn: formData.npsn || '-',
-          subdomain: uniqueSubdomain,
+          tenant: uniqueSubdomain,
           password: 'paud2026',
           status: 'pending',
           is_approved: false,
+          product_type: 'lms',
           selected_package: formData.package || 'silver'
         };
 
@@ -187,15 +188,16 @@ export default function FormPendaftaranSaaS() {
         // 2. Insert copy into main database so the Master Admin can manage it
         const mainDbData = {
           id: uuid,
-          school_name: formData.business_name,
-          admin_email: formData.email,
-          admin_name: formData.full_name,
-          whatsapp: formData.whatsapp,
-          subdomain: uniqueSubdomain,
+          business_name: formData.business_name,
+          email: formData.email,
+          full_name: formData.full_name,
+          whatsapp_number: formData.whatsapp,
+          tenant: uniqueSubdomain,
           password: 'paud2026',
           status: 'pending',
           is_approved: false,
           selected_package: 'siput',
+          product_type: 'siput',
           created_at: new Date().toISOString()
         };
 

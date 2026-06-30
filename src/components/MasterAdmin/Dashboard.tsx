@@ -611,14 +611,13 @@ export default function Admin() {
     e.preventDefault();
     
     const payload: any = {
-      npsn: editingRegistration.npsn,
-      school_name: editingRegistration.school_name,
-      admin_name: editingRegistration.admin_name,
-      admin_email: editingRegistration.admin_email,
-      whatsapp: editingRegistration.whatsapp || editingRegistration.WA || '',
-      WA: editingRegistration.WA || '',
+      npsn: editingRegistration.npsn || '-',
+      business_name: editingRegistration.school_name || editingRegistration.business_name || '',
+      full_name: editingRegistration.admin_name || editingRegistration.full_name || '',
+      email: editingRegistration.admin_email || editingRegistration.email || '',
+      whatsapp_number: editingRegistration.whatsapp || editingRegistration.whatsapp_number || editingRegistration.WA || '',
       status: editingRegistration.status || (editingRegistration.is_approved ? 'verified' : 'pending'),
-      subdomain: editingRegistration.subdomain || '',
+      tenant: editingRegistration.subdomain || editingRegistration.tenant || '',
       is_approved: !!editingRegistration.is_approved
     };
     
@@ -841,13 +840,13 @@ export default function Admin() {
 
   const filteredRegistrations = registrations.filter(reg => {
     const matchesSearch = !searchRegQuery.trim() || 
-      (reg.school_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
-      (reg.admin_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
-      (reg.subdomain || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
+      (reg.school_name || reg.business_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
+      (reg.admin_name || reg.full_name || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
+      (reg.subdomain || reg.tenant || '').toLowerCase().includes(searchRegQuery.toLowerCase()) ||
       (reg.npsn || '').toLowerCase().includes(searchRegQuery.toLowerCase());
     
     const matchesPackage = filterRegPackage === 'all' || 
-      (reg.paket_langganan || 'silver').toLowerCase() === filterRegPackage.toLowerCase();
+      (reg.paket_langganan || reg.selected_package || 'silver').toLowerCase() === filterRegPackage.toLowerCase();
     
     return matchesSearch && matchesPackage;
   });
