@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { auth } from '../lib/firebase';
+import { sendSignInLinkToEmail } from 'firebase/auth';
 
 export default function SchoolLogin() {
   const [email, setEmail] = useState('');
@@ -11,17 +12,17 @@ export default function SchoolLogin() {
     setLoading(true);
     setMessage('');
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/dashboard-sekolah`,
-      },
-    });
+    const actionCodeSettings = {
+      url: `${window.location.origin}/dashboard-sekolah`,
+      handleCodeInApp: true,
+    };
 
-    if (error) {
-      setMessage(`Error: ${error.message}`);
-    } else {
+    try {
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', email);
       setMessage('Cek email Anda untuk link login!');
+    } catch (error: any) {
+      setMessage(`Error: ${error.message}`);
     }
     setLoading(false);
   };

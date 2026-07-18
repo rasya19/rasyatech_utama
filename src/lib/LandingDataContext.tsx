@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from './supabase';
 
 interface LandingDataContextType {
   config: {
@@ -63,31 +62,29 @@ export function LandingDataProvider({ children }: { children: React.ReactNode })
         setLoading(true);
 
         const [
-          settingsRes,
-          affiliatesRes
+          configRes,
+          paymentsRes,
+          affiliatesRes,
+          servicesRes,
+          laptopsRes,
+          productsRes
         ] = await Promise.all([
-          supabase.from('settings').select('*'),
-          supabase.from('affiliates').select('*').order('name', { ascending: true })
+          fetch('/api/settings/config'),
+          fetch('/api/settings/payments'),
+          fetch('/api/affiliates'),
+          fetch('/api/services'),
+          fetch('/api/laptops'),
+          fetch('/api/products')
         ]);
 
         if (!isMounted) return;
 
-        // Process Settings Row
-        if (settingsRes.data) {
-          const configRow = settingsRes.data.find(s => s.id === 'config');
-          const paymentsRow = settingsRes.data.find(s => s.id === 'payments');
-          if (configRow) {
-            setConfig(prev => ({ ...prev, ...configRow }));
-          }
-          if (paymentsRow) {
-            setPayments(prev => ({ ...prev, ...paymentsRow }));
-          }
-        }
-
-        // Process Affiliates Row
-        if (affiliatesRes.data) {
-          setAffiliates(affiliatesRes.data);
-        }
+        if (configRes.ok) setConfig(await configRes.json());
+        if (paymentsRes.ok) setPayments(await paymentsRes.json());
+        if (affiliatesRes.ok) setAffiliates(await affiliatesRes.json());
+        if (servicesRes.ok) setServices(await servicesRes.json());
+        if (laptopsRes.ok) setLaptops(await laptopsRes.json());
+        if (productsRes.ok) setProducts(await productsRes.json());
 
       } catch (err: any) {
         console.error('Error fetching landing page data:', err);

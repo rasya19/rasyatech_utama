@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { supabase } from '../lib/supabase';
+import { auth } from '../lib/firebase';
+import { onAuthStateChanged, updatePassword, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 export default function ResetPassword() {
@@ -11,14 +12,12 @@ export default function ResetPassword() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if we are authenticated for password reset
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
         setError("Sesi tidak ditemukan atau kedaluwarsa. Silakan minta tautan reset password baru.");
       }
-    };
-    checkSession();
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleReset = async (e: FormEvent) => {
@@ -37,18 +36,13 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
-      const { error: updateError } = await supabase.auth.updateUser({ 
-        password: password 
-      });
+      if (!auth.currentUser) throw new Error("User tidak terautentikasi");
+      await updatePassword(auth.currentUser, password);
       
-      if (updateError) {
-        throw updateError;
-      }
-
       setSuccess(true);
       // Wait for 3 seconds, sign out, then redirect
       setTimeout(async () => {
-        await supabase.auth.signOut();
+        await signOut(auth);
         navigate('/master-admin');
       }, 3000);
     } catch (err: any) {

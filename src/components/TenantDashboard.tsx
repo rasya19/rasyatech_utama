@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { auth } from '../lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import SchoolLogin from './SchoolLogin';
 import TeachersTable from './TeachersTable';
 import StudentsTable from './StudentsTable';
@@ -61,19 +62,12 @@ export default function TenantDashboard() {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchSchoolData(session.user.email);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        fetchSchoolData(currentUser.email || undefined);
       } else {
         setLoading(false);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchSchoolData(session.user.email);
       }
     });
 
@@ -81,10 +75,10 @@ export default function TenantDashboard() {
     const hostname = window.location.hostname;
     const isMainDomain = hostname.split('.').length < 3 || hostname.startsWith('rasyatech') || hostname.startsWith('www');
     if (isMainDomain) {
-      window.location.href = '/master-admin';
+      // Redirect handled by app routes but double guard here if needed
     }
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   const fetchSchoolData = async (email: string | undefined) => {
@@ -92,18 +86,21 @@ export default function TenantDashboard() {
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase
-      .from('registrations')
-      .select('*')
-      .eq('admin_email', email)
-      .single();
-    
-    if (data) {
-      setSchoolData(data);
-      const isDinasMail = email.toLowerCase().includes('dinas') || data.role === 'DINAS' || data.paket_langganan?.toUpperCase() === 'DINAS';
-      if (isDinasMail) {
-        setActiveTab('dinas_dashboard');
+    try {
+      const response = await fetch(`/api/registrations?email=${email}`);
+      if (response.ok) {
+        const data = await response.json();
+        const singleData = Array.isArray(data) ? data[0] : data;
+        if (singleData) {
+          setSchoolData(singleData);
+          const isDinasMail = email.toLowerCase().includes('dinas') || singleData.role === 'DINAS' || singleData.paket_langganan?.toUpperCase() === 'DINAS';
+          if (isDinasMail) {
+            setActiveTab('dinas_dashboard');
+          }
+        }
       }
+    } catch (err) {
+      console.error("Error fetching school data:", err);
     }
     setLoading(false);
   };
@@ -203,7 +200,7 @@ export default function TenantDashboard() {
                 <button
                   onClick={() => {
                     sessionStorage.removeItem('siput_mock_session');
-                    supabase.auth.signOut();
+                    signOut(auth);
                     window.location.reload();
                   }}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 font-bold text-xs rounded-xl transition"
@@ -577,7 +574,7 @@ export default function TenantDashboard() {
                 <button
                   onClick={() => {
                     sessionStorage.removeItem('siput_mock_session');
-                    supabase.auth.signOut();
+                    signOut(auth);
                     window.location.reload();
                   }}
                   className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all duration-200"

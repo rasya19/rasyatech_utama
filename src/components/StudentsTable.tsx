@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { Loader2, Plus, Edit2, Trash2, Users } from 'lucide-react';
 
 export default function StudentsTable({ schoolId }: { schoolId: string }) {
@@ -15,34 +14,44 @@ export default function StudentsTable({ schoolId }: { schoolId: string }) {
 
   const fetchStudents = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('students')
-      .select('*')
-      .eq('school_id', schoolId);
-    
-    if (error) {
-        console.error("Supabase Error (StudentsTable):", error);
-        alert("Gagal memuat data siswa: " + error.message);
-    } else if (data) {
-        setStudents(data);
+    try {
+      const response = await fetch(`/api/content/students?school_id=${schoolId}`);
+      if (!response.ok) throw new Error('Gagal mengambil data siswa');
+      const data = await response.json();
+      setStudents(data);
+    } catch (error: any) {
+      console.error("Error (StudentsTable):", error);
+      alert("Gagal memuat data siswa: " + error.message);
     }
     setLoading(false);
   };
 
   const handleSave = async () => {
-    if (editingStudent) {
-        await supabase.from('students').update(formData).eq('id', editingStudent.id);
-    } else {
-        await supabase.from('students').insert({ ...formData, school_id: schoolId });
+    try {
+      const response = await fetch('/api/content/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, id: editingStudent?.id, school_id: schoolId })
+      });
+      if (!response.ok) throw new Error('Gagal menyimpan data siswa');
+      closeModal();
+      fetchStudents();
+    } catch (error: any) {
+      alert("Gagal menyimpan data siswa: " + error.message);
     }
-    closeModal();
-    fetchStudents();
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Yakin ingin hapus data ini?')) {
-        await supabase.from('students').delete().eq('id', id);
+      try {
+        const response = await fetch(`/api/content/students/${id}`, {
+          method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Gagal menghapus data siswa');
         fetchStudents();
+      } catch (error: any) {
+        alert("Gagal menghapus data siswa: " + error.message);
+      }
     }
   };
 

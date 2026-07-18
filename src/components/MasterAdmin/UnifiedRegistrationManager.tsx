@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from '../../lib/supabase';
 import ManajemenPendaftarSaaS from './ManajemenPendaftarSaaS';
 import { 
   Users, 
@@ -41,8 +40,9 @@ export default function UnifiedRegistrationManager() {
   const fetchAffiliates = async () => {
     setLoadingAffs(true);
     try {
-      const { data, error } = await supabase.from('affiliates').select('*').order('name', { ascending: true });
-      if (error) throw error;
+      const response = await fetch('/api/content/affiliates');
+      if (!response.ok) throw new Error('Gagal mengambil data mitra');
+      const data = await response.json();
       setAffiliates(data || []);
     } catch (err) {
       console.error(err);
@@ -55,7 +55,10 @@ export default function UnifiedRegistrationManager() {
   const handleDeleteAff = async (id: string) => {
     if (!confirm('Hapus mitra affiliate ini?')) return;
     try {
-      await supabase.from('affiliates').delete().eq('id', id);
+      const response = await fetch(`/api/content/affiliates/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Gagal menghapus mitra');
       fetchAffiliates();
     } catch (err) {
       console.error(err);
@@ -175,9 +178,15 @@ export default function UnifiedRegistrationManager() {
               <h3 className="text-3xl font-black mb-8">Data Member Affiliate</h3>
               <form onSubmit={async (e) => {
                 e.preventDefault();
-                await supabase.from('affiliates').upsert(editingAffiliate);
-                setEditingAffiliate(null);
-                fetchAffiliates();
+                const response = await fetch('/api/content/affiliates', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(editingAffiliate)
+                });
+                if (response.ok) {
+                  setEditingAffiliate(null);
+                  fetchAffiliates();
+                }
               }} className="space-y-6">
                 <div>
                   <label className="text-xs font-black uppercase tracking-widest text-slate-400">Nama Lengkap</label>

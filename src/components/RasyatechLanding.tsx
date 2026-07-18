@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { supabase } from '../lib/supabase';
 import { useLandingData } from '../lib/LandingDataContext';
 
 const NativeAd = () => {
@@ -79,26 +78,7 @@ export default function RasyatechLanding() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    const checkSchema = async () => {
-      try {
-        const { data, error } = await supabase.from('registrations').select('*').limit(1);
-        if (!isMounted) return;
-        if (data && data.length > 0) {
-          console.log("DEBUG: Existing registration schema:", Object.keys(data[0]));
-        } else {
-          console.log("DEBUG: No existing registrations found or table empty.");
-        }
-        if (error) console.error("DEBUG: Schema check error:", error);
-      } catch (err) {
-        console.error("DEBUG: Schema check error:", err);
-      }
-    };
-    checkSchema();
-
-    return () => {
-      isMounted = false;
-    };
+    // Schema check removed in favor of backend stability
   }, []);
 
   const selectPackage = (pkg: string, type: 'Annual' | 'Monthly' = 'Annual') => {
@@ -207,7 +187,12 @@ export default function RasyatechLanding() {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(registrationData)
+      body: JSON.stringify({
+        ...registrationData,
+        referral_code: refCode,
+        affiliateEmail: affiliateEmail,
+        product_type: 'LMS'
+      })
     })
     .then(response => {
       if (!response.ok) {
@@ -216,18 +201,10 @@ export default function RasyatechLanding() {
       return response.json();
     })
     .then(payload => {
-      console.log("Supabase registration successful via backend:", payload);
+      console.log("Registration successful via backend:", payload);
     })
     .catch(err => {
-      console.error("Backend registration failed with error, attempting fallback client insert:", err);
-      // Fallback direct insert if server API fails
-      supabase.from('registrations').insert([registrationData]).then(({ data, error }) => {
-        if (error) {
-          console.error("Direct fallback insert also failed with database error:", error.message, error);
-        } else {
-          console.log("Direct fallback insert succeeded:", data);
-        }
-      });
+      console.error("Backend registration failed:", err);
     });
 
     setShowPayment(true);

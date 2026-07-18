@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase as supabaseLMS } from '../lib/supabase';
-import { supabaseKuliner } from '../lib/supabase-kuliner';
-import { supabaseSiput } from '../lib/supabase-siput';
 import { 
   Building2, 
   Mail, 
@@ -120,114 +117,36 @@ export default function FormPendaftaranSaaS() {
 
     try {
       const productType = (formData.product_type || '').toLowerCase();
+      const rawSubdomain = formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const uniqueSubdomain = rawSubdomain 
+        ? `${rawSubdomain}-${Math.floor(1000 + Math.random() * 9000)}` 
+        : `${productType}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      if (productType === 'lms' || productType === 'rasyatech') {
-        // Construct subdomain for LMS registration
-        const rawSubdomain = formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const uniqueSubdomain = rawSubdomain ? `${rawSubdomain}-${Math.floor(1000 + Math.random() * 9000)}` : `tenant-${Math.floor(1000 + Math.random() * 9000)}`;
-
-        const lmsInsertData = {
-          business_name: formData.business_name,
+      const response = await fetch('/api/registrations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           full_name: formData.full_name,
           email: formData.email,
-          whatsapp_number: formData.whatsapp,
-          npsn: formData.npsn || '-',
-          tenant: uniqueSubdomain,
-          password: 'paud2026',
+          business_name: formData.business_name,
+          tenant_type: productType.toUpperCase(),
           status: 'pending',
-          is_approved: false,
-          product_type: 'lms',
-          selected_package: formData.package || 'silver'
-        };
-
-        const { error: lmsError } = await supabaseLMS
-          .from('registrations')
-          .insert([lmsInsertData]);
-
-        if (lmsError) {
-          console.error('Error inserting into Supabase LMS registrations table:', lmsError);
-          throw lmsError;
-        }
-
-      } else if (productType === 'siput') {
-        const rawSubdomain = formData.business_name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const uniqueSubdomain = rawSubdomain || formData.full_name.toLowerCase().replace(/[^a-z0-9]/g, '') || `siput-${Math.floor(1000 + Math.random() * 9000)}`;
-        
-        // Generate a single UUID to sync records in both databases
-        const uuid = (() => {
-          if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-            return crypto.randomUUID();
+          meta_data: {
+            npsn: formData.npsn,
+            subdomain: uniqueSubdomain,
+            whatsapp_number: formData.whatsapp,
+            package: formData.package || 'silver',
+            tables_count: formData.tables_count,
+            outlet_count: formData.outlet_count
           }
-          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-          });
-        })();
+        }),
+      });
 
-        // 1. Insert into Siput database (without select() to bypass RLS select limitations)
-        const siputData = {
-          id: uuid,
-          full_name: formData.full_name,
-          email: formData.email,
-          whatsapp_number: formData.whatsapp,
-          subdomain: uniqueSubdomain,
-          status: 'pending',
-          role: 'admin'
-        };
-
-        const { error: siputError } = await supabaseSiput
-          .from('registrations')
-          .insert([siputData]);
-
-        if (siputError) {
-          console.error('Error inserting into Supabase Siput registrations table:', siputError);
-          throw siputError;
-        }
-
-        // 2. Insert copy into main database so the Master Admin can manage it
-        const mainDbData = {
-          id: uuid,
-          business_name: formData.business_name,
-          email: formData.email,
-          full_name: formData.full_name,
-          whatsapp_number: formData.whatsapp,
-          tenant: uniqueSubdomain,
-          password: 'paud2026',
-          status: 'pending',
-          is_approved: false,
-          selected_package: 'siput',
-          product_type: 'siput',
-          created_at: new Date().toISOString()
-        };
-
-        const { error: mainError } = await supabaseLMS
-          .from('registrations')
-          .insert([mainDbData]);
-
-        if (mainError) {
-          console.error('Error inserting copy into main registrations table:', mainError);
-          throw mainError;
-        }
-
-      } else {
-        // Default to kuliner database (scanbite, restoran_asli, Instafood, etc.)
-        const culinaryInsertData = {
-          full_name: formData.full_name,
-          email: formData.email,
-          whatsapp_number: formData.whatsapp,
-          business_name: formData.business_name,
-          status: 'pending'
-        };
-
-        const { error: culinaryError } = await supabaseKuliner
-          .from('registrations')
-          .insert([culinaryInsertData]);
-
-        if (culinaryError) {
-          console.error('Error inserting into Supabase Culinary registrations table:', culinaryError);
-          throw culinaryError;
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Gagal mengirim pendaftaran');
       }
 
       // Webhook Notification to Pipedream (Non-blocking)

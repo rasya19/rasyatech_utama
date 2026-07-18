@@ -39,12 +39,78 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "price", "image"]
+    },
+    "Registration": {
+      "title": "Registration",
+      "description": "User registration for SaaS products.",
+      "type": "object",
+      "properties": {
+        "full_name": { "type": "string" },
+        "email": { "type": "string" },
+        "business_name": { "type": "string" },
+        "tenant_type": { "type": "string" },
+        "status": { "type": "string" },
+        "meta_data": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["full_name", "email", "business_name", "tenant_type"]
+    },
+    "Tenant": {
+      "title": "Tenant",
+      "description": "Tenant registry for projects.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "api_url": { "type": "string" },
+        "api_key_ref": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "type", "api_url", "api_key_ref"]
+    },
+    "Product": {
+      "title": "SaaS Product",
+      "description": "Definition of a SaaS product in the ecosystem.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "type"]
+    },
+    "Affiliate": {
+      "title": "Affiliate Partner",
+      "description": "Mitra affiliate details.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email"]
+    },
+    "Setting": {
+      "title": "General Setting",
+      "description": "Key-value pair for general configuration.",
+      "type": "object",
+      "properties": {
+        "value": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["value"]
     }
   },
   "firestore": {
-    "settings/config": {
-      "schema": "Config",
-      "description": "Global website configuration"
+    "settings/{settingId}": {
+      "schema": "Setting",
+      "description": "General settings and configurations"
     },
     "services/{serviceId}": {
       "schema": "Service",
@@ -53,6 +119,22 @@
     "laptops/{laptopId}": {
       "schema": "Laptop",
       "description": "Laptop inventory"
+    },
+    "registrations/{regId}": {
+      "schema": "Registration",
+      "description": "User registrations"
+    },
+    "tenants/{tenantId}": {
+      "schema": "Tenant",
+      "description": "Project tenants registry"
+    },
+    "products/{productId}": {
+      "schema": "Product",
+      "description": "SaaS ecosystem products"
+    },
+    "affiliates/{affId}": {
+      "schema": "Affiliate",
+      "description": "Affiliate partners"
     }
   }
 }

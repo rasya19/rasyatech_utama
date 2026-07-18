@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 
 export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -38,8 +37,27 @@ export default function Home() {
     
     // Fetch Data
     const fetchData = async () => {
-        const { data: config } = await supabase.from('settings').select('*').eq('id', 'config').maybeSingle();
-        if (config) setDbConfig(config);
+      try {
+        const configRes = await fetch('/api/settings/config');
+        if (configRes.ok) {
+          const config = await configRes.json();
+          if (config) setDbConfig(config);
+        }
+
+        const servicesRes = await fetch('/api/services');
+        if (servicesRes.ok) {
+          const services = await servicesRes.json();
+          setDbServices(services || []);
+        }
+
+        const laptopsRes = await fetch('/api/laptops');
+        if (laptopsRes.ok) {
+          const laptops = await laptopsRes.json();
+          setDbLaptops(laptops || []);
+        }
+      } catch (err) {
+        console.error("Error fetching home data:", err);
+      }
     };
     fetchData();
 

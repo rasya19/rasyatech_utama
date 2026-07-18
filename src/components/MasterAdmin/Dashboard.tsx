@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { supabase } from '../../lib/supabase';
+import { auth } from '../../lib/firebase';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import MonitoringDashboard from './MonitoringDashboard';
 import ManajemenPendaftarSaaS from './ManajemenPendaftarSaaS';
 import UnifiedRegistrationManager from './UnifiedRegistrationManager';
@@ -87,14 +88,11 @@ export default function Admin() {
   const [password, setPassword] = useState('');
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
       setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -175,13 +173,10 @@ export default function Admin() {
     setLoadingRegistrations(true);
     setRegistrationsError(null);
     try {
-      const { data: regs, error } = await supabase.from('registrations').select('*');
-      if (error) {
-        console.error("Error fetching registrations:", error);
-        setRegistrationsError(error.message);
-      } else {
-        setRegistrations(regs || []);
-      }
+      const response = await fetch('/api/registrations');
+      if (!response.ok) throw new Error('Gagal mengambil data pendaftaran');
+      const data = await response.json();
+      setRegistrations(data || []);
     } catch (err: any) {
       console.error("Crash fetching registrations:", err);
       setRegistrationsError(err.message || 'Error tidak diketahui');
@@ -191,24 +186,21 @@ export default function Admin() {
   };
 
   const fetchAffiliates = async () => {
-    const { data: affs, error } = await supabase.from('affiliates').select('*').order('name', { ascending: true });
-    if (error) {
-        console.error("Error fetching affiliates:", error);
-    } else {
-        setAffiliates(affs || []);
+    try {
+      const response = await fetch('/api/affiliates');
+      if (!response.ok) throw new Error('Gagal mengambil data affiliate');
+      const data = await response.json();
+      setAffiliates(data || []);
+    } catch (error: any) {
+      console.error("Error fetching affiliates:", error);
     }
   };
 
   const handleLogin = async () => {
     setSaveStatus(null);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: 'https://rasyatech.rsch.my.id/admin'
-        }
-      });
-      if (error) throw error;
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error(error);
       setSaveStatus({ type: 'error', message: 'Gagal login: ' + (error.message || 'Error tidak diketahui') });
@@ -219,11 +211,7 @@ export default function Admin() {
     e.preventDefault();
     setSaveStatus(null);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-      if (error) throw error;
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
       console.error(error);
       setSaveStatus({ type: 'error', message: 'Gagal login: ' + (error.message || 'Error tidak diketahui') });
@@ -239,14 +227,8 @@ export default function Admin() {
     setResetLoading(true);
     setSaveStatus(null);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: window.location.origin + '/admin',
-        },
-      });
-      if (error) throw error;
-      setSaveStatus({ type: 'success', message: 'Magic Link dikirim! Silakan cek email Anda (ismanto095@gmail.com).' });
+      await sendPasswordResetEmail(auth, email);
+      setSaveStatus({ type: 'success', message: 'Link reset password dikirim! Silakan cek email Anda (ismanto095@gmail.com).' });
     } catch (error: any) {
       console.error(error);
       setSaveStatus({ type: 'error', message: 'Gagal mengirim link: ' + (error.message || 'Error tidak diketahui') });
@@ -260,8 +242,12 @@ export default function Admin() {
     setSavingConfig(true);
     setSaveStatus(null);
     try {
-      const { error } = await supabase.from('settings').upsert({ id: 'config', ...config });
-      if (error) throw error;
+      const response = await fetch('/api/settings/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+      if (!response.ok) throw new Error('Gagal menyimpan konfigurasi');
       setSaveStatus({ type: 'success', message: 'Konfigurasi website berhasil disimpan!' });
       setTimeout(() => setSaveStatus(null), 3000);
     } catch (err) {
@@ -277,8 +263,12 @@ export default function Admin() {
     setSavingPayments(true);
     setSaveStatus(null);
     try {
-      const { error } = await supabase.from('settings').upsert({ id: 'payments', ...payments });
-      if (error) throw error;
+      const response = await fetch('/api/settings/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payments)
+      });
+      if (!response.ok) throw new Error('Gagal menyimpan pembayaran');
       setSaveStatus({ type: 'success', message: 'Konfigurasi pembayaran berhasil disimpan!' });
       setTimeout(() => setSaveStatus(null), 3000);
     } catch (err) {
@@ -292,8 +282,11 @@ export default function Admin() {
   const handleDeleteService = async (id: string) => {
     if (!confirm('Yakin ingin menghapus layanan ini?')) return;
     try {
-      const { error } = await supabase.from('services').delete().eq('id', id);
-      if (error) throw error;
+      const response = await fetch(`/api/content/services/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Gagal menghapus layanan');
+      setServices(prev => prev.filter(s => s.id !== id));
     } catch (err) {
       console.error(err);
     }
@@ -303,8 +296,18 @@ export default function Admin() {
     e.preventDefault();
     const data = editingService;
     try {
-      const { error } = await supabase.from('services').upsert(data);
-      if (error) throw error;
+      const response = await fetch('/api/content/services', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Gagal menyimpan layanan');
+      const saved = await response.json();
+      if (data.id) {
+        setServices(prev => prev.map(s => s.id === data.id ? saved : s));
+      } else {
+        setServices(prev => [...prev, saved]);
+      }
       setEditingService(null);
     } catch (err) {
       console.error(err);
@@ -314,8 +317,11 @@ export default function Admin() {
   const handleDeleteLaptop = async (id: string) => {
     if (!confirm('Yakin ingin menghapus laptop ini?')) return;
     try {
-      const { error } = await supabase.from('laptops').delete().eq('id', id);
-      if (error) throw error;
+      const response = await fetch(`/api/content/laptops/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Gagal menghapus laptop');
+      setLaptops(prev => prev.filter(l => l.id !== id));
     } catch (err) {
       console.error(err);
     }
@@ -325,8 +331,18 @@ export default function Admin() {
     e.preventDefault();
     const data = editingLaptop;
     try {
-      const { error } = await supabase.from('laptops').upsert(data);
-      if (error) throw error;
+      const response = await fetch('/api/content/laptops', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Gagal menyimpan laptop');
+      const saved = await response.json();
+      if (data.id) {
+        setLaptops(prev => prev.map(l => l.id === data.id ? saved : l));
+      } else {
+        setLaptops(prev => [...prev, saved]);
+      }
       setEditingLaptop(null);
     } catch (err) {
       console.error(err);
@@ -336,8 +352,11 @@ export default function Admin() {
   const handleDeleteProduct = async (id: string) => {
     if (!confirm('Yakin ingin menghapus barang ini?')) return;
     try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
+      const response = await fetch(`/api/content/products/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Gagal menghapus barang');
+      setProducts(prev => prev.filter(p => p.id !== id));
     } catch (err) {
       console.error(err);
     }
@@ -347,8 +366,18 @@ export default function Admin() {
     e.preventDefault();
     const data = editingProduct;
     try {
-      const { error } = await supabase.from('products').upsert(data);
-      if (error) throw error;
+      const response = await fetch('/api/content/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Gagal menyimpan produk');
+      const saved = await response.json();
+      if (data.id) {
+        setProducts(prev => prev.map(p => p.id === data.id ? saved : p));
+      } else {
+        setProducts(prev => [...prev, saved]);
+      }
       setEditingProduct(null);
     } catch (err) {
       console.error(err);
@@ -358,9 +387,11 @@ export default function Admin() {
   const handleDeleteAffiliate = async (id: string) => {
     if (!confirm('Hapus mitra affiliasi ini?')) return;
     try {
-      const { error } = await supabase.from('affiliates').delete().eq('id', id);
-      if (error) throw error;
-      fetchAffiliates(); // Assumed function exists or is needed
+      const response = await fetch(`/api/content/affiliates/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Gagal menghapus mitra');
+      setAffiliates(prev => prev.filter(a => a.id !== id));
     } catch (err) {
       console.error(err);
     }
@@ -370,8 +401,18 @@ export default function Admin() {
     e.preventDefault();
     const data = editingAffiliate;
     try {
-      const { error } = await supabase.from('affiliates').upsert(data);
-      if (error) throw error;
+      const response = await fetch('/api/content/affiliates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Gagal menyimpan mitra');
+      const saved = await response.json();
+      if (data.id) {
+        setAffiliates(prev => prev.map(a => a.id === data.id ? saved : a));
+      } else {
+        setAffiliates(prev => [...prev, saved]);
+      }
       setEditingAffiliate(null);
       fetchAffiliates();
     } catch (err) {
@@ -403,7 +444,7 @@ export default function Admin() {
     if (!reg) return;
     
     // Auto-subdomain: lowercase dan hapus semua karakter non-alfanumerik
-    const autoSubdomain = reg.school_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const autoSubdomain = (reg.business_name || reg.school_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     
     if (!autoSubdomain) {
       setSaveStatus({ type: 'error', message: 'Nama sekolah tidak valid untuk dibuatkan subdomain otomatis!' });
@@ -413,34 +454,12 @@ export default function Admin() {
     setSaveStatus({ type: 'success', message: 'Sedang memproses verifikasi otomatis...' });
     
     try {
-      // 1. Validasi: Keunikan (Cek apakah subdomain sudah dipakai sekolah lain)
-      const { data: existing, error: checkError } = await supabase
-        .from('registrations')
-        .select('id, school_name')
-        .eq('subdomain', autoSubdomain)
-        .eq('status', 'verified')
-        .neq('id', reg.id) // Kecuali dirinya sendiri
-        .maybeSingle();
-
-      if (checkError) throw checkError;
-      
-      if (existing) {
-        setSaveStatus({ 
-          type: 'error', 
-          message: `Subdomain "${autoSubdomain}" sudah digunakan oleh ${existing.school_name}.` 
-        });
-        return;
-      }
-
       const response = await fetch('/api/verify-school', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           registrationId: reg.id,
-          email: reg.admin_email,
-          school_name: reg.school_name,
-          subdomain: autoSubdomain, 
-          whatsapp: reg.whatsapp
+          status: 'verified'
         }),
       });
 
@@ -489,8 +508,12 @@ export default function Admin() {
   const handleUpdateRegStatus = async (id: string, status: string) => {
     try {
       console.log(`Updating ${id} to ${status}...`);
-      const { error } = await supabase.from('registrations').update({ status }).eq('id', id);
-      if (error) throw error;
+      const response = await fetch(`/api/registrations/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (!response.ok) throw new Error('Gagal update status');
       console.log("Update successful");
       setSaveStatus({ type: 'success', message: 'Status berhasil diperbarui!' });
       setTimeout(() => setSaveStatus(null), 3000);
@@ -501,55 +524,17 @@ export default function Admin() {
     }
   };
 
-  const handleUpdateSchoolPackage = async (subdomain: string, newPackage: string) => {
+  const handleUpdateSchoolPackage = async (id: string, newPackage: string) => {
     try {
-      if (!subdomain) {
-        setSaveStatus({ type: 'error', message: 'Subdomain tidak ditemukan!' });
-        return;
-      }
+      setSaveStatus({ type: 'success', message: `Sedang memperbarui paket...` });
       
-      console.log(`Updating 'paket_langganan' to ${newPackage} for school subdomain '${subdomain}'...`);
-      
-      // Update local state immediately for a highly responsive UI
-      setRegistrations(prev => prev.map(r => {
-        if (r.subdomain === subdomain) {
-          return { ...r, paket_langganan: newPackage };
-        }
-        return r;
-      }));
+      const response = await fetch(`/api/registrations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meta_data: { package: newPackage } })
+      });
 
-      // 1. Update the 'paket_langganan' column of 'schools' table
-      const { error: schoolError } = await supabase
-        .from('schools')
-        .update({ paket_langganan: newPackage })
-        .eq('subdomain', subdomain); // In our database, this matches either slug or subdomain
-
-      if (schoolError) {
-        console.error("Gagal update paket_langganan di tabel schools:", schoolError.message, schoolError);
-        // Fallback update schema by checking ID or other fields if needed
-        const { error: schoolErrorById } = await supabase
-          .from('schools')
-          .update({ paket_langganan: newPackage })
-          .eq('id', subdomain);
-        
-        if (schoolErrorById) {
-          console.error("Gagal update paket_langganan di tabel schools berdasarkan ID:", schoolErrorById.message, schoolErrorById);
-        }
-      } else {
-        console.log("Update paket_langganan on schools table succeeded.");
-      }
-
-      // 2. Also update registrations table just in case they added the column there
-      const { error: regError } = await supabase
-        .from('registrations')
-        .update({ paket_langganan: newPackage })
-        .eq('subdomain', subdomain);
-
-      if (regError) {
-        console.error("Gagal update paket_langganan di tabel registrations:", regError.message, regError);
-      } else {
-        console.log("Update paket_langganan on registrations table succeeded.");
-      }
+      if (!response.ok) throw new Error('Gagal memperbarui paket');
 
       setSaveStatus({ type: 'success', message: `Paket langganan diperbarui ke ${newPackage.toUpperCase()}!` });
       setTimeout(() => setSaveStatus(null), 3000);
@@ -622,13 +607,14 @@ export default function Admin() {
     };
     
     try {
-        if (editingRegistration.id) {
-            const { error } = await supabase.from('registrations').update(payload).eq('id', editingRegistration.id);
-            if (error) throw error;
-        } else {
-             const { error } = await supabase.from('registrations').insert([payload]);
-             if (error) throw error;
-        }
+        const url = editingRegistration.id ? `/api/registrations/${editingRegistration.id}` : '/api/registrations';
+        const method = editingRegistration.id ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error('Gagal menyimpan pendaftaran');
         setEditingRegistration(null);
         fetchRegistrations();
         setSaveStatus({ type: 'success', message: 'Data pendaftar berhasil disimpan!' });
@@ -648,8 +634,13 @@ export default function Admin() {
         { email: 'platinum@demo.com', plan: 'platinum', name: 'User Platinum', data: { stats: { views: 999 }, qr: 'https://qr.example.com', theme: 'black-gold' } }
       ];
       
-      const { error } = await supabase.from('users').upsert(demoAccounts);
-      if (error) throw error;
+      for (const account of demoAccounts) {
+        await fetch('/api/content/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(account)
+        });
+      }
 
       setSaveStatus({ type: 'success', message: 'Data demo 3 akun berhasil dibuat!' });
       setTimeout(() => setSaveStatus(null), 3000);
@@ -937,7 +928,7 @@ export default function Admin() {
             </div>
             <button
               onClick={() => {
-                supabase.auth.signOut();
+                signOut(auth);
                 setIsMobileSidebarOpen(false);
               }}
               className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all duration-200"

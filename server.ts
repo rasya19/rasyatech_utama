@@ -2,10 +2,13 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
+import { initializeApp, cert } from 'firebase-admin/app';
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createClient } from "@supabase/supabase-js";
+import { RegistrationService } from "./src/services/RegistrationService.js";
+import { TenantsService } from "./src/services/TenantsService.js";
+import { ContentService } from "./src/services/ContentService.js";
 import nodemailer from "nodemailer";
 import cors from "cors";
 
@@ -13,6 +16,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  // Initialize Firebase Admin
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    try {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      initializeApp({
+        credential: cert(serviceAccount)
+      });
+      console.log("Firebase Admin initialized with service account");
+    } catch (e) {
+      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY, falling back to default credentials");
+      initializeApp();
+    }
+  } else {
+    initializeApp();
+    console.log("Firebase Admin initialized with default credentials");
+  }
+
   const app = express();
   const PORT = 3000;
 
@@ -44,287 +64,216 @@ async function startServer() {
     }
   });
 
-  // API route for school registration (bypasses direct client RLS by using service role key)
-  app.post("/api/register-school", async (req, res) => {
-    console.log("Received POST to /api/register-school. Body:", req.body);
-    const { school_name, admin_email, admin_name, whatsapp, WA, npsn, subdomain, password, status, is_approved } = req.body;
-
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseServiceKey) {
-      console.error("SUPABASE_SERVICE_ROLE_KEY is missing from environment");
-      return res.status(500).json({ error: "Server configuration missing: Service Role Key" });
-    }
-
-    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
-
+  // Registration Endpoints
+  app.get("/api/registrations", async (req, res) => {
     try {
-      const payload: any = {
-        business_name: school_name,
-        email: admin_email,
-        full_name: admin_name || school_name,
-        whatsapp_number: whatsapp || WA || '',
-        npsn: npsn || '-',
-        tenant: subdomain || '',
-        password: password || '',
-        status: status || 'pending',
-        is_approved: is_approved === undefined ? false : is_approved,
-        product_type: 'lms',
-        selected_package: 'silver',
-        created_at: new Date().toISOString()
-      };
-
-      console.log("Inserting registration with payload:", payload);
-
-      const { data, error } = await adminSupabase
-        .from('registrations')
-        .insert([payload])
-        .select();
-
-      if (error) {
-        console.error("Supabase Database Insertion Error during registration:", error.message, error);
-        return res.status(400).json({ error: error.message });
-      }
-
-      res.json({ success: true, message: "Pendaftaran berhasil disimpan ke database (registrations)!", data });
+      const data = await RegistrationService.getAll();
+      res.json(data);
     } catch (error: any) {
-      console.error("Registration endpoint caught error:", error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // API route for school verification
-  app.post("/api/verify-school", async (req, res) => {
-    console.log("Received POST to /api/verify-school. Body:", req.body);
-    const { email, school_name, subdomain, registrationId } = req.body;
-    
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseServiceKey) {
-      console.error("SUPABASE_SERVICE_ROLE_KEY is missing from environment");
-      return res.status(500).json({ error: "Server configuration missing: Service Role Key" });
-    }
-
-    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
-
+  app.post("/api/registrations", async (req, res) => {
     try {
-        const activationDate = new Date();
-
-        // Fetch registration info to retrieve password and any other registered values
-        let password = 'AktivasiSekolah123!'; // Fallback password
-        let regData: any = null;
-
-        if (registrationId) {
-          const { data, error: fetchError } = await adminSupabase
-            .from('registrations')
-            .select('*')
-            .eq('id', registrationId)
-            .single();
-          
-          if (!fetchError && data) {
-            regData = data;
-            if (data.password) {
-              password = data.password;
-            }
-          } else {
-            console.warn("Could not fetch registration details for ID:", registrationId, fetchError?.message);
-          }
-        }
-
-        const targetEmail = email || regData?.admin_email || regData?.email;
-        const targetSchoolName = school_name || regData?.school_name || regData?.business_name || 'Sekolah Baru';
-        const targetSubdomain = subdomain || regData?.subdomain || regData?.tenant;
-
-        if (!targetEmail) {
-          return res.status(400).json({ error: "Email is required for verification" });
-        }
-
-        // 1. Create Supabase Auth User with Password
-        const { data: userData, error: userError } = await adminSupabase.auth.admin.createUser({
-          email: targetEmail,
-          password: password,
-          email_confirm: true,
-          user_metadata: { school_name: targetSchoolName, subdomain: targetSubdomain }
-        });
-
-        // Jika user sudah ada (422), kita lanjut saja
-        if (userError && userError.status !== 422) {
-            console.error("Auth creation error:", userError.message);
-            return res.status(400).json({ error: userError.message });
-        }
-
-        const authUid = userData?.user?.id;
-
-        // 2. Update status di tabel registrations
-        const { error: regError } = await adminSupabase
-          .from('registrations')
-          .update({ 
-            status: 'verified',
-            subdomain: targetSubdomain,
-            auth_uid: authUid || null
-          })
-          .eq('id', registrationId);
-
-        if (regError) {
-          console.error("Registration update error:", regError.message);
-          throw regError;
-        }
-
-        // 3. Insert/Upsert ke tabel schools
-        if (targetSubdomain) {
-          const { error: schoolError } = await adminSupabase
-            .from('schools') 
-            .upsert([{
-              id: targetSubdomain,
-              nama_sekolah: targetSchoolName, 
-              registration_id: registrationId, // Menambahkan ID pendaftaran sebagai referensi
-              created_at: activationDate.toISOString()
-            }], { onConflict: 'id' });
-
-          if (schoolError) {
-            console.error("School upsert error:", schoolError.message);
-            throw schoolError;
-          }
-        }
-
-        // 4. Safe Insert/Upsert ke tabel profiles
-        if (authUid) {
-          try {
-            const { error: profileError } = await adminSupabase
-              .from('profiles')
-              .upsert([{
-                id: authUid,
-                email: targetEmail,
-                role: 'school_admin',
-                school_id: targetSubdomain || '',
-                name: targetSchoolName,
-                created_at: activationDate.toISOString(),
-                updated_at: activationDate.toISOString()
-              }], { onConflict: 'id' });
-
-            if (profileError) {
-              console.warn("Profiles table upsert warned (continuing...):", profileError.message);
-            } else {
-              console.log("Profiles successfully updated for user:", authUid);
-            }
-          } catch (profileCatchError: any) {
-            console.warn("Profiles table upsert caught error (continuing...):", profileCatchError.message);
-          }
-
-          // 5. Safe Insert/Upsert ke tabel users
-          try {
-            const { error: usersError } = await adminSupabase
-              .from('users')
-              .upsert([{
-                id: authUid,
-                email: targetEmail,
-                name: targetSchoolName,
-                plan: regData?.package || 'silver',
-                school_id: targetSubdomain || '',
-                created_at: activationDate.toISOString()
-              }], { onConflict: 'id' });
-
-            if (usersError) {
-               console.warn("Users table upsert warned (continuing...):", usersError.message);
-            } else {
-              console.log("Users table successfully updated for user:", authUid);
-            }
-          } catch (usersCatchError: any) {
-             console.warn("Users table upsert caught error (continuing...):", usersCatchError.message);
-          }
-        }
-
-        // 6. Send welcome email
-        try {
-            console.log(`Attempting to send email to ${targetEmail}...`);
-            const domainUtama = "rsch.my.id";
-            const urlSekolah = `https://${targetSubdomain}.${domainUtama}`;
-            
-            const info = await transporter.sendMail({
-                from: '"Rasyacomp Support" <ismanto095@gmail.com>',
-                to: targetEmail,
-                subject: `Selamat! Website Sekolah ${targetSchoolName} Telah Aktif`,
-                text: `Halo Admin ${targetSchoolName},\n\nPendaftaran Anda di Rasyatech telah diverifikasi. Sekarang Anda sudah memiliki website resmi sendiri. Berikut adalah detail akses Anda:\n\nURL Website: ${urlSekolah}\n\nEmail Login: ${targetEmail}\n\nSilakan klik URL di atas untuk mulai mengelola profil sekolah Anda. Terima kasih telah mempercayakan layanan digital Anda kepada Rasyatech.\n\nSalam,\nRasyacomp Support`
-            });
-            console.log("Email sent successfully:", info.messageId);
-        } catch (emailError: any) {
-            console.warn("Failed to send email:", emailError.message);
-        }
-
-        res.json({ success: true, message: "Verifikasi berhasil & Email terkirim!" });
-
+      const data = await RegistrationService.create(req.body);
+      res.json(data);
     } catch (error: any) {
-        console.error("Verification endpoint caught error:", error);
-        res.status(500).json({ error: error.message });
+      res.status(400).json({ error: error.message });
     }
   });
 
-  // API route for deleting registration
-  app.delete("/api/delete-registration", async (req, res) => {
-    const id = (req.query.id as string) || (req.params as any).id;
-    if (!id) return res.status(400).json({ error: "ID is required" });
-    console.log(`Processing DELETE for registration ID: ${id}`);
-    
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://erosuotjshhmhduoprwi.supabase.co";
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseServiceKey) {
-      console.error("SUPABASE_SERVICE_ROLE_KEY is missing from environment");
-      return res.status(500).json({ error: "Server configuration missing" });
-    }
-
-    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
-
+  app.put("/api/registrations/:id", async (req, res) => {
     try {
-        // 1. Ambil data subdomain & auth_uid pendaftaran
-        const { data: reg, error: fetchError } = await adminSupabase
-            .from('registrations')
-            .select('subdomain, auth_uid')
-            .eq('id', id)
-            .single();
-
-        if (fetchError) {
-          console.error(`Error fetching registration ${id}:`, fetchError.message);
-          // Jika tidak ada di registrasi, mungkin sudah terhapus atau ID salah
-          return res.status(404).json({ error: "Pendaftaran tidak ditemukan" });
-        }
-
-        // 2. Hapus data di tabel schools (jika ada)
-        // Kita hapus berdasarkan ID (subdomain) DAN registration_id agar aman
-        if (reg?.subdomain && reg.subdomain !== '-') {
-            console.log(`Deleting school with subdomain: ${reg.subdomain}`);
-            await adminSupabase.from('schools').delete().eq('id', reg.subdomain);
-        }
-        // Juga hapus berdasarkan registration_id jika tabel schools punya kolom tersebut
-        await adminSupabase.from('schools').delete().eq('registration_id', id);
-
-        // 3. Hapus User Auth jika ada (Jika admin ingin sekalian menghapus akun loginnya)
-        if (reg?.auth_uid) {
-           console.log(`Deleting auth user: ${reg.auth_uid}`);
-           const { error: authError } = await adminSupabase.auth.admin.deleteUser(reg.auth_uid);
-           if (authError) {
-             console.warn(`Auth deletion failed (continuing...): ${authError.message}`);
-           }
-        }
-
-        // 4. Akhirnya hapus data pendaftaran utama
-        console.log(`Deleting record from registrations table for ID: ${id}`);
-        const { error: deleteError } = await adminSupabase
-            .from('registrations')
-            .delete()
-            .eq('id', id);
-
-        if (deleteError) {
-          console.error("Registration table deletion error:", deleteError.message);
-          throw deleteError;
-        }
-
-        res.json({ success: true, message: "Pendaftar dan data terkait berhasil dihapus permanen!" });
+      const data = await RegistrationService.update(req.params.id, req.body);
+      res.json(data);
     } catch (error: any) {
-        console.error("Delete registration route error:", error);
-        res.status(500).json({ error: error.message });
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/registrations/:id", async (req, res) => {
+    try {
+      await RegistrationService.delete(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/registrations/:id/status", async (req, res) => {
+    try {
+      const data = await RegistrationService.updateStatus(req.params.id, req.body.status);
+      res.json(data);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Legacy Registration endpoint (mapped to new service)
+  app.post("/api/register-school", async (req, res) => {
+    try {
+      const { school_name, admin_email, admin_name, whatsapp, WA, npsn, subdomain, password, status, product_type, referral_code, affiliateEmail } = req.body;
+      const data = await RegistrationService.create({
+        full_name: admin_name || school_name,
+        email: admin_email,
+        business_name: school_name,
+        tenant_type: (product_type || 'LMS').toUpperCase(),
+        status: status || 'pending',
+        meta_data: { npsn, subdomain, password, whatsapp_number: whatsapp || WA, referral_code, affiliateEmail }
+      });
+      res.json({ success: true, data });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Tenant Endpoints
+  app.get("/api/tenants", async (req, res) => {
+    try {
+      const data = await TenantsService.getAll();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/tenants", async (req, res) => {
+    try {
+      const data = await TenantsService.create(req.body);
+      res.json(data);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/tenants/:id", async (req, res) => {
+    try {
+      const data = await TenantsService.update(req.params.id, req.body);
+      res.json(data);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/tenants/:id", async (req, res) => {
+    try {
+      await TenantsService.delete(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Content Endpoints
+  app.get("/api/services", async (req, res) => {
+    try {
+      const data = await ContentService.getServices();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/laptops", async (req, res) => {
+    try {
+      const data = await ContentService.getLaptops();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/products", async (req, res) => {
+    try {
+      const data = await ContentService.getProducts();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/affiliates", async (req, res) => {
+    try {
+      const data = await ContentService.getAffiliates();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/settings/:key", async (req, res) => {
+    try {
+      const data = await ContentService.getSettings(req.params.key);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/settings/:key", async (req, res) => {
+    try {
+      const data = await ContentService.updateSettings(req.params.key, req.body);
+      res.json(data);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Generic Content CRUD
+  app.get("/api/content/:collection", async (req, res) => {
+    try {
+      const data = await ContentService.getAll(req.params.collection, req.query.school_id as string);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/content/:collection", async (req, res) => {
+    try {
+      const data = await ContentService.upsert(req.params.collection, req.body);
+      res.json(data);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/content/:collection/:id", async (req, res) => {
+    try {
+      await ContentService.deleteItem(req.params.collection, req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // API route for school verification (Simplified using RegistrationService)
+  app.post("/api/verify-school", async (req, res) => {
+    const { registrationId, status } = req.body;
+    try {
+      const registration = await RegistrationService.getById(registrationId) as any;
+      if (!registration) return res.status(404).json({ error: "Registration not found" });
+
+      const updated = await RegistrationService.updateStatus(registrationId, status || 'verified');
+
+      // Send welcome email if verified
+      if (status === 'verified' || !status) {
+        try {
+          await transporter.sendMail({
+            from: '"Rasyacomp Support" <ismanto095@gmail.com>',
+            to: registration.email || registration.admin_email,
+            subject: `Selamat! Website Sekolah ${registration.business_name || registration.school_name} Telah Aktif`,
+            text: `Halo ${registration.full_name || registration.admin_name || 'Admin'},\n\nPendaftaran Anda di Rasyatech telah diverifikasi.\n\nTerima kasih telah mempercayakan layanan digital Anda kepada Rasyatech.\n\nSalam,\nRasyacomp Support`
+          });
+        } catch (e) {
+          console.error("Email send failed:", e);
+        }
+      }
+
+      res.json({ success: true, data: updated });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

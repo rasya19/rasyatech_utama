@@ -65,21 +65,27 @@ service cloud.firestore {
     }
 
     function isValidRegistration(data) {
-      return data.keys().hasAll(['schoolName', 'package', 'email']) &&
-             data.schoolName is string && data.schoolName.size() <= 100 &&
-             data.email is string && data.email.size() <= 100;
+      return data.keys().hasAll(['full_name', 'email', 'business_name', 'tenant_type']) &&
+             data.full_name is string && data.email is string &&
+             data.business_name is string && data.tenant_type is string;
+    }
+
+    function isValidTenant(data) {
+      return data.keys().hasAll(['name', 'type', 'api_url', 'api_key_ref']) &&
+             data.name is string && data.type is string &&
+             data.api_url is string && data.api_key_ref is string;
     }
 
     // 3. COLLECTIONS (THE FORTRESS)
 
-    match /settings/config {
+    match /settings/{settingId} {
       allow read: if true;
-      allow write: if isSuperAdmin() && isValidConfig(incoming());
+      allow write: if isSuperAdmin();
     }
 
-    match /settings/payments {
-      allow read: if true;
-      allow write: if isSuperAdmin() && isValidPayments(incoming());
+    match /tenants/{tenantId} {
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin() && isValidTenant(incoming());
     }
 
     match /ads/{adId} {

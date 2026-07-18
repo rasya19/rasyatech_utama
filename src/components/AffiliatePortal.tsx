@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { supabase } from '../lib/supabase';
+import { auth } from '../lib/firebase';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 
 export default function AffiliatePortal() {
   const [user, setUser] = useState<any | null>(null);
@@ -22,64 +23,95 @@ export default function AffiliatePortal() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user || null);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    // if (!user) return;
-    //
-    // // Listen to Affiliate Profile
-    // const unsubAffiliate = onSnapshot(
-    //   query(collection(db, 'affiliates'), where('email', '==', user.email)),
-    //   (snap) => {
-    //     if (!snap.empty) {
-    //       setAffiliateData({ id: snap.docs[0].id, ...snap.docs[0].data() });
-    //       setError(null);
-    //     } else {
-    //       setAffiliateData(null);
-    //       setError('Email Anda tidak terdaftar sebagai mitra affiliasi. Silakan hubungi admin Rasyatech.');
-    //     }
-    //   },
-    //   (err) => handleFirestoreError(err, OperationType.GET, 'affiliates')
-    // );
-    //
-    // // Listen to Registrations
-    // const unsubRegs = onSnapshot(
-    //   query(
-    //     collection(db, 'registrations'),
-    //     where('affiliateEmail', '==', user.email),
-    //     orderBy('createdAt', 'desc')
-    //   ),
-    //   (snap) => {
-    //     setRegistrations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    //   },
-    //   (err) => {
-    //     console.error(err);
-    //     // Silently handle if index is missing first
-    //   }
-    // );
-    //
-    // return () => {
-    //   unsubAffiliate();
-    //   unsubRegs();
-    // };
+    if (!user) {
+      setAffiliateData(null);
+      setRegistrations([]);
+      return;
+    }
+
+    const fetchData = async () => {
+      try {
+        setError(null);
+        // 1. Fetch affiliate data
+        const affiliateRes = await fetch('/api/content/affiliates');
+        if (!affiliateRes.ok) throw new Error('Gagal mengambil data affiliasi');
+        
+        const affiliatesList = await affiliateRes.json();
+        const currentAffiliate = affiliatesList.find((a: any) => a.email?.toLowerCase() === user.email?.toLowerCase());
+        
+        if (currentAffiliate) {
+          setAffiliateData(currentAffiliate);
+        } else {
+          setAffiliateData(null);
+          setError(`Email Anda (${user.email}) tidak terdaftar sebagai mitra affiliasi. Silakan hubungi admin Rasyatech.`);
+          return;
+        }
+
+        // 2. Fetch registrations
+        const registrationsRes = await fetch('/api/registrations');
+        if (!registrationsRes.ok) throw new Error('Gagal mengambil data pendaftaran');
+
+        const regsList = await registrationsRes.json();
+        // Filter registrations where meta_data.affiliateEmail is equal to user.email, or referralCode matches
+        const filteredRegs = regsList.filter((reg: any) => {
+          const meta = reg.meta_data || {};
+          const refCode = meta.referral_code || meta.referralCode || '';
+          const affEmail = meta.affiliateEmail || '';
+          
+          const matchesEmail = affEmail.toLowerCase() === user.email?.toLowerCase();
+          const matchesCode = currentAffiliate.referralCode && refCode.toUpperCase() === currentAffiliate.referralCode.toUpperCase();
+          
+          return matchesEmail || matchesCode;
+        }).map((reg: any) => {
+          // Map helper variables for robust rendering
+          const meta = reg.meta_data || {};
+          
+          // Calculate a default commission based on the package
+          let calculatedCommission = 0;
+          if (meta.commission) {
+            calculatedCommission = Number(meta.commission);
+          } else {
+            const pkg = (reg.package || meta.package || '').toUpperCase();
+            if (pkg.includes('ANNUAL')) {
+              calculatedCommission = 150000;
+            } else if (pkg.includes('MONTHLY') || pkg.includes('SILVER') || pkg.includes('GOLD') || pkg.includes('PLATINUM')) {
+              calculatedCommission = 25000;
+            }
+          }
+
+          return {
+            ...reg,
+            schoolName: reg.school_name || reg.business_name || reg.full_name || 'Sekolah Baru',
+            package: reg.package || meta.package || 'LMS Basic',
+            commission: calculatedCommission,
+            contractEnd: meta.contractEnd || null
+          };
+        });
+
+        setRegistrations(filteredRegs);
+
+      } catch (err: any) {
+        console.error('Error fetching affiliate data:', err);
+        setError(err.message || 'Terjadi kesalahan saat memuat data');
+      }
+    };
+
+    fetchData();
   }, [user]);
 
   const handleLogin = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-      });
-      if (error) throw error;
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
     } catch (err: any) {
       setError('Gagal login: ' + err.message);
     }
@@ -124,7 +156,7 @@ export default function AffiliatePortal() {
         <h2 className="text-2xl font-black text-slate-900 mb-4">Akses Terbatas</h2>
         <p className="text-slate-500 mb-8 font-medium">{error}</p>
         <div className="flex flex-col gap-3">
-          <button onClick={() => supabase.auth.signOut()} className="w-full py-4 bg-slate-100 text-slate-600 font-black rounded-2xl transition-all">Ganti Akun</button>
+          <button onClick={() => signOut(auth)} className="w-full py-4 bg-slate-100 text-slate-600 font-black rounded-2xl transition-all">Ganti Akun</button>
           <Link to="/" className="w-full py-4 text-indigo-600 font-black">Kembali ke Beranda</Link>
         </div>
       </div>
@@ -145,10 +177,10 @@ export default function AffiliatePortal() {
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden md:block text-right">
-            <div className="text-sm font-black text-slate-900">{user.displayName}</div>
+            <div className="text-sm font-black text-slate-900">{user.displayName || user.email}</div>
             <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{affiliateData?.referralCode}</div>
           </div>
-          <button onClick={() => supabase.auth.signOut()} className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all border border-red-100">
+          <button onClick={() => signOut(auth)} className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all border border-red-100">
             <LogOut className="w-5 h-5" />
           </button>
         </div>

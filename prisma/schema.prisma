@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Registration {
+  id              String   @id @default(cuid())
+  school_name     String?
+  admin_email     String?
+  admin_name      String?
+  whatsapp        String?
+  npsn            String?
+  subdomain       String?
+  password        String?
+  status          String   @default("pending")
+  is_approved     Boolean  @default(false)
+  meta_data       Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("registrations")
+}
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  api_url     String
+  api_key_ref String
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("tenants")
+}
+
+model Setting {
+  id        String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("services")
+}
+
+model Laptop {
+  id          String   @id @default(cuid())
+  name        String
+  price       String
+  image       String?
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("laptops")
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  price     String
+  image     String?
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("products")
+}
+
+model Affiliate {
+  id           String   @id @default(cuid())
+  name         String
+  email        String?  @unique
+  whatsapp     String?
+  referralCode String?  @unique
+  logo         String?
+  website      String?
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("affiliates")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  plan      String?
+  data      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Teacher {
+  id        String   @id @default(cuid())
+  name      String
+  nip       String?
+  school_id String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("teachers")
+}
+
+model Student {
+  id        String   @id @default(cuid())
+  name      String
+  nisn      String?
+  school_id String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("students")
+}

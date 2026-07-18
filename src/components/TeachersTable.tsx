@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { Loader2, Plus, Edit2, Trash2, Users, Save, X } from 'lucide-react';
 
 export default function TeachersTable({ schoolId }: { schoolId: string }) {
@@ -15,34 +14,44 @@ export default function TeachersTable({ schoolId }: { schoolId: string }) {
 
   const fetchTeachers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('teachers')
-      .select('*')
-      .eq('school_id', schoolId);
-    
-    if (error) {
-        console.error("Supabase Error (TeachersTable):", error);
-        alert("Gagal memuat data guru: " + error.message);
-    } else if (data) {
-        setTeachers(data);
+    try {
+      const response = await fetch(`/api/content/teachers?school_id=${schoolId}`);
+      if (!response.ok) throw new Error('Gagal mengambil data guru');
+      const data = await response.json();
+      setTeachers(data);
+    } catch (error: any) {
+      console.error("Error (TeachersTable):", error);
+      alert("Gagal memuat data guru: " + error.message);
     }
     setLoading(false);
   };
 
   const handleSave = async () => {
-    if (editingTeacher) {
-        await supabase.from('teachers').update(formData).eq('id', editingTeacher.id);
-    } else {
-        await supabase.from('teachers').insert({ ...formData, school_id: schoolId });
+    try {
+      const response = await fetch('/api/content/teachers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, id: editingTeacher?.id, school_id: schoolId })
+      });
+      if (!response.ok) throw new Error('Gagal menyimpan data guru');
+      closeModal();
+      fetchTeachers();
+    } catch (error: any) {
+      alert("Gagal menyimpan data guru: " + error.message);
     }
-    closeModal();
-    fetchTeachers();
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('Yakin ingin hapus data ini?')) {
-        await supabase.from('teachers').delete().eq('id', id);
+      try {
+        const response = await fetch(`/api/content/teachers/${id}`, {
+          method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Gagal menghapus data guru');
         fetchTeachers();
+      } catch (error: any) {
+        alert("Gagal menghapus data guru: " + error.message);
+      }
     }
   };
 

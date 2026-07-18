@@ -11,29 +11,10 @@ import MonitoringDashboard from './components/MasterAdmin/MonitoringDashboard';
 import FormPendaftaranSaaS from './components/FormPendaftaranSaaS';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { LandingDataProvider } from './lib/LandingDataContext';
-import { supabase } from './lib/supabase';
 
 function AppRoutes() {
   const subdomain = useSubdomain();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    // Capture recovery URL hash from Supabase and redirect to password reset route
-    if (window.location.hash && window.location.hash.includes('type=recovery')) {
-      navigate('/reset-password');
-    }
-
-    // Also handle PASSWORD_RECOVERY event triggers
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        navigate('/reset-password');
-      }
-    });
-
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, [navigate]);
 
   return (
     <Routes>
