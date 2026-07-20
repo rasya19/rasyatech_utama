@@ -1,13 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import RasyatechLanding from './components/RasyatechLanding';
-import MasterAdmin from './components/MasterAdmin/Dashboard';
+import SaaSManager from './components/SaaSManager';
 import TenantDashboard from './components/TenantDashboard';
 import AffiliatePortal from './components/AffiliatePortal';
 import SchoolLogin from './components/SchoolLogin';
 import ResetPassword from './components/ResetPassword';
 import SplashScreen from './components/SplashScreen';
-import MonitoringDashboard from './components/MasterAdmin/MonitoringDashboard';
 import FormPendaftaranSaaS from './components/FormPendaftaranSaaS';
 import { SubdomainProvider, useSubdomain } from './lib/SubdomainContext';
 import { LandingDataProvider } from './lib/LandingDataContext';
@@ -24,7 +23,7 @@ function AppRoutes() {
       {/* SuperAdmin/MasterAdmin only on main domain */}
       <Route 
         path="/master-admin" 
-        element={!subdomain ? <MasterAdmin /> : <Navigate to="/admin" />} 
+        element={!subdomain ? <SaaSManager /> : <Navigate to="/admin" />} 
       />
       
       {/* Password Reset Page */}
@@ -48,8 +47,8 @@ function AppRoutes() {
         element={subdomain ? <SchoolLogin /> : <Navigate to="/" />} 
       />
       
-      {/* Centralized Complaint Monitoring Portfolios for Dinas Pendidikan and Internal Command */}
-      <Route path="/admin/monitoring" element={<MonitoringDashboard />} />
+      {/* Centralized Complaint Monitoring Portfolios redirected to MasterAdmin */}
+      <Route path="/admin/monitoring" element={<Navigate to="/master-admin" />} />
             
       {/* Global SaaS Registration Form */}
       <Route path="/daftar" element={<FormPendaftaranSaaS />} />

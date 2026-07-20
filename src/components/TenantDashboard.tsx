@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import SchoolLogin from './SchoolLogin';
-import TeachersTable from './TeachersTable';
-import StudentsTable from './StudentsTable';
 import { 
   LayoutDashboard, Users, BookOpen, Settings, Loader2, School, LogOut,
   FileText, CheckCircle2, AlertTriangle, TrendingUp, ShieldCheck, HelpCircle, BarChart2,
@@ -502,7 +500,6 @@ export default function TenantDashboard() {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'profile', label: 'Profil Sekolah', icon: <Settings className="w-5 h-5" /> },
-    { id: 'academic', label: 'Manajemen Akademik', icon: <Users className="w-5 h-5" /> },
     { id: 'learning', label: 'Pembelajaran', icon: <BookOpen className="w-5 h-5" /> },
   ];
 
@@ -634,20 +631,6 @@ export default function TenantDashboard() {
                     <div className="text-[11px] text-slate-400 font-medium mt-3">Sistem pengajaran siap digunakan.</div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {activeTab === 'academic' && schoolData?.id ? (
-              <div className="space-y-8">
-                <TeachersTable schoolId={schoolData.id} />
-                <StudentsTable schoolId={schoolData.id} />
-              </div>
-            ) : activeTab === 'academic' && (
-              <div className="space-y-8">
-                {/* Fallbacks for demo testing view */}
-                <p className="text-slate-400 text-sm font-semibold italic">Mencoba memuat data simulasi akademis...</p>
-                <TeachersTable schoolId="demo-school-id" />
-                <StudentsTable schoolId="demo-school-id" />
               </div>
             )}
 

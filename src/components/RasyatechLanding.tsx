@@ -7,6 +7,9 @@ const NativeAd = () => {
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (window.self !== window.top || import.meta.env.DEV) {
+      return;
+    }
     if (containerRef.current && containerRef.current.childNodes.length === 0) {
       const script = document.createElement('script');
       script.src = "https://pl29415828.profitablecpmratenetwork.com/26c89f0fdb85ab44e206cf5063565f75/invoke.js";
@@ -15,6 +18,10 @@ const NativeAd = () => {
       containerRef.current.appendChild(script);
     }
   }, []);
+
+  if (window.self !== window.top || import.meta.env.DEV) {
+    return null;
+  }
 
   return (
     <div className="native-ad-wrapper" style={{ padding: '40px 10%', display: 'flex', justifyContent: 'center', background: '#fff' }}>
@@ -27,6 +34,9 @@ const BannerAd = () => {
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (window.self !== window.top || import.meta.env.DEV) {
+      return;
+    }
     if (containerRef.current && containerRef.current.childNodes.length === 0) {
       const conf = document.createElement('script');
       conf.innerHTML = `
@@ -47,6 +57,10 @@ const BannerAd = () => {
       containerRef.current.appendChild(script);
     }
   }, []);
+
+  if (window.self !== window.top || import.meta.env.DEV) {
+    return null;
+  }
 
   return (
     <div className="banner-ad-wrapper" style={{ display: 'flex', justifyContent: 'center', margin: '40px 0', width: '100%', overflow: 'hidden', position: 'relative', zIndex: 10 }}>
